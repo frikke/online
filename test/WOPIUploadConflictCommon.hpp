@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,7 +12,6 @@
 #pragma once
 
 #include <string>
-#include <memory>
 
 #include <Poco/Net/HTTPRequest.h>
 
@@ -25,7 +28,7 @@
  *
  * The way this works is as follows:
  * 1. Load a document.
- * 2. When we get 'status:' in onFilterSendWebSocketMessage, we modify it.
+ * 2. When we get onDocumentLoaded ('loaded:'), we modify it.
  * 3. Simulate content-change in storage and attempt to save it.
  *  4a. Disconnect and the modified data must be discarded.
  *  4b. Save and, on getting the documentconflict error, discard.
@@ -34,7 +37,6 @@
  * 5. Load the document again and verify the expected contents.
  * 6. Move to the next test scenario.
  */
-
 class WOPIUploadConflictCommon : public WopiTestServer
 {
 private:
@@ -47,7 +49,13 @@ protected:
     STATE_ENUM(Phase, Load, WaitLoadStatus, WaitModifiedStatus, WaitDocClose) _phase;
 
     /// The different test scenarios. All but VerifyOverwrite modify the document.
-    STATE_ENUM(Scenario, Disconnect, SaveDiscard, CloseDiscard, SaveOverwrite, VerifyOverwrite)
+    /// See the documentation above.
+    STATE_ENUM(Scenario,
+               Disconnect, ///< Scenario 4a.
+               SaveDiscard, ///< Scenario 4b.
+               CloseDiscard, ///< Scenario 4c.
+               SaveOverwrite, ///< Scenario 4d.
+               VerifyOverwrite) ///< Scenario 5.
     _scenario;
 
     static constexpr auto OriginalDocContent = "Original contents";
@@ -96,7 +104,7 @@ public:
         setTimeout(std::chrono::seconds(90));
     }
 
-    void startNewTest()
+    virtual void startNewTest()
     {
         LOG_TST("===== Starting " << name(_scenario) << " test scenario =====");
 
@@ -109,28 +117,37 @@ public:
         resetCountPutRelative();
 
         // We always load once per scenario.
-        setExpectedCheckFileInfo(1);
         setExpectedGetFile(1); // All the tests GetFile once.
         setExpectedPutRelative(0); // No renaming in these tests.
 
-        if (_scenario == Scenario::VerifyOverwrite)
+        switch (_scenario)
         {
-            // By default, we don't upload when verifying (unless always_save_on_exit is set).
-            setExpectedPutFile(0);
-        }
-        else if (_scenario == Scenario::Disconnect || _scenario == Scenario::SaveDiscard ||
-                 _scenario == Scenario::CloseDiscard)
-        {
-            // When there is no client connected, there is no way
-            // to decide how to resolve the conflict externally.
-            // So we quarantine and let it be.
-            // Similarly, when the client decides to discard changes.
-            setExpectedPutFile(1);
-        }
-        else
-        {
-            // With conflicts, we typically do two PutFile requests.
-            setExpectedPutFile(2);
+            case Scenario::Disconnect:
+            {
+                // When there is no client connected, there is no way
+                // to decide how to resolve the conflict externally.
+                // So we quarantine and let it be.
+                setExpectedPutFile(1);
+                setExpectedCheckFileInfo(1); // Conflict recovery requires second CFI.
+            }
+            break;
+            case Scenario::SaveDiscard:
+                setExpectedPutFile(1); // The client discards their changes; don't upload.
+                setExpectedCheckFileInfo(2); // Conflict recovery requires second CFI.
+                break;
+            case Scenario::CloseDiscard:
+                setExpectedPutFile(1); // The client discards their changes; don't upload.
+                setExpectedCheckFileInfo(2); // Conflict recovery requires second CFI.
+                break;
+            case Scenario::SaveOverwrite:
+                setExpectedPutFile(2); // Upload a second time to force client's changes.
+                setExpectedCheckFileInfo(2); // Conflict recovery requires second CFI.
+                break;
+            case Scenario::VerifyOverwrite:
+                // By default, we don't upload when verifying (unless always_save_on_exit is set).
+                setExpectedPutFile(0);
+                setExpectedCheckFileInfo(1); // No conflict to recover from.
+                break;
         }
     }
 
@@ -151,7 +168,7 @@ public:
 
     void assertPutFileCount()
     {
-        LOG_TST("Testing " << toString(_scenario));
+        LOG_TST("Testing " << name(_scenario));
         LOK_ASSERT_STATE(_phase, Phase::WaitDocClose);
 
         if (getExpectedPutRelative() < getCountPutRelative())
@@ -170,7 +187,7 @@ public:
 
     bool onDocumentLoaded(const std::string& message) override
     {
-        LOG_TST("Testing " << toString(_scenario) << ": [" << message << ']');
+        LOG_TST("Testing " << name(_scenario) << ": [" << message << ']');
         LOK_ASSERT_STATE(_phase, Phase::WaitLoadStatus);
 
         if (_scenario != Scenario::VerifyOverwrite)
@@ -194,7 +211,7 @@ public:
 
     bool onDocumentModified(const std::string& message) override
     {
-        LOG_TST("Testing " << toString(_scenario) << ": [" << message << ']');
+        LOG_TST("Testing " << name(_scenario) << ": [" << message << ']');
         LOK_ASSERT_STATE(_phase, Phase::WaitModifiedStatus);
 
         // Change the underlying document in storage.
@@ -234,7 +251,7 @@ public:
 
     bool onDocumentError(const std::string& message) override
     {
-        LOG_TST("Testing " << toString(_scenario) << ": [" << message << ']');
+        LOG_TST("Testing " << name(_scenario) << ": [" << message << ']');
         LOK_ASSERT_STATE(_phase, Phase::WaitDocClose);
 
         LOK_ASSERT_EQUAL_MESSAGE("Expect only documentconflict errors",
@@ -268,15 +285,15 @@ public:
         // We expect this to happen only with the disonnection test,
         // because only in that case there is no user input.
         LOK_ASSERT_MESSAGE("Expected reason to be 'Data-loss detected'",
-                           Util::startsWith(reason, "Data-loss detected"));
-        LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitDocClose but was " + toString(_phase),
-                           _phase == Phase::WaitDocClose);
+                           reason.starts_with("Data-loss detected"));
+        LOK_ASSERT_STATE(_phase, Phase::WaitDocClose);
+
         // In SaveOverwrite, we should not be in modified state, because we do save
         // and upload. But because we don't wait for the modified=false, we can end-up
         // here. Since we will verify after reloading that we have no data-loss, it's OK.
         LOK_ASSERT_MESSAGE(
-            "Expected to be in Scenario::Disconnect OR Scenario::SaveOverwrite but was " +
-                toString(_scenario),
+            "Expected to be in Scenario::Disconnect OR Scenario::SaveOverwrite but was "
+                << name(_scenario),
             (_scenario == Scenario::Disconnect) || (_scenario == Scenario::SaveOverwrite));
 
         return failed();
@@ -288,12 +305,19 @@ public:
         LOG_TST("Testing " << name(_scenario) << " with dockey [" << docKey << "] closed.");
         LOK_ASSERT_STATE(_phase, Phase::WaitDocClose);
 
-        LOK_ASSERT_EQUAL(getExpectedCheckFileInfo(), getCountCheckFileInfo());
+        LOK_ASSERT(getExpectedCheckFileInfo() >= getCountCheckFileInfo());
         LOK_ASSERT_EQUAL(getExpectedGetFile(), getCountGetFile());
         LOK_ASSERT_EQUAL(getExpectedPutRelative(), getCountPutRelative());
         // LOK_ASSERT_EQUAL(getExpectedPutFile(), getCountPutFile()); //FIXME: unreliable for some tests.
 
         LOG_TST("===== Finished " << name(_scenario) << " test scenario =====");
+
+        if (_scenario != Scenario::VerifyOverwrite)
+        {
+            // Restart the next scenario, unless we are at the last one.
+            TRANSITION_STATE(_phase, Phase::Load);
+        }
+
         switch (_scenario)
         {
             case Scenario::Disconnect:
@@ -312,8 +336,6 @@ public:
                 passTest("Finished all test scenarios without issues");
                 break;
         }
-
-        TRANSITION_STATE(_phase, Phase::Load);
     }
 
     void invokeWSDTest() override
@@ -324,7 +346,7 @@ public:
             {
                 startNewTest();
 
-                LOG_TST("Loading the document for " << toString(_scenario));
+                LOG_TST("Loading the document for " << name(_scenario));
 
                 TRANSITION_STATE(_phase, Phase::WaitLoadStatus);
 

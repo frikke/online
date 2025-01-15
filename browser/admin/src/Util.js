@@ -1,9 +1,21 @@
 /* -*- js-indent-level: 8 -*- */
 /*
-	Utility class
-*/
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
+ * Utility class
+ */
+
 /* global Base _ */
+
 /* eslint no-unused-vars:0 */
+
 var Util = Base.extend({
 	constructor: null
 
@@ -18,6 +30,37 @@ var Util = Base.extend({
 
 		return kbytes.toFixed(1) + ' ' + units[i];
 	},
+
+    /// Return human readable quantity with added multiple, percentage (1/100) or permyriad (1/10'000) to maximum, if maximum > 1.
+    humanizeQty: function (quantity, maximum) {
+        var qtyPrecision = 1;
+        var pct_s = '';
+        if (maximum > 1) {
+            qtyPrecision = 0;
+            var pct = ( 100 * quantity ) / maximum;
+            if( pct > 100 ) {
+                pct = quantity / maximum;
+                pct_s = ', ' + pct.toFixed(1) + 'x';
+            } else if( pct >= 10 ) {
+                pct_s = ', ' + pct.toFixed(0) + '%';
+            } else if( pct >= 0.1 ) {
+                pct_s = ', ' + pct.toFixed(1) + '%';
+            } else {
+                pct = ( 10000 * quantity ) / maximum;
+                if( pct >= 10 ) {
+                    pct_s = ', ' + pct.toFixed(0) + '‱';
+                } else {
+                    pct_s = ', ' + pct.toFixed(1) + '‱';
+                }
+            }
+        }
+        var unit = 1000;
+        var units = ['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y', 'B'];
+        for (var i = 0; Math.abs(quantity) >= unit && i < units.length; i++) {
+            quantity /= unit;
+        }
+        return quantity.toFixed(qtyPrecision) + units[i] + pct_s;
+    },
 
 	humanizeSecs: function(secs) {
 		var mins = 0;
@@ -57,17 +100,5 @@ var Util = Base.extend({
 		}
 
 		return res;
-	},
-
-	getCookie: function(name) {
-		var cookies = document.cookie.split(';');
-		for (var i = 0; i < cookies.length; i++) {
-			var cookie = cookies[i].trim();
-			if (cookie.indexOf(name) === 0) {
-				return cookie;
-			}
-		}
-
-		return '';
 	}
 });

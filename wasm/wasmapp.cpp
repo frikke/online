@@ -1,20 +1,33 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <config.h>
+
 #include "wasmapp.hpp"
 
+#include <FakeSocket.hpp>
+#include <Log.hpp>
+#include <COOLWSD.hpp>
+#include <Util.hpp>
+
 #include "base64.hpp"
+#include <emscripten/fetch.h>
 
 int coolwsd_server_socket_fd = -1;
 
 const char* user_name;
-const int SHOW_JS_MAXLEN = 200;
+constexpr std::size_t SHOW_JS_MAXLEN = 200;
 
-static std::string fileURL = "file:///sample.docx";
+#define FILE_PATH "/sample.docx"
+static std::string fileURL = "file://" FILE_PATH;
 static COOLWSD *coolwsd = nullptr;
 static int fakeClientFd;
 static int closeNotificationPipeForForwardingThread[2] = {-1, -1};
@@ -39,33 +52,13 @@ static void send2JS(const std::vector<char>& buffer)
     }
     else
     {
-        const unsigned char *ubufp = (const unsigned char *)buffer.data();
-        std::vector<char> data;
-        for (size_t i = 0; i < buffer.size(); i++)
-        {
-            if (ubufp[i] < ' ' || ubufp[i] == '\'' || ubufp[i] == '\\')
-            {
-                data.push_back('\\');
-                data.push_back('x');
-                data.push_back("0123456789abcdef"[(ubufp[i] >> 4) & 0x0F]);
-                data.push_back("0123456789abcdef"[ubufp[i] & 0x0F]);
-            }
-            else
-            {
-                data.push_back(ubufp[i]);
-            }
-        }
-
-        js = "window.TheFakeWebSocket.onmessage({'data': '";
-        js = js + std::string(data.data(), data.size());
-        js = js + "'});";
+        js = "window.TheFakeWebSocket.onmessage({'data': window.b64d('";
+        js = js + macaron::Base64::Encode(std::string(buffer.data(), buffer.size()));
+        js = js + "')});";
     }
 
-    std::string subjs = js.substr(0, std::min(std::string::size_type(SHOW_JS_MAXLEN), js.length()));
-    if (js.length() > SHOW_JS_MAXLEN)
-        subjs += "...";
-
-    LOG_TRC_NOFILE( "Evaluating JavaScript: " << subjs);
+    LOG_TRC_NOFILE("Evaluating JavaScript: " << js.substr(0, std::min(SHOW_JS_MAXLEN, js.size()))
+                                             << (js.size() > SHOW_JS_MAXLEN ? "..." : ""));
 
     MAIN_THREAD_EM_ASM(eval(UTF8ToString($0)), js.c_str());
 }
@@ -136,15 +129,13 @@ void handle_cool_message(const char *string_value)
         // First we simply send it the URL. This corresponds to the GET request with Upgrade to
         // WebSocket.
         LOG_TRC_NOFILE("Actually sending to Online:" << fileURL);
+        std::cout << "Loading file [" << fileURL << "]" << std::endl;
 
-        std::thread([]
-                    {
-                        struct pollfd pollfd;
-                        pollfd.fd = fakeClientFd;
-                        pollfd.events = POLLOUT;
-                        fakeSocketPoll(&pollfd, 1, -1);
-                        fakeSocketWrite(fakeClientFd, fileURL.c_str(), fileURL.size());
-                    }).detach();
+        struct pollfd pollfd;
+        pollfd.fd = fakeClientFd;
+        pollfd.events = POLLOUT;
+        fakeSocketPoll(&pollfd, 1, -1);
+        fakeSocketWrite(fakeClientFd, fileURL.c_str(), fileURL.size());
     }
     else if (strcmp(string_value, "BYE") == 0)
     {
@@ -156,16 +147,11 @@ void handle_cool_message(const char *string_value)
     else
     {
         // As above
-        char *string_copy = strdup(string_value);
-        std::thread([=]
-                    {
-                        struct pollfd pollfd;
-                        pollfd.fd = fakeClientFd;
-                        pollfd.events = POLLOUT;
-                        fakeSocketPoll(&pollfd, 1, -1);
-                        fakeSocketWrite(fakeClientFd, string_copy, strlen(string_copy));
-                        free(string_copy);
-                    }).detach();
+        struct pollfd pollfd;
+        pollfd.fd = fakeClientFd;
+        pollfd.events = POLLOUT;
+        fakeSocketPoll(&pollfd, 1, -1);
+        fakeSocketWrite(fakeClientFd, string_value, strlen(string_value));
     }
 }
 
@@ -219,11 +205,17 @@ void closeDocument()
     LOG_DBG("COOLWSD has finished.");
 }
 
-int main(int, char*[])
+int main(int argc, char* argv_main[])
 {
     std::cout << "================ Here is main()" << std::endl;
 
-    Log::initialize("WASM", "error", false, false, {});
+    if (argc < 2)
+    {
+        std::cout << "Error: expected argument with document URL not found" << std::endl;
+        return 1;
+    }
+
+    Log::initialize("WASM", "error", false, false, {}, false, {});
     Util::setThreadName("main");
 
     fakeSocketSetLoggingCallback([](const std::string& line)
@@ -239,12 +231,49 @@ int main(int, char*[])
     fakeClientFd = fakeSocketSocket();
 
     // We run COOOLWSD::run() in a thread of its own so that main() can return.
-    std::thread([&]
-                {
-                    coolwsd = new COOLWSD();
-                    coolwsd->run(1, argv);
-                    delete coolwsd;
-                }).detach();
+    std::thread(
+        [&]
+        {
+            const std::string docURL = std::string(argv_main[1]);
+            const std::string encodedWOPI = std::string(argv_main[2]);
+            const std::string isWOPI = std::string(argv_main[3]);
+
+            std::string url;
+            if (isWOPI == "true")
+                url = "/wasm/" + encodedWOPI;
+            else
+                url = docURL + "/contents";
+
+            printf("isWOPI is %s: Fetching from url %s\n", isWOPI.c_str(), url.c_str());
+
+            emscripten_fetch_attr_t attr;
+            emscripten_fetch_attr_init(&attr);
+            strcpy(attr.requestMethod, "GET");
+            attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY | EMSCRIPTEN_FETCH_SYNCHRONOUS;
+            emscripten_fetch_t* fetch = emscripten_fetch(
+                &attr, url.data()); // Blocks here until the operation is complete.
+            if (fetch->status == 200)
+            {
+                printf("Finished downloading %llu bytes from URL %s.\n", fetch->numBytes,
+                       fetch->url);
+                // For now, we have a hard-coded filename that we open. Clobber it.
+                FILE* f = fopen(FILE_PATH, "w");
+                const int wrote = fwrite(fetch->data, 1, fetch->numBytes, f);
+                fclose(f);
+                printf("Wrote %d bytes into " FILE_PATH "\n", wrote);
+            }
+            else
+            {
+                printf("Downloading %s failed, HTTP failure status code: %d.\n", fetch->url,
+                       fetch->status);
+            }
+            emscripten_fetch_close(fetch);
+
+            coolwsd = new COOLWSD();
+            coolwsd->run(1, argv);
+            delete coolwsd;
+        })
+        .detach();
 
     std::cout << "================ main() is returning" << std::endl;
     return 0;

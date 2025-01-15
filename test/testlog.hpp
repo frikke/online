@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -85,6 +89,7 @@ inline void tstLog(const std::ostringstream& stream) { writeTestLog(stream.str()
         TST_LOG_END_X(oss_log_end);                                                                \
     } while (false)
 
+#if ENABLE_DEBUG
 #define TST_LOG_NAME(NAME, X)                                                                      \
     do                                                                                             \
     {                                                                                              \
@@ -92,6 +97,16 @@ inline void tstLog(const std::ostringstream& stream) { writeTestLog(stream.str()
         TST_LOG_NAME_BEGIN(oss_log_name, NAME, X, false);                                          \
         TST_LOG_END_X(oss_log_name);                                                               \
     } while (false)
+#else // Disable test logs in release.
+#define TST_LOG_NAME(NAME, X)                                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        /* silence '-Werror=unused-variable' */                                                    \
+        (void)NAME;                                                                                \
+        std::stringstream dummyStringstream;                                                       \
+        dummyStringstream << X;                                                                    \
+    } while (0)
+#endif // !ENABLE_DEBUG
 
 /// Used by the "old-style" tests. FIXME: Unify.
 #define TST_LOG(X) TST_LOG_NAME(testname, X)

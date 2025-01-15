@@ -1,59 +1,99 @@
-/* global describe it cy beforeEach require afterEach */
+/* global describe it cy beforeEach require */
 
 var helper = require('../../common/helper');
 var desktopHelper = require('../../common/desktop_helper');
 
-describe.skip(['tagdesktop'], 'Scroll through document, modify heading', function() {
-	var testFileName = 'navigator.odt';
+describe(['tagdesktop'], 'Scroll through document, modify heading', function() {
+
+	function expandSecion(name) {
+		cy.cGet('#contenttree')
+			.contains('.jsdialog.sidebar.ui-treeview-cell-text', name)
+			.parent() // .ui-treeview-cell-text
+			.parent() // .ui-treeview-cell
+			.parent() // div - column
+			.parent() // .ui-treeview-entry
+			.find('.ui-treeview-expander-column')
+			.click();
+	}
 
 	beforeEach(function() {
-		helper.beforeAll(testFileName, 'writer');
+		helper.setupAndLoadDocument('writer/navigator.odt');
 
-		cy.cGet('#menu-view').click();
-		cy.cGet('#menu-navigator').click();
+		cy.cGet('#Navigator-button').click();
 	});
 
-	afterEach(function() {
-		helper.afterAll(testFileName, this.currentTest.state);
+	it('Navigator visual test', function() {
+		cy.cGet('#contenttree').compareSnapshot('navigator_writer', 0.05);
 	});
 
 	it('Jump to element. Navigator -> Document', function() {
 		// Expand Tables, Frames, Images
 		// Note click()/dblclick() scrolls the contenttree even if it would be not needed to click
-		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Tables').parent().prev().click();
-		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Frames').parent().prev().click();
-		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Images').parent().prev().click();
+		expandSecion('Tables');
+		expandSecion('Frames');
+		expandSecion('Images');
 
 		//Scroll back to Top
 		cy.cGet('#contenttree').scrollTo(0,0);
 
 		// Doubleclick several items, and check if the document is scrolled to the right page
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Feedback').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 2 of 8');
+		desktopHelper.assertVisiblePage(2, 2, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Text').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 5 of 8');
+		desktopHelper.assertVisiblePage(5, 6, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Replacing').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 7 of 8');
+		desktopHelper.assertVisiblePage(7, 7, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Table15').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 2 of 8');
+		desktopHelper.assertVisiblePage(2, 2, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Frame39').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 4 of 8');
+		desktopHelper.assertVisiblePage(4, 4, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Frame27').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 6 of 8');
+		desktopHelper.assertVisiblePage(6, 6, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'graphics3').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 1 of 8');
+		desktopHelper.assertVisiblePage(1, 1, 8);
 
 		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'graphics10').dblclick();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 5 of 8');
+		desktopHelper.assertVisiblePage(5, 5, 8);
 	});
 
-	it('Jump to element. Document -> Navigator', function() {
+	it('Jump to element even when cursor not visible', function() {
+		// Expand Tables, Frames, Images
+		// Note click()/dblclick() scrolls the contenttree even if it would be not needed to click
+		expandSecion('Tables');
+		expandSecion('Frames');
+		expandSecion('Images');
+
+		//Scroll back to Top
+		cy.cGet('#contenttree').scrollTo(0,0);
+
+		// Doubleclick several items, and check if the document is scrolled to the right page
+		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Feedback').dblclick();
+		desktopHelper.assertVisiblePage(2, 2, 8);
+
+		desktopHelper.assertScrollbarPosition('vertical', 55, 65);
+
+		// Scroll document to the top so cursor is no longer visible, that turns following off
+		desktopHelper.scrollWriterDocumentToTop();
+		desktopHelper.updateFollowingUsers();
+
+		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Text').dblclick();
+		desktopHelper.assertVisiblePage(5, 6, 8);
+
+		desktopHelper.assertScrollbarPosition('vertical', 235, 250);
+
+		cy.cGet('#contenttree').contains('.jsdialog.sidebar.ui-treeview-cell-text', 'Replacing').dblclick();
+		desktopHelper.assertVisiblePage(7, 7, 8);
+
+		desktopHelper.assertScrollbarPosition('vertical', 335, 355);
+	});
+
+	it.skip('Jump to element. Document -> Navigator', function() {
 		// Move the cursor into elements in Document, and check
 		// if navigator contentTree scroll to the element and select that,
 		// and if necessary expand contentypes, to make the element visible.
@@ -92,7 +132,7 @@ describe.skip(['tagdesktop'], 'Scroll through document, modify heading', functio
 		cy.cGet('#contenttree').find('.jsdialog.sidebar.ui-treeview-entry.ui-treeview-notexpandable.selected').find('.jsdialog.sidebar.ui-treeview-cell-text').should('have.text','Table14');
 	});
 
-	it('Rewrite Heading', function() {
+	it.skip('Rewrite Heading', function() {
 		// Write into a heading, and check if it changed in navigator contentTree.
 		desktopHelper.pressKey(7, 'pagedown');
 		desktopHelper.pressKey(1, 'A');

@@ -1,3 +1,5 @@
+/* -*- js-indent-level: 8 -*- */
+
 /**
  * @class  L.Matrix
  *

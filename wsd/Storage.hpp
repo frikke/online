@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,73 +13,20 @@
 
 #pragma once
 
-#include <set>
-#include <string>
-#include <chrono>
+#include <common/Authorization.hpp>
+#include <common/Common.hpp>
+#include <common/ConfigUtil.hpp>
+#include <common/Log.hpp>
+#include <wsd/COOLWSD.hpp>
 
 #include <Poco/URI.h>
-#include <Poco/Util/Application.h>
-#include <Poco/JSON/Object.h>
 
-#include "Auth.hpp"
-#include "HttpRequest.hpp"
-#include "COOLWSD.hpp"
-#include "Log.hpp"
-#include "Util.hpp"
-#include <common/Authorization.hpp>
-#include <net/HttpRequest.hpp>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <chrono>
 
-/// Limits number of HTTP redirections to prevent from redirection loops
-static constexpr auto RedirectionLimit = 21;
-
-namespace Poco
-{
-namespace Net
-{
-class HTTPClientSession;
-}
-
-} // namespace Poco
-
-/// Represents whether the underlying file is locked
-/// and with what token.
-struct LockContext
-{
-    /// Do we have support for locking for a storage.
-    bool        _supportsLocks;
-    /// Do we own the (leased) lock currently
-    bool        _isLocked;
-    /// Name if we need it to use consistently for locking
-    std::string _lockToken;
-    /// Time of last successful lock (re-)acquisition
-    std::chrono::steady_clock::time_point _lastLockTime;
-    /// Reason for unsuccessful locking request
-    std::string _lockFailureReason;
-
-    LockContext()
-        : _supportsLocks(false)
-        , _isLocked(false)
-        , _refreshSeconds(COOLWSD::getConfigValue<int>("storage.wopi.locking.refresh", 900))
-    {
-    }
-
-    /// one-time setup for supporting locks & create token
-    void initSupportsLocks();
-
-    /// wait another refresh cycle
-    void bumpTimer()
-    {
-        _lastLockTime = std::chrono::steady_clock::now();
-    }
-
-    /// do we need to refresh our lock ?
-    bool needsRefresh(const std::chrono::steady_clock::time_point &now) const;
-
-    void dumpState(std::ostream& os) const;
-
-private:
-    const std::chrono::seconds _refreshSeconds;
-};
+class LockContext;
 
 /// Base class of all Storage abstractions.
 class StorageBase
@@ -86,15 +37,18 @@ public:
     class FileInfo
     {
     public:
-        FileInfo(std::string filename, std::string ownerId, std::string modifiedTime)
-            : _filename(std::move(filename))
+        FileInfo(std::size_t size, std::string filename, std::string ownerId,
+                 std::string modifiedTime)
+            : _size(size)
+            , _filename(std::move(filename))
             , _ownerId(std::move(ownerId))
             , _modifiedTime(std::move(modifiedTime))
         {
         }
 
         FileInfo(const FileInfo& fileInfo)
-            : _filename(fileInfo._filename)
+            : _size(fileInfo._size)
+            , _filename(fileInfo._filename)
             , _ownerId(fileInfo._ownerId)
             , _modifiedTime(fileInfo._modifiedTime)
         {
@@ -118,6 +72,8 @@ public:
             return !_filename.empty();
         }
 
+        std::size_t getSize() const { return _size; }
+
         const std::string& getFilename() const { return _filename; }
 
         const std::string& getOwnerId() const { return _ownerId; }
@@ -125,13 +81,20 @@ public:
         /// Set the last modified time as reported to the WOPI host.
         void setLastModifiedTime(const std::string& modifiedTime) { _modifiedTime = modifiedTime; }
 
-        /// Get the last modified time as reported by the WOPI host.
+        /// Get the last modified time as reported by the WOPI host, empty if unsafe to rely on
         const std::string& getLastModifiedTime() const { return _modifiedTime; }
 
+        /// Sometimes an up-load fails, leaving our timestamp in an unknown state
+        bool isLastModifiedTimeSafe() const { return !_modifiedTime.empty(); }
+
+        /// Set last modified time as unsafe
+        void setLastModifiedTimeUnSafe() { _modifiedTime.clear(); }
+
     private:
+        std::size_t _size;
         std::string _filename;
         std::string _ownerId;
-        std::string _modifiedTime; //< Opaque modified timestamp as received from the server.
+        std::string _modifiedTime; ///< Opaque modified timestamp as received from the server.
     };
 
     /// Represents attributes of interest to the storage.
@@ -226,16 +189,14 @@ public:
     class UploadResult final
     {
     public:
-        enum class Result
-        {
-            OK = 0,
-            DISKFULL,
-            TOO_LARGE, //< 413
-            UNAUTHORIZED, //< 401, 403, 404
-            DOC_CHANGED, /**< Document changed in storage */
-            CONFLICT, //< 409
-            FAILED
-        };
+        STATE_ENUM(Result,
+                   OK = 0, ///< Uploaded successfully
+                   DISKFULL, ///< Unused.
+                   TOO_LARGE, ///< 413
+                   UNAUTHORIZED, ///< 401, 403, 404
+                   DOC_CHANGED, /**< Document changed in storage */
+                   CONFLICT, ///< 409
+                   FAILED);
 
         explicit UploadResult(Result result)
             : _result(result)
@@ -273,19 +234,19 @@ public:
         std::string _reason;
     };
 
-    /// The state of an asynchronous upload request.
-    class AsyncUpload final
+    /// The state of an asynchronous request.
+    template <typename TResult> class AsyncRequest final
     {
     public:
-        enum class State
-        {
-            None, //< No async upload in progress or isn't supported.
-            Running, //< An async upload request is in progress.
-            Error, //< Failed to make an async upload request or timed out, no UploadResult.
-            Complete //< The last async upload request completed (regardless of the server's response).
-        };
+        STATE_ENUM(
+            State,
+            None, ///< No async upload in progress or isn't supported.
+            Running, ///< An async upload request is in progress.
+            Error, ///< Failed to make an async upload request or timed out, no TResult.
+            Complete ///< The last async upload request completed (regardless of the server's response).
+        );
 
-        AsyncUpload(State state, UploadResult result)
+        AsyncRequest(State state, TResult result)
             : _state(state)
             , _result(std::move(result))
         {
@@ -295,12 +256,66 @@ public:
         State state() const { return _state; }
 
         /// Returns the result of the async upload.
-        const UploadResult& result() const { return _result; }
+        const TResult& result() const { return _result; }
 
     private:
         State _state;
-        UploadResult _result;
+        TResult _result;
     };
+
+    /// The state of an asynchronous Upload request.
+    using AsyncUpload = AsyncRequest<UploadResult>;
+
+    STATE_ENUM(LockState,
+               LOCK, ///< Lock the document.
+               UNLOCK, ///< Unlock the document .
+    );
+
+    /// Represents the Lock request result, with a Result code
+    /// and a reason message (typically for errors).
+    /// Note: the reason message may be displayed to the clients.
+    class LockUpdateResult final
+    {
+    public:
+        STATE_ENUM(Status,
+                   UNSUPPORTED, ///< Locking is not supported on this host.
+                   OK, ///< Succeeded to either lock or unlock (see LockContext).
+                   UNAUTHORIZED, ///< 401, 403, 404.
+                   FAILED ///< Other failures.
+        );
+
+        /// Construct a LockUpdateResult without a failure reason.
+        LockUpdateResult(Status status, LockState requestedLockState)
+            : LockUpdateResult(status, requestedLockState, /*reason=*/std::string())
+        {
+        }
+
+        /// Construct a LockUpdateResult with a failure reason.
+        LockUpdateResult(Status status, LockState requestedLockState, std::string reason)
+            : _status(status)
+            , _reason(std::move(reason))
+            , _requestedLockState(requestedLockState)
+        {
+        }
+
+        void setState(Status status) { _status = status; }
+
+        Status getStatus() const { return _status; }
+
+        void setReason(const std::string& msg) { _reason = msg; }
+
+        const std::string& getReason() const { return _reason; }
+
+        LockState requestedLockState() const { return _requestedLockState; }
+
+    private:
+        Status _status;
+        std::string _reason;
+        LockState _requestedLockState;
+    };
+
+    /// The state of an asynchronous lock request.
+    using AsyncLockUpdate = AsyncRequest<LockUpdateResult>;
 
     enum class COOLStatusCode
     {
@@ -309,13 +324,13 @@ public:
 
     /// localStorePath the absolute root path of the chroot.
     /// jailPath the path within the jail that the child uses.
-    StorageBase(const Poco::URI& uri,
-                const std::string& localStorePath,
-                const std::string& jailPath) :
-        _localStorePath(localStorePath),
-        _jailPath(jailPath),
-        _fileInfo(std::string(), "cool", std::string()),
-        _isDownloaded(false)
+    StorageBase(const Poco::URI& uri, const std::string& localStorePath,
+                const std::string& jailPath)
+        : _localStorePath(localStorePath)
+        , _jailPath(jailPath)
+        , _fileInfo(/*size=*/0, /*filename=*/std::string(), /*ownerId=*/"cool",
+                    /*modifiledTime=*/std::string())
+        , _isDownloaded(false)
     {
         setUri(uri);
         LOG_DBG("Storage ctor: " << COOLWSD::anonymizeUrl(_uri.toString()));
@@ -325,19 +340,19 @@ public:
 
     const Poco::URI& getUri() const { return _uri; }
 
-    const std::string& getJailPath() const { return _jailPath; };
+    const std::string& getJailPath() const { return _jailPath; }
 
     /// Returns the root path to the jailed file.
-    const std::string& getRootFilePath() const { return _jailedFilePath; };
+    const std::string& getRootFilePath() const { return _jailedFilePath; }
 
     /// Returns the root path to the jailed file to be uploaded.
-    std::string getRootFilePathToUpload() const { return _jailedFilePath + TO_UPLOAD_SUFFIX; };
+    std::string getRootFilePathToUpload() const { return _jailedFilePath + TO_UPLOAD_SUFFIX; }
 
     /// Returns the root path to the jailed file being uploaded.
     std::string getRootFilePathUploading() const
     {
         return _jailedFilePath + TO_UPLOAD_SUFFIX + UPLOADING_SUFFIX;
-    };
+    }
 
     /// Set the root path of the jailed file, only for use in cases where we actually have converted
     /// it to another format, in the same directory
@@ -347,7 +362,7 @@ public:
         _jailedFilePath = newPath;
     }
 
-    const std::string& getRootFilePathAnonym() const { return _jailedFilePathAnonym; };
+    const std::string& getRootFilePathAnonym() const { return _jailedFilePathAnonym; }
 
     void setRootFilePathAnonym(const std::string& newPath)
     {
@@ -364,23 +379,24 @@ public:
     const FileInfo& getFileInfo() const { return _fileInfo; }
 
     const std::string& getLastModifiedTime() const { return _fileInfo.getLastModifiedTime(); }
-    void setLastModifiedTime(const std::string& modifiedTime)
-    {
-        _fileInfo.setLastModifiedTime(modifiedTime);
-    }
+    void setLastModifiedTime(const std::string& modifiedTime) { _fileInfo.setLastModifiedTime(modifiedTime); }
+    bool isLastModifiedTimeSafe() const { return _fileInfo.isLastModifiedTimeSafe(); }
+    void setLastModifiedTimeUnSafe() { _fileInfo.setLastModifiedTimeUnSafe(); }
 
     std::string getFileExtension() const { return Poco::Path(_fileInfo.getFilename()).getExtension(); }
 
-    STATE_ENUM(LockUpdateResult,
-               UNSUPPORTED, //< Locking is not supported on this host.
-               OK, //< Succeeded to either lock or unlock (see LockContext).
-               UNAUTHORIZED, //< 401, 403, 404.
-               FAILED //< Other failures.
-    );
-
-    /// Update the locking state (check-in/out) of the associated file
+    /// Update the locking state (check-in/out) of the associated file synchronously.
     virtual LockUpdateResult updateLockState(const Authorization& auth, LockContext& lockCtx,
-                                             bool lock, const Attributes& attribs) = 0;
+                                             LockState lock, const Attributes& attribs) = 0;
+
+    /// The asynchronous upload completion callback function.
+    using AsyncLockStateCallback = std::function<void(const AsyncLockUpdate&)>;
+
+    /// Update the locking state (check-in/out) of the associated file asynchronously.
+    virtual void updateLockStateAsync(const Authorization& auth, LockContext& lockCtx,
+                                      LockState lock, const Attributes& attribs,
+                                      SocketPoll& socketPoll,
+                                      const AsyncLockStateCallback& asyncLockStateCallback) = 0;
 
     /// Returns a local file path for the given URI.
     /// If necessary copies the file locally first.
@@ -393,11 +409,12 @@ public:
     /// Writes the contents of the file back to the source asynchronously, if possible.
     /// @param savedFile When the operation was saveAs, this is the path to the file that was saved.
     /// @param asyncUploadCallback Used to communicate the result back to the caller.
-    virtual void uploadLocalFileToStorageAsync(const Authorization& auth, LockContext& lockCtx,
-                                               const std::string& saveAsPath,
-                                               const std::string& saveAsFilename,
-                                               const bool isRename, const Attributes&, SocketPoll&,
-                                               const AsyncUploadCallback& asyncUploadCallback) = 0;
+    /// @returns The size of the document.
+    virtual std::size_t
+    uploadLocalFileToStorageAsync(const Authorization& auth, LockContext& lockCtx,
+                                  const std::string& saveAsPath, const std::string& saveAsFilename,
+                                  const bool isRename, const Attributes&, SocketPoll&,
+                                  const AsyncUploadCallback& asyncUploadCallback) = 0;
 
     /// Get the progress state of an asynchronous LocalFileToStorage upload.
     virtual AsyncUpload queryLocalFileToStorageAsyncUploadState()
@@ -416,10 +433,12 @@ public:
     static void initialize();
 
     STATE_ENUM(StorageType,
-               Unsupported, //< An unsupported type.
-               Unauthorized, //< The host is not allowed by the admin.
-               FileSystem, //< File-System storage. Only for testing.
-               Wopi //< WOPI-like storage.
+               Unsupported, ///< An unsupported type.
+               Unauthorized, ///< The host is not allowed by the admin.
+               FileSystem, ///< File-System storage. Only for testing.
+#if !MOBILEAPP
+               Wopi ///< WOPI-like storage.
+#endif //!MOBILEAPP
     );
 
     /// Validates the given URI.
@@ -431,15 +450,12 @@ public:
     static std::unique_ptr<StorageBase> create(const Poco::URI& uri, const std::string& jailRoot,
                                                const std::string& jailPath, bool takeOwnership);
 
-    static Poco::Net::HTTPClientSession* getHTTPClientSession(const Poco::URI& uri);
-    static std::shared_ptr<http::Session> getHttpSession(const Poco::URI& uri);
-
 protected:
 
     /// Sanitize a URI by removing authorization tokens.
-    Poco::URI sanitizeUri(Poco::URI uri)
+    void sanitizeUri(Poco::URI& uri)
     {
-        static const std::string access_token("access_token");
+        constexpr std::string_view access_token("access_token");
 
         Poco::URI::QueryParameters queryParams = uri.getQueryParameters();
         for (auto& param : queryParams)
@@ -453,12 +469,14 @@ protected:
                 break;
             }
         }
-
-        return uri;
     }
 
     /// Saves new URI when resource was moved
-    void setUri(const Poco::URI& uri) { _uri = sanitizeUri(uri); }
+    void setUri(const Poco::URI& uri)
+    {
+        _uri = uri;
+        sanitizeUri(_uri);
+    }
 
     /// Returns the root path of the jail directory of docs.
     std::string getLocalRootPath() const;
@@ -473,10 +491,6 @@ private:
     bool _isDownloaded;
 
     static bool FilesystemEnabled;
-    /// If true, use only the WOPI URL for whether to use SSL to talk to storage server
-    static bool SSLAsScheme;
-    /// If true, force SSL communication with storage server
-    static bool SSLEnabled;
 };
 
 /// Trivial implementation of local storage that does not need do anything.
@@ -484,18 +498,16 @@ class LocalStorage : public StorageBase
 {
 public:
     LocalStorage(const Poco::URI& uri, const std::string& localStorePath,
-                 const std::string& jailPath, bool isTemporaryFile)
+                 const std::string& jailPath, [[maybe_unused]] bool isTemporaryFile)
         : StorageBase(uri, localStorePath, jailPath)
 #if !MOBILEAPP
         , _isTemporaryFile(isTemporaryFile)
 #endif
         , _isCopy(false)
     {
-        LOG_INF("LocalStorage ctor with localStorePath: [" << localStorePath <<
-                "], jailPath: [" << jailPath << "], uri: [" << COOLWSD::anonymizeUrl(uri.toString()) << "].");
-#if MOBILEAPP
-        (void) isTemporaryFile;
-#endif
+        LOG_INF("LocalStorage ctor with localStorePath: ["
+                << localStorePath << "], jailPath: [" << jailPath << "], uri: ["
+                << COOLWSD::anonymizeUrl(uri.toString()) << "].");
     }
 
     class LocalFileInfo
@@ -521,20 +533,33 @@ public:
     /// obtained using getFileInfo method
     std::unique_ptr<LocalFileInfo> getLocalFileInfo();
 
-    LockUpdateResult updateLockState(const Authorization&, LockContext&, bool,
+    LockUpdateResult updateLockState(const Authorization&, LockContext&,
+                                     StorageBase::LockState requestedLockState,
                                      const Attributes&) override
     {
-        return LockUpdateResult::OK;
+        return LockUpdateResult(LockUpdateResult::Status::OK, requestedLockState);
+    }
+
+    void updateLockStateAsync(const Authorization&, LockContext&, LockState requestedLockState,
+                              const Attributes&, SocketPoll&,
+                              const AsyncLockStateCallback& asyncLockStateCallback) override
+    {
+        if (asyncLockStateCallback)
+        {
+            asyncLockStateCallback(AsyncLockUpdate(
+                AsyncLockUpdate::State::Complete,
+                LockUpdateResult(LockUpdateResult::Status::OK, requestedLockState)));
+        }
     }
 
     std::string downloadStorageFileToLocal(const Authorization& auth, LockContext& lockCtx,
                                            const std::string& templateUri) override;
 
-    void uploadLocalFileToStorageAsync(const Authorization& auth, LockContext& lockCtx,
-                                       const std::string& saveAsPath,
-                                       const std::string& saveAsFilename, const bool isRename,
-                                       const Attributes&, SocketPoll&,
-                                       const AsyncUploadCallback& asyncUploadCallback) override;
+    std::size_t
+    uploadLocalFileToStorageAsync(const Authorization& auth, LockContext& lockCtx,
+                                  const std::string& saveAsPath, const std::string& saveAsFilename,
+                                  const bool isRename, const Attributes&, SocketPoll&,
+                                  const AsyncUploadCallback& asyncUploadCallback) override;
 
 private:
 #if !MOBILEAPP
@@ -547,222 +572,57 @@ private:
     static std::atomic<unsigned> LastLocalStorageId;
 };
 
-/// WOPI protocol backed storage.
-class WopiStorage : public StorageBase
+/// Represents whether the underlying file is locked
+/// and with what token.
+class LockContext final
 {
+    /// Do we have support for locking for a storage.
+    bool _supportsLocks;
+    /// Do we own the (leased) lock currently
+    StorageBase::LockState _lockState;
+    /// Name if we need it to use consistently for locking
+    std::string _lockToken;
+    /// Time of last successful lock (re-)acquisition
+    std::chrono::steady_clock::time_point _lastLockTime;
+
 public:
-    WopiStorage(const Poco::URI& uri, const std::string& localStorePath,
-                const std::string& jailPath)
-        : StorageBase(uri, localStorePath, jailPath)
-        , _wopiSaveDuration(std::chrono::milliseconds::zero())
+    LockContext()
+        : _supportsLocks(false)
+        , _lockState(StorageBase::LockState::UNLOCK)
+        , _refreshSeconds(ConfigUtil::getConfigValue<int>("storage.wopi.locking.refresh", 900))
     {
-        LOG_INF("WopiStorage ctor with localStorePath: ["
-                << localStorePath << "], jailPath: [" << jailPath << "], uri: ["
-                << COOLWSD::anonymizeUrl(uri.toString()) << ']');
     }
 
-    class WOPIFileInfo : public FileInfo
+    /// one-time setup for supporting locks & create token
+    void initSupportsLocks();
+
+    /// Returns true if locks are supported.
+    bool supportsLocks() const { return _supportsLocks; }
+
+    /// Returns the lock token used identify our lock on the server.
+    /// Meaningful only when supportsLocks is true.
+    const std::string& lockToken() const { return _lockToken; }
+
+    /// Returns true if locked.
+    bool isLocked() const { return _lockState == StorageBase::LockState::LOCK; }
+
+    /// Sets the new state and bumps the timer.
+    void setState(StorageBase::LockState state)
     {
-        void init();
-    public:
-        enum class TriState
-        {
-            False,
-            True,
-            Unset
-        };
-
-        /// warning - removes items from object.
-        WOPIFileInfo(const FileInfo& fileInfo, const Poco::JSON::Object::Ptr& object,
-                     const Poco::URI& uriObject);
-
-        const std::string& getUserId() const { return _userId; }
-        const std::string& getUsername() const { return _username; }
-        const std::string& getUserExtraInfo() const { return _userExtraInfo; }
-        const std::string& getUserPrivateInfo() const { return _userPrivateInfo; }
-        const std::string& getWatermarkText() const { return _watermarkText; }
-        const std::string& getTemplateSaveAs() const { return _templateSaveAs; }
-        const std::string& getTemplateSource() const { return _templateSource; }
-        const std::string& getBreadcrumbDocName() const { return _breadcrumbDocName; }
-        const std::string& getFileUrl() const { return _fileUrl; }
-        const std::string& getPostMessageOrigin() { return _postMessageOrigin; }
-        const std::string& getHideUserList() { return _hideUserList; }
-
-        bool getUserCanWrite() const { return _userCanWrite; }
-        void setHidePrintOption(bool hidePrintOption) { _hidePrintOption = hidePrintOption; }
-        bool getHidePrintOption() const { return _hidePrintOption; }
-        bool getHideSaveOption() const { return _hideSaveOption; }
-        void setHideExportOption(bool hideExportOption) { _hideExportOption = hideExportOption; }
-        bool getHideExportOption() const { return _hideExportOption; }
-        void setHideRepairOption(bool hideRepairOption) { _hideRepairOption = hideRepairOption; }
-        bool getHideRepairOption() const { return _hideRepairOption; }
-        bool getEnableOwnerTermination() const { return _enableOwnerTermination; }
-        bool getDisablePrint() const { return _disablePrint; }
-        bool getDisableExport() const { return _disableExport; }
-        bool getDisableCopy() const { return _disableCopy; }
-        bool getDisableInactiveMessages() const { return _disableInactiveMessages; }
-        bool getDownloadAsPostMessage() const { return _downloadAsPostMessage; }
-        bool getUserCanNotWriteRelative() const { return _userCanNotWriteRelative; }
-        bool getEnableInsertRemoteImage() const { return _enableInsertRemoteImage; }
-        bool getEnableRemoteLinkPicker() const { return _enableRemoteLinkPicker; }
-        bool getEnableShare() const { return _enableShare; }
-        bool getSupportsRename() const { return _supportsRename; }
-        bool getSupportsLocks() const { return _supportsLocks; }
-        bool getUserCanRename() const { return _userCanRename; }
-
-        TriState getDisableChangeTrackingShow() const { return _disableChangeTrackingShow; }
-        TriState getDisableChangeTrackingRecord() const { return _disableChangeTrackingRecord; }
-        TriState getHideChangeTrackingControls() const { return _hideChangeTrackingControls; }
-
-    private:
-        /// User id of the user accessing the file
-        std::string _userId;
-        /// Obfuscated User id used for logging the UserId.
-        std::string _obfuscatedUserId;
-        /// Display Name of user accessing the file
-        std::string _username;
-        /// Extra public info per user, typically mail and other links, as json, shared with everyone.
-        std::string _userExtraInfo;
-        /// Private info per user, for API keys and other non-public information.
-        std::string _userPrivateInfo;
-        /// In case a watermark has to be rendered on each tile.
-        std::string _watermarkText;
-        /// In case we want to use this file as a template, it should be first re-saved under this name (using PutRelativeFile).
-        std::string _templateSaveAs;
-        /// In case we want to use this file as a template.
-        std::string _templateSource;
-        /// User readable string of document name to show in UI, if present.
-        std::string _breadcrumbDocName;
-        /// The optional FileUrl, used to download the document if provided.
-        std::string _fileUrl;
-        /// WOPI Post message property
-        std::string _postMessageOrigin;
-        /// If set to "true", user list on the status bar will be hidden
-        /// If set to "mobile" | "tablet" | "desktop", will be hidden on a specified device
-        /// (may be joint, delimited by commas eg. "mobile,tablet")
-        std::string _hideUserList;
-        /// If we should disable change-tracking visibility by default (meaningful at loading).
-        TriState _disableChangeTrackingShow = WOPIFileInfo::TriState::Unset;
-        /// If we should disable change-tracking ability by default (meaningful at loading).
-        TriState _disableChangeTrackingRecord = WOPIFileInfo::TriState::Unset;
-        /// If we should hide change-tracking commands for this user.
-        TriState _hideChangeTrackingControls = WOPIFileInfo::TriState::Unset;
-        /// If user accessing the file has write permission
-        bool _userCanWrite = false;
-        /// Hide print button from UI
-        bool _hidePrintOption = false;
-        /// Hide save button from UI
-        bool _hideSaveOption = false;
-        /// Hide 'Download as' button/menubar item from UI
-        bool _hideExportOption = false;
-        /// Hide the 'Repair' button/item from the UI
-        bool _hideRepairOption = false;
-        /// If WOPI host has enabled owner termination feature on
-        bool _enableOwnerTermination = false;
-        /// If WOPI host has allowed the user to print the document
-        bool _disablePrint = false;
-        /// If WOPI host has allowed the user to export the document
-        bool _disableExport = false;
-        /// If WOPI host has allowed the user to copy to/from the document
-        bool _disableCopy = false;
-        /// If WOPI host has allowed the cool to show texts on the overlay informing about
-        /// inactivity, or if the integration is handling that.
-        bool _disableInactiveMessages = false;
-        /// For the (mobile) integrations, to indicate that the downloading for printing, exporting,
-        /// or slideshows should be intercepted and sent as a postMessage instead of handling directly.
-        bool _downloadAsPostMessage = false;
-        /// If set to false, users can access the save-as functionality
-        bool _userCanNotWriteRelative = true;
-        /// If set to true, users can access the insert remote image functionality
-        bool _enableInsertRemoteImage = false;
-        /// If set to true, users can access the remote link picker functionality
-        bool _enableRemoteLinkPicker = false;
-        /// If set to true, users can access the file share functionality
-        bool _enableShare = false;
-        /// If WOPI host supports locking
-        bool _supportsLocks = false;
-        /// If WOPI host supports rename
-        bool _supportsRename = false;
-        /// If user is allowed to rename the document
-        bool _userCanRename = false;
-    };
-
-    /// Returns the response of CheckFileInfo WOPI call for URI that was
-    /// provided during the initial creation of the WOPI storage.
-    /// Also extracts the basic file information from the response
-    /// which can then be obtained using getFileInfo()
-    /// Also sets up the locking context for future operations.
-    std::unique_ptr<WOPIFileInfo> getWOPIFileInfo(const Authorization& auth, LockContext& lockCtx);
-    /// Implementation of getWOPIFileInfo for specific URI
-    std::unique_ptr<WOPIFileInfo> getWOPIFileInfoForUri(Poco::URI uriObject,
-                                                        const Authorization& auth,
-                                                        LockContext& lockCtx,
-                                                        unsigned redirectLimit);
-
-    /// Update the locking state (check-in/out) of the associated file
-    LockUpdateResult updateLockState(const Authorization& auth, LockContext& lockCtx, bool lock,
-                                     const Attributes& attribs) override;
-
-    /// uri format: http://server/<...>/wopi*/files/<id>/content
-    std::string downloadStorageFileToLocal(const Authorization& auth, LockContext& lockCtx,
-                                           const std::string& templateUri) override;
-
-    void uploadLocalFileToStorageAsync(const Authorization& auth, LockContext& lockCtx,
-                                       const std::string& saveAsPath,
-                                       const std::string& saveAsFilename, const bool isRename,
-                                       const Attributes&, SocketPoll& socketPoll,
-                                       const AsyncUploadCallback& asyncUploadCallback) override;
-
-    /// Total time taken for making WOPI calls during uploading.
-    std::chrono::milliseconds getWopiSaveDuration() const { return _wopiSaveDuration; }
-
-    virtual AsyncUpload queryLocalFileToStorageAsyncUploadState() override
-    {
-        if (_uploadHttpSession)
-            return AsyncUpload(AsyncUpload::State::Running, UploadResult(UploadResult::Result::OK));
-        else
-            return AsyncUpload(AsyncUpload::State::None, UploadResult(UploadResult::Result::OK));
+        _lockState = state;
+        bumpTimer();
     }
 
-protected:
-    struct WopiUploadDetails
-    {
-        const std::string filePathAnonym;
-        const std::string uriAnonym;
-        const std::string httpResponseReason;
-        const http::StatusCode httpResponseCode;
-        const std::size_t size;
-        const bool isSaveAs;
-        const bool isRename;
-    };
+    /// wait another refresh cycle
+    void bumpTimer() { _lastLockTime = std::chrono::steady_clock::now(); }
 
-    /// Handles the response from the server when uploading the document.
-    UploadResult handleUploadToStorageResponse(const WopiUploadDetails& details,
-                                             std::string responseString);
+    /// do we need to refresh our lock ?
+    bool needsRefresh(const std::chrono::steady_clock::time_point& now) const;
+
+    void dumpState(std::ostream& os) const;
 
 private:
-    /// Initialize an HTTPRequest instance with the common settings and headers.
-    /// Older Poco versions don't support copying HTTPRequest objects, so we can't generate them.
-    void initHttpRequest(Poco::Net::HTTPRequest& request, const Poco::URI& uri,
-                         const Authorization& auth) const;
-
-    /// Create an http::Request with the common headers.
-    http::Request initHttpRequest(const Poco::URI& uri, const Authorization& auth) const;
-
-    /// Download the document from the given URI.
-    /// Does not add authorization tokens or any other logic.
-    std::string downloadDocument(const Poco::URI& uriObject, const std::string& uriAnonym,
-                                 const Authorization& auth, unsigned redirectLimit);
-
-private:
-    /// A URl provided by the WOPI host to use for GetFile.
-    std::string _fileUrl;
-
-    // Time spend in saving the file from storage
-    std::chrono::milliseconds _wopiSaveDuration;
-
-    /// The http::Session used for uploading asynchronously.
-    std::shared_ptr<http::Session> _uploadHttpSession;
+    const std::chrono::seconds _refreshSeconds;
 };
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

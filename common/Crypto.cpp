@@ -1,13 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
 #include <config.h>
-
-#if ENABLE_SUPPORT_KEY
 
 #include <Poco/DigestStream.h>
 #include <Poco/Base64Decoder.h>
@@ -20,10 +22,21 @@
 
 #include "Log.hpp"
 #include "Crypto.hpp"
+#if ENABLE_SUPPORT_KEY
 #include "support-public-key.hpp"
+#endif
 
 using namespace Poco;
 using namespace Poco::Crypto;
+
+std::string getSupportPublicKey()
+{
+#if ENABLE_SUPPORT_KEY
+    return SUPPORT_PUBLIC_KEY;
+#else
+    return std::string();
+#endif
+}
 
 struct SupportKeyImpl
 {
@@ -65,8 +78,8 @@ struct SupportKeyImpl
     }
 };
 
-SupportKey::SupportKey(const std::string &key) :
-    _impl(new SupportKeyImpl(key))
+SupportKey::SupportKey(const std::string& key)
+    : _impl(std::make_unique<SupportKeyImpl>(key))
 {
 }
 
@@ -82,7 +95,7 @@ bool SupportKey::verify()
         return false;
     }
 
-    std::istringstream pubStream(SUPPORT_PUBLIC_KEY);
+    std::istringstream pubStream(getSupportPublicKey());
 
     try {
         RSAKey keyPub(&pubStream);
@@ -135,7 +148,5 @@ std::string SupportKey::data() const
 {
     return _impl->_data;
 }
-
-#endif // ENABLE_SUPPORT_KEY
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -17,8 +21,6 @@
 #include <Poco/Crypto/RSADigestEngine.h>
 #include <Poco/Crypto/RSAKey.h>
 #include <Poco/Dynamic/Var.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Parser.h>
 #include <Poco/LineEndingConverter.h>
 #include <Poco/Net/HTTPClientSession.h>
 #include <Poco/Net/HTTPRequest.h>
@@ -26,10 +28,11 @@
 #include <Poco/Net/NetException.h>
 #include <Poco/URI.h>
 
+#include <JsonUtil.hpp>
 #include <Log.hpp>
-#include <Util.hpp>
 #include <Protocol.hpp>
-#include "COOLWSD.hpp"
+#include <Util.hpp>
+#include <common/ConfigUtil.hpp>
 
 using Poco::Base64Decoder;
 using Poco::Base64Encoder;
@@ -193,7 +196,7 @@ const std::string JWTAuth::createPayload()
 {
     std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
     std::time_t curtime = std::chrono::system_clock::to_time_t(now);
-    int expirySeconds = COOLWSD::getConfigValue<int>("security.jwt_expiry_secs", 1800);
+    int expirySeconds = ConfigUtil::getConfigValue<int>("security.jwt_expiry_secs", 1800);
     const std::string exptime = std::to_string(curtime + expirySeconds);
 
     // TODO: Some sane code to represent JSON objects

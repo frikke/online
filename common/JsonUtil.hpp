@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -12,12 +16,13 @@
 
 #include <cassert>
 #include <cstddef>
-#include <set>
 #include <string>
 #include <vector>
 
+#include <Poco/Dynamic/Var.h>
 #include <Poco/JSON/Object.h>
 #include <Poco/JSON/Parser.h>
+
 namespace JsonUtil
 {
 
@@ -30,9 +35,16 @@ inline bool parseJSON(const std::string& json, Poco::JSON::Object::Ptr& object)
     {
         const std::string stringJSON = json.substr(index);
         Poco::JSON::Parser parser;
-        const Poco::Dynamic::Var result = parser.parse(stringJSON);
-        object = result.extract<Poco::JSON::Object::Ptr>();
-        return true;
+        try
+        {
+            const Poco::Dynamic::Var result = parser.parse(stringJSON);
+            object = result.extract<Poco::JSON::Object::Ptr>();
+            return true;
+        }
+        catch (const Poco::JSON::JSONException& exception)
+        {
+            LOG_WRN("parseJSON: failed to parse '" << stringJSON << "': '" << exception.what() << "'");
+        }
     }
 
     return false;
@@ -41,8 +53,7 @@ inline bool parseJSON(const std::string& json, Poco::JSON::Object::Ptr& object)
 inline
 int getLevenshteinDist(const std::string& string1, const std::string& string2)
 {
-    int matrix[string1.size() + 1][string2.size() + 1];
-    std::memset(matrix, 0, sizeof(matrix[0][0]) * (string1.size() + 1) * (string2.size() + 1));
+    std::vector<std::vector<int>> matrix(string1.size() + 1, std::vector<int>(string2.size() + 1));
 
     for (std::size_t i = 0; i < string1.size() + 1; i++)
     {
@@ -230,6 +241,37 @@ inline std::string escapeJSONValue(std::string val)
         }
     }
     return std::string(buf.data(), buf.size());
+}
+
+/// Extract all json entries into a map.
+inline std::map<std::string, std::string> jsonToMap(const std::string& jsonString)
+{
+    std::map<std::string, std::string> map;
+    if (jsonString.empty())
+        return map;
+
+    Poco::JSON::Parser parser;
+    const Poco::Dynamic::Var result = parser.parse(jsonString);
+    const auto& json = result.extract<Poco::JSON::Object::Ptr>();
+
+    std::vector<std::string> names;
+    json->getNames(names);
+
+    for (const auto& name : names)
+    {
+        map[name] = json->get(name).toString();
+    }
+
+    return map;
+}
+
+template <typename T>
+Poco::JSON::Object::Ptr makePropertyValue(const std::string& type, const T& val)
+{
+    Poco::JSON::Object::Ptr obj = new Poco::JSON::Object();
+    obj->set("type", type);
+    obj->set("value", val);
+    return obj;
 }
 
 } // end namespace JsonUtil

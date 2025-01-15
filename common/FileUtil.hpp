@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,6 +13,7 @@
 
 #include <cerrno>
 #include <chrono>
+#include <fcntl.h>
 #include <string>
 #include <sys/stat.h>
 
@@ -19,7 +24,7 @@
 namespace FileUtil
 {
     /// Used for anonymizing URLs
-    void setUrlAnonymization(bool anonymize, const std::uint64_t salt);
+    void setUrlAnonymization(bool anonymize, std::uint64_t salt);
 
     /// Anonymize the basename of filenames, preserving the path and extension.
     std::string anonymizeUrl(const std::string& url);
@@ -31,12 +36,15 @@ namespace FileUtil
     /// Create a secure, random directory path.
     std::string createRandomDir(const std::string& path);
 
-    // Save data to a file (overwriting an existing file if necessary) with checks for errors. Write
-    // to a temporary file in the same directory that is then atomically renamed to the desired name
-    // if everything goes well. In case of any error, both the destination file (if it already
-    // exists) and the temporary file (if was created, or existed already) are removed. Return true
-    // if everything succeeded.
-    bool saveDataToFileSafely(const std::string& fileName, const char* data, std::size_t size);
+    /// return the local path to the jailPath under localJailRoot
+    /// localJailRoot /chroot/jailId
+    /// jailPath /tmp/user/doc/childId
+    /// with usingMountNamespaces false then simply return:
+    /// -> /chroot/jailId/tmp/user/doc/childId
+    /// otherwise replaces jailPath's in /tmp with the tmp dir that is mounted
+    /// from, e.g. return:
+    /// -> /chroot/tmp/cool-jailId/tmp/user/doc/childId
+    std::string buildLocalPathToJail(bool usingMountNamespaces, std::string localJailRoot, std::string jailPath);
 
     // We work around some of the mess of using the same sources both on the server side and in unit
     // tests with conditional compilation based on BUILDING_TESTS.
@@ -48,7 +56,7 @@ namespace FileUtil
     // Perform the check. If the free space on any of the registered file systems is below 5%, call
     // 'alertAllUsers("internal", "diskfull")'. The check will be made no more often than once a
     // minute if cacheLastCheck is set to true.
-    std::string checkDiskSpaceOnRegisteredFileSystems(const bool cacheLastCheck = true);
+    std::string checkDiskSpaceOnRegisteredFileSystems(bool cacheLastCheck = true);
 
     // Check disk space on a specific file system, the one where 'path' is located. This does not
     // add that file system to the list used by 'registerFileSystemForDiskSpaceChecks'. If the free
@@ -60,12 +68,16 @@ namespace FileUtil
     /// Suppresses exception when the file is already removed.
     /// This can happen when there is a race (unavoidable) or when
     /// we don't care to check before we remove (when no race exists).
-    void removeFile(const std::string& path, const bool recursive = false);
+    void removeFile(const std::string& path, bool recursive = false);
 
     inline void removeFile(const Poco::Path& path, const bool recursive = false)
     {
         removeFile(path.toString(), recursive);
     }
+
+    /// Remove empty directories recursively.
+    /// We seem to leave behind empty directories in jails and that causes a lot of noise.
+    void removeEmptyDirTree(const std::string& path);
 
     /// Returns true iff the directory is empty (or doesn't exist).
     bool isEmptyDirectory(const char* path);
@@ -120,21 +132,7 @@ namespace FileUtil
     std::string createRandomTmpDir(std::string root = std::string());
 
     /// Create a temporary directory in the root provided
-    std::string createTmpDir(std::string dirName, std::string root = std::string());
-
-    /// Make a temp copy of a file, and prepend it with a prefix.
-    /// Used by tests to avoid tainting the originals.
-    std::string getTempFileCopyPath(const std::string& srcDir, const std::string& srcFilename,
-                                const std::string& dstFilenamePrefix);
-
-    /// Make a temp copy of a file.
-    /// Used by tests to avoid tainting the originals.
-    /// srcDir shouldn't end with '/' and srcFilename shouldn't contain '/'.
-    /// Returns the created file path.
-    inline std::string getTempFileCopyPath(const std::string& srcDir, const std::string& srcFilename)
-    {
-        return getTempFileCopyPath(srcDir, srcFilename, std::string());
-    }
+    std::string createTmpDir(const std::string& dirName, std::string root = std::string());
 
     /// Returns the realpath(3) of the provided path.
     std::string realpath(const char* path);
@@ -150,22 +148,56 @@ namespace FileUtil
     /// have equal size and every byte of their contents match.
     bool compareFileContents(const std::string& rhsPath, const std::string& lhsPath);
 
+    /// Read nbytes from fd into buf. Retries on EINTR.
+    /// Returns the number of bytes read, or -1 on error.
+    ssize_t read(int fd, void* buf, size_t nbytes);
+
+    /// Reads the whole file appending onto the given buffer. Only for small files.
+    /// Does *not* clear the buffer before writing to it. Returns the number of bytes read, -1 for error.
+    template <typename T>
+    ssize_t readFile(const std::string& path, T& data, int maxSize = 256 * 1024)
+    {
+        const int fd = ::open(path.c_str(), O_RDONLY);
+        if (fd < 0)
+            return -1;
+
+        struct stat st;
+        if (::fstat(fd, &st) != 0 || st.st_size > maxSize)
+        {
+            ::close(fd);
+            return -1;
+        }
+
+        const std::size_t originalSize = data.size();
+        const auto remainingSize = (st.st_size > 0 ? st.st_size : maxSize);
+        data.resize(originalSize + remainingSize);
+
+        const ssize_t n = read(fd, &data[originalSize], remainingSize);
+        ::close(fd);
+
+        data.resize(originalSize + (n <= 0 ? 0 : n));
+
+        return n;
+    }
+
+    /// Reads the whole file to memory. Only for small files.
+    std::unique_ptr<std::vector<char>> readFile(const std::string& path, int maxSize = 256 * 1024);
+
     /// File/Directory stat helper.
     class Stat
     {
-        int clearStat() { memset (&_sb, 0, sizeof(_sb)); return 0; }
     public:
         /// Stat the given path. Symbolic links are stat'ed when @link is true.
         Stat(const std::string& file, bool link = false)
             : _path(file)
-            , _res(clearStat() | (link ? lstat(file.c_str(), &_sb) : stat(file.c_str(), &_sb)))
-            , _errno(errno)
+            , _sb{}
+            , _res(link ? lstat(file.c_str(), &_sb) : stat(file.c_str(), &_sb))
+            , _stat_errno(errno)
         {
         }
 
         bool good() const { return _res == 0; }
         bool bad() const { return !good(); }
-        bool erno() const { return _errno; }
         const struct ::stat& sb() const { return _sb; }
 
         const std::string path() const { return _path; }
@@ -218,7 +250,7 @@ namespace FileUtil
         }
 
         /// Returns true iff the path exists, regardless of access permission.
-        bool exists() const { return good() || (_errno != ENOENT && _errno != ENOTDIR); }
+        bool exists() const { return good() || (_stat_errno != ENOENT && _stat_errno != ENOTDIR); }
 
         /// Returns true if both files exist and have
         /// the same size and same contents.
@@ -258,8 +290,12 @@ namespace FileUtil
         const std::string _path;
         struct ::stat _sb;
         const int _res;
-        const int _errno;
+        const int _stat_errno;
     };
+
+    std::vector<std::string> getDirEntries(std::string dirPath);
+
+    void lslr(const std::string& dir);
 
 } // end namespace FileUtil
 

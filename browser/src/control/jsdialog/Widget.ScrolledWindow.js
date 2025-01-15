@@ -1,5 +1,15 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
  * JSDialog.ScrolledWindow - container with scrollbars
  *
  * Example JSON:
@@ -20,18 +30,32 @@
  *     },
  *     children: [...]
  * }
- *
- * Copyright the Collabora Online contributors.
- *
- * SPDX-License-Identifier: MPL-2.0
  */
 
 /* global JSDialog */
+
+function _hasDrawingAreaInside(children) {
+	if (!children)
+		return false;
+
+	for (var i in children) {
+		if (children[i].type === 'drawingarea')
+			return true;
+		if (_hasDrawingAreaInside(children[i].children))
+			return true;
+	}
+
+	return false;
+}
 
 function _scrolledWindowControl(parentContainer, data, builder) {
 	var scrollwindow = L.DomUtil.create('div', builder.options.cssClass + ' ui-scrollwindow', parentContainer);
 	if (data.id)
 		scrollwindow.id = data.id;
+
+	// drawing areas inside scrollwindows should be not cropped so we add special class
+	if (_hasDrawingAreaInside(data.children))
+		L.DomUtil.addClass(scrollwindow, 'has-ui-drawing-area');
 
 	var content = L.DomUtil.create('div', builder.options.cssClass + ' ui-scrollwindow-content', scrollwindow);
 
@@ -52,8 +76,8 @@ function _scrolledWindowControl(parentContainer, data, builder) {
 	if (data.horizontal.policy === 'always')
 		scrollwindow.style.overflowX = 'scroll';
 
-	var realContentHeight = content.clientHeight;
-	var realContentWidth = content.clientWidth;
+	var realContentHeight = scrollwindow.scrollHeight;
+	var realContentWidth = scrollwindow.scrollwidth;
 
 	var margin = 15;
 
@@ -67,8 +91,8 @@ function _scrolledWindowControl(parentContainer, data, builder) {
 
 	var timeoutLimit = 2;
 	var updateSize = function () {
-		realContentHeight = content.clientHeight;
-		realContentWidth = content.clientWidth;
+		realContentHeight = scrollwindow.scrollHeight;
+		realContentWidth = scrollwindow.scrollwidth;
 		if (realContentHeight === 0 || realContentWidth === 0) {
 			if (timeoutLimit--)
 				setTimeout(updateSize, 100);

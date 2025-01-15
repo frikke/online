@@ -1,9 +1,19 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
  * L.Control.MobileWizard - main container can contain few MobileWizardWindows
  */
 
-/* global app $ w2ui */
+/* global app $ */
 L.Control.MobileWizard = L.Control.extend({
 
 	initialize: function (options) {
@@ -104,9 +114,6 @@ L.Control.MobileWizard = L.Control.extend({
 		if (window.pageMobileWizard === true)
 			window.pageMobilewizard = false;
 
-		if (this.map.getDocType() === 'presentation' || this.map.getDocType() === 'drawing')
-			this._hideSlideSorter();
-
 		if (window.commentWizard === true)
 			window.commentWizard = false;
 
@@ -116,9 +123,8 @@ L.Control.MobileWizard = L.Control.extend({
 			this.map.focus();
 		}
 
-		var stb = document.getElementById('spreadsheet-toolbar');
-		if (stb)
-			stb.style.display = 'block';
+		if (this.map.uiManager.sheetsBar)
+			this.map.uiManager.sheetsBar.show();
 	},
 
 	isOpen: function() {
@@ -126,16 +132,16 @@ L.Control.MobileWizard = L.Control.extend({
 	},
 
 	_updateToolbarItemStateByClose: function() {
-		var toolbar = w2ui['actionbar'];
+		var toolbar = app.map.mobileTopBar;
 		if (toolbar)
 		{
-			if (window.mobileWizard === false && toolbar.get('mobile_wizard').checked)
-				toolbar.uncheck('mobile_wizard');
+			//if (window.mobileWizard === false && toolbar.get('mobile_wizard').checked)
+			//	toolbar.uncheck('mobile_wizard');
 
-			if (window.insertionMobileWizard === false && toolbar.get('insertion_mobile_wizard').checked)
-				toolbar.uncheck('insertion_mobile_wizard');
-			if (window.commentWizard === false && toolbar.get('comment_wizard').checked)
-				toolbar.uncheck('comment_wizard');
+			//if (window.insertionMobileWizard === false && toolbar.get('insertion_mobile_wizard').checked)
+			//	toolbar.uncheck('insertion_mobile_wizard');
+			//if (window.commentWizard === false && toolbar.get('comment_wizard').checked)
+			//	toolbar.uncheck('comment_wizard');
 		}
 	},
 
@@ -215,10 +221,6 @@ L.Control.MobileWizard = L.Control.extend({
 			}
 			this._hideWizard();
 		}
-	},
-
-	_hideSlideSorter: function() {
-		document.getElementById('mobile-wizard-header').style.display = 'none';
 	},
 
 	onJSUpdate: function (e) {

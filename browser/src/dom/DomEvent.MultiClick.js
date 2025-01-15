@@ -6,7 +6,7 @@
 
 L.extend(L.DomEvent, {
 
-	addMultiClickListener: function (obj, handler, id) {
+	addMultiClickListener: function (obj, handler, id, type) {
 		var last = [],
 		    delay = 250;
 
@@ -41,10 +41,13 @@ L.extend(L.DomEvent, {
 					clientX: e.clientX,
 					clientY: e.clientY,
 					button: e.button,
-					target: e.target
+					target: e.target,
+					pointerType: e.pointerType,
+					isMouseEvent: e instanceof MouseEvent
 				};
 
-				handler(eOut);
+				if (type == eOut.type)
+					handler(eOut);
 			}
 
 			last.push(now);

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -52,7 +56,7 @@ void UnitTiffLoad::invokeWSDTest()
     // broken.
     const std::string content
         = helpers::assertResponseString(socket, "shapeselectioncontent:", testname);
-    LOK_ASSERT(Util::startsWith(content, "shapeselectioncontent:\n"));
+    LOK_ASSERT(content.starts_with("shapeselectioncontent:\n"));
 
     exitTest(TestResult::Ok);
 }

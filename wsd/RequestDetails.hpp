@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -11,6 +15,7 @@
 #include <Poco/URI.h>
 
 #include <common/StringVector.hpp>
+#include <common/Uri.hpp>
 #include <common/Util.hpp>
 #include <common/Log.hpp>
 
@@ -98,7 +103,7 @@ public:
     {
         Type,
         DocumentURI,
-        LegacyDocumentURI, //< Legacy, to be removed.
+        LegacyDocumentURI, ///< Legacy, to be removed.
         WOPISrc,
         Compat,
         SessionId,
@@ -112,6 +117,7 @@ private:
     bool _isHead : 1;
     bool _isProxy : 1;
     bool _isWebSocket : 1;
+    bool _closeConnection : 1;
     std::string _uriString;
     std::string _proxyPrefix;
     std::string _hostUntrusted;
@@ -129,6 +135,14 @@ public:
     RequestDetails(Poco::Net::HTTPRequest &request, const std::string& serviceRoot);
     RequestDetails(const std::string &mobileURI);
 
+    /// Constructs from its components.
+    /// wopiSrc is typically encoded.
+    /// options are in the form of 'x=y' strings.
+    /// compat is in the form of '/sessionId/command/serial' string. Optional.
+    /// /cool/<encoded-document-URI+options>/ws?WOPISrc=<encoded-document-URI>&compat=/ws[/<sessionId>/<command>/<serial>]
+    RequestDetails(const std::string& wopiSrc, const std::vector<std::string>& options,
+                   const std::string& compat);
+
     /// Decode and sanitize a URI.
     static Poco::URI sanitizeURI(const std::string& uri);
 
@@ -139,6 +153,39 @@ public:
     /// Sanitize the URI and return the document-specific key.
     static std::string getDocKey(const std::string& uri) { return getDocKey(sanitizeURI(uri)); }
 
+    /// Returns false if the WOPISrc is not encoded correctly.
+    static bool validateWOPISrc(const std::string& uri) { return !Uri::needsEncoding(uri); }
+
+    /// This is a per-document, per-user request key.
+    /// If a user makes two requests on the same document at the same time,
+    /// they will have the same request-key and we won't differentiate between them.
+    static std::string getRequestKey(const std::string& wopiSrc, const std::string& accessToken)
+    {
+        const std::string decodedWopiSrc = Uri::decode(wopiSrc);
+        const Poco::URI wopiSrcSanitized = RequestDetails::sanitizeURI(decodedWopiSrc);
+
+        std::string requestKey = RequestDetails::getDocKey(wopiSrcSanitized);
+        requestKey += '_';
+        requestKey += accessToken;
+
+        return requestKey;
+    }
+
+    /// This is a per-document, per-user request key.
+    std::string getRequestKey() const
+    {
+        const std::string wopiSrc = getField(RequestDetails::Field::WOPISrc);
+        if (!wopiSrc.empty())
+        {
+            std::string accessToken;
+            getParamByName("access_token", accessToken);
+
+            return getRequestKey(wopiSrc, accessToken);
+        }
+
+        return std::string();
+    }
+
     // matches the WOPISrc if used. For load balancing
     // must be 2nd element in the path after /cool/<here>
     std::string getLegacyDocumentURI() const { return getField(Field::LegacyDocumentURI); }
@@ -146,13 +193,36 @@ public:
     /// The DocumentURI, decoded. Doesn't contain WOPISrc or any other appendages.
     std::string getDocumentURI() const { return getField(Field::DocumentURI); }
 
+    /// Returns the document-specific key from the DocumentURI.
+    std::string getDocKey() const
+    {
+        return RequestDetails::getDocKey(RequestDetails::sanitizeURI(getDocumentURI()));
+    }
+
     /// The DocumentURI, decoded and sanitized. Doesn't contain WOPISrc or any other appendages.
     std::string getDocumentURISanitized() const
     {
         return sanitizeURI(getField(Field::DocumentURI)).toString();
     }
 
+    /// Returns a key to be used with Online/Offline mode.
+    /// This is based on the WOPISrc path + access_token.
+    std::string getLineModeKey(const std::string& access_token) const;
+
     const std::map<std::string, std::string>& getDocumentURIParams() const { return _docUriParams; }
+
+    /// Returns a param, if it exists.
+    bool getParamByName(const std::string& name, std::string& value) const
+    {
+        const auto it = _docUriParams.find(name);
+        if (it != _docUriParams.end())
+        {
+            value = it->second;
+            return true;
+        }
+
+        return false;
+    }
 
     std::string getURI() const
     {
@@ -173,6 +243,10 @@ public:
     bool isWebSocket() const
     {
         return _isWebSocket;
+    }
+    bool closeConnection() const
+    {
+        return _closeConnection;
     }
     bool isGet() const
     {

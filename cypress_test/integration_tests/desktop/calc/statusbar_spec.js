@@ -1,23 +1,20 @@
-/* global describe it cy beforeEach require afterEach Cypress */
+/* global describe it cy beforeEach require Cypress */
 
 var helper = require('../../common/helper');
 var desktopHelper = require('../../common/desktop_helper');
 var calcHelper = require('../../common/calc_helper');
 
 describe(['tagdesktop', 'tagnextcloud', 'tagproxy'], 'Statubar tests.', function() {
-	var origTestFileName = 'statusbar.ods';
-	var testFileName;
 
 	beforeEach(function() {
-		testFileName = helper.beforeAll(origTestFileName, 'calc');
+		helper.setupAndLoadDocument('calc/statusbar.ods');
 
 		if (Cypress.env('INTEGRATION') === 'nextcloud') {
 			desktopHelper.showStatusBarIfHidden();
 		}
-	});
 
-	afterEach(function() {
-		helper.afterAll(testFileName, this.currentTest.state);
+		cy.cGet(helper.addressInputSelector).should('have.value', 'A3');
+		cy.wait(100);
 	});
 
 	it('Selected sheet.', function() {
@@ -29,27 +26,33 @@ describe(['tagdesktop', 'tagnextcloud', 'tagproxy'], 'Statubar tests.', function
 	});
 
 	it('Multiple cell selection.', function() {
-		cy.cGet('#RowColSelCount').should('have.text', '\u00a0Select multiple cells\u00a0');
-		helper.typeIntoInputField('input#addressInput', 'A1:A2');
+		cy.cGet('#RowColSelCount').should('have.text', 'Select multiple cells');
+		helper.typeIntoInputField(helper.addressInputSelector, 'A1:A2');
 		cy.cGet('#RowColSelCount').should('have.text', 'Selected: 2 rows, 1 column');
-		helper.typeIntoInputField('input#addressInput', 'A1');
-		cy.cGet('#RowColSelCount').should('have.text', '\u00a0Select multiple cells\u00a0');
+		helper.typeIntoInputField(helper.addressInputSelector, 'A1');
+		cy.cGet('#RowColSelCount').should('have.text', 'Select multiple cells');
 	});
 
 	it('Text editing mode.', function() {
-		cy.cGet('#InsertMode').should('have.text', '\u00a0Insert mode: inactive\u00a0');
+		cy.cGet('#InsertMode').should('have.text', 'Insert mode: inactive');
 		calcHelper.dblClickOnFirstCell();
 		cy.cGet('#InsertMode').should('have.text', 'Insert');
 		calcHelper.typeIntoFormulabar('{enter}');
-		cy.cGet('#InsertMode').should('have.text', '\u00a0Insert mode: inactive\u00a0');
+		cy.cGet('#InsertMode').should('have.text', 'Insert mode: inactive');
 	});
 
 	it('Selected data summary.', function() {
 		cy.cGet('#StateTableCell').should('have.text', 'Average: ; Sum: 0');
-		helper.typeIntoInputField('input#addressInput', 'A1:A2');
+		helper.typeIntoInputField(helper.addressInputSelector, 'A1:A2');
 		cy.cGet('#StateTableCell').should('have.text', 'Average: 15.5; Sum: 31');
-		helper.typeIntoInputField('input#addressInput', 'A1');
+		helper.typeIntoInputField(helper.addressInputSelector, 'A1');
 		cy.cGet('#StateTableCell').should('have.text', 'Average: 10; Sum: 10');
+
+		desktopHelper.makeZoomItemsVisible();
+		cy.cGet('#StateTableCellMenu .unolabel').contains('Average; Sum');
+		cy.cGet('#StateTableCellMenu .arrowbackground').click();
+		cy.cGet('.jsdialog-overlay').should('exist');
+		cy.cGet('.ui-combobox-entry.selected').contains(/Average|Sum/g);
 	});
 
 	it('Change zoom level.', function() {

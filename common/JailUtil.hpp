@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -23,6 +27,24 @@ constexpr const char CHILDROOT_TMP_INCOMING_PATH[] = "/tmp/incoming";
 
 /// The LO installation directory with jail.
 constexpr const char LO_JAIL_SUBPATH[] = "lo";
+
+/** Linux user/mount namespaces
+
+    There cannot be other threads running when calling these namespace
+    functions or they will fail.
+
+    These user namespaces stack, so each call to enter..NS creates another
+    namespace inside the current one. In practice you can't return to a higher
+    user namespace level. man 7 user_namespaces
+ */
+
+/// Try to put this process into its own user and mount namespace and
+/// map uid/gid to root within that namespace to allow mounting
+bool enterMountingNS(uid_t uid, gid_t gid);
+
+/// Try to put this process into its own user namespace and
+/// map root to uid/gid within that namespace.
+bool enterUserNS(uid_t uid, gid_t gid);
 
 /// Bind mount a jail directory.
 bool bind(const std::string& source, const std::string& target);
@@ -48,9 +70,6 @@ void createJailPath(const std::string& path);
 /// Setup the Child-Root directory.
 void setupChildRoot(bool bindMount, const std::string& jailRoot, const std::string& sysTemplate);
 
-/// Setup /dev/random and /dev/urandom in the given jail path.
-void setupJailDevNodes(const std::string& root);
-
 /// Enable bind-mounting in this process.
 void enableBindMounting();
 
@@ -59,6 +78,15 @@ void disableBindMounting();
 
 /// Returns true iff bind-mounting is enabled in this process.
 bool isBindMountingEnabled();
+
+/// Enable namespace-mounting in this process.
+void enableMountNamespaces();
+
+/// Disable namespace-mounting in this process.
+void disableMountNamespaces();
+
+/// Returns true iff namespace-mounting is enabled in this process.
+bool isMountNamespacesEnabled();
 
 namespace SysTemplate
 {

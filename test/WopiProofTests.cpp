@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -42,7 +46,7 @@ class WopiProofTests : public CPPUNIT_NS::TestFixture
     BIGNUM *Base64ToNum(const std::string &str)
     {
         std::vector<unsigned char> vec = Proof::Base64ToBytes(str);
-        return BN_bin2bn(&vec[0], vec.size(), nullptr);
+        return BN_bin2bn(vec.data(), vec.size(), nullptr);
     }
 
     void verifySignature(const std::string &access,
@@ -93,8 +97,8 @@ void WopiProofTests::verifySignature(const std::string &access,
     std::vector<unsigned char> digest = digestEngine.digest();
 
     LOK_ASSERT_EQUAL(1, RSA_verify(digestEngine.nid(),
-                                   &digest[0], digest.size(),
-                                   &msgProof[0], msgProof.size(),
+                                   digest.data(), digest.size(),
+                                   msgProof.data(), msgProof.size(),
                                    rsa));
 
     RSA_free(rsa);
@@ -153,7 +157,7 @@ void WopiProofTests::testOurProof()
     LOK_ASSERT_EQUAL(pairs[2].first, std::string("X-WOPI-ProofOld"));
     std::string proofOld = pairs[2].second;
 
-    int64_t ticks = std::stoll(timestamp.c_str(), nullptr, 10);
+    int64_t ticks = std::stoll(timestamp, nullptr, 10);
     verifySignature(access_token, uri, ticks, modulus, exponent, proof, testname);
     verifySignature(access_token, uri, ticks, modulus, exponent, proofOld, testname);
 
@@ -171,7 +175,7 @@ void WopiProofTests::testOurProof()
     LOK_ASSERT_EQUAL(pairs[2].first, std::string("X-WOPI-ProofOld"));
     proofOld = pairs[2].second;
 
-    ticks = std::stoll(timestamp.c_str(), nullptr, 10);
+    ticks = std::stoll(timestamp, nullptr, 10);
     verifySignature(access_token, uri, ticks, modulus, exponent, proof, testname);
     verifySignature(access_token, uri, ticks, modulus, exponent, proofOld, testname);
 }

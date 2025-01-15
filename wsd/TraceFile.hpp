@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -24,6 +28,7 @@
 #include "Util.hpp"
 #include "StringVector.hpp"
 #include "FileUtil.hpp"
+#include <common/Uri.hpp>
 
 /// Dumps commands and notification trace.
 class TraceFileRecord
@@ -46,10 +51,17 @@ public:
 
     std::string toString() const
     {
-        std::ostringstream oss;
-        oss << static_cast<char>(_dir) << _pid << static_cast<char>(_dir)
-            << _sessionId << static_cast<char>(_dir) << _payload;
-        return oss.str();
+        if (_dir == Direction::Invalid)
+        {
+            return "Invalid TraceFileRecord";
+        }
+        else
+        {
+            std::ostringstream oss;
+            oss << static_cast<char>(_dir) << _pid << static_cast<char>(_dir)
+                << _sessionId << static_cast<char>(_dir) << _payload;
+            return oss.str();
+        }
     }
 
     void setDir(Direction dir) { _dir = dir; }
@@ -123,9 +135,7 @@ public:
 
         if (_takeSnapshot)
         {
-            std::string decodedUri;
-            Poco::URI::decode(uri, decodedUri);
-            const std::string url = Poco::URI(decodedUri).getPath();
+            const std::string url = Poco::URI(Uri::decode(uri)).getPath();
             const auto it = _urlToSnapshot.find(url);
             if (it != _urlToSnapshot.end())
             {
@@ -204,9 +214,7 @@ public:
                     std::string url;
                     if (COOLProtocol::getTokenString(tokens[1], "url", url))
                     {
-                        std::string decodedUrl;
-                        Poco::URI::decode(url, decodedUrl);
-                        Poco::URI uriPublic = Poco::URI(decodedUrl);
+                        Poco::URI uriPublic = Poco::URI(Uri::decode(url));
                         if (uriPublic.isRelative() || uriPublic.getScheme() == "file")
                         {
                             uriPublic.normalize();
@@ -266,7 +274,7 @@ private:
         if (_compress)
         {
             _deflater.write(&delim, 1);
-            _deflater << "+" << deltaT;
+            _deflater << '+' << deltaT;
             _deflater.write(&delim, 1);
             _deflater << id;
             _deflater.write(&delim, 1);
@@ -278,7 +286,7 @@ private:
         else
         {
             _stream.write(&delim, 1);
-            _stream << "+" << deltaT;
+            _stream << '+' << deltaT;
             _stream.write(&delim, 1);
             _stream << id;
             _stream.write(&delim, 1);

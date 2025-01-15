@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -10,8 +14,6 @@
 #include <net/HttpRequest.hpp>
 
 #include <memory>
-#include <ostream>
-#include <set>
 #include <string>
 
 #include <Poco/DOM/AutoPtr.h>
@@ -95,7 +97,7 @@ UnitBase::TestResult UnitHosting::testCapabilities()
         LOK_ASSERT_EQUAL(http::StatusCode::OK, httpResponse->statusLine().statusCode());
         LOK_ASSERT_EQUAL(std::string("text/xml"), httpResponse->header().getContentType());
 
-        const std::string discoveryXML = httpResponse->getBody();
+        const std::string& discoveryXML = httpResponse->getBody();
 
         Poco::XML::DOMParser parser;
         Poco::XML::AutoPtr<Poco::XML::Document> docXML = parser.parseString(discoveryXML);
@@ -129,7 +131,7 @@ UnitBase::TestResult UnitHosting::testCapabilities()
         LOK_ASSERT_EQUAL(http::StatusCode::OK, httpResponse->statusLine().statusCode());
         LOK_ASSERT_EQUAL(std::string("application/json"), httpResponse->header().getContentType());
 
-        const std::string responseString = httpResponse->getBody();
+        const std::string& responseString = httpResponse->getBody();
 
         Poco::JSON::Parser parser;
         Poco::Dynamic::Var jsonFile = parser.parse(responseString);

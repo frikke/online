@@ -14,7 +14,8 @@ L.Map.FileInserter = L.Handler.extend({
 	initialize: function (map) {
 		this._map = map;
 		this._childId = null;
-		this._toInsert = {};
+		this._toInsertGraphic = {};
+		this._toInsertMultimedia = {};
 		this._toInsertURL = {};
 		this._toInsertBackground = {};
 		var parser = document.createElement('a');
@@ -26,36 +27,48 @@ L.Map.FileInserter = L.Handler.extend({
 	},
 
 	addHooks: function () {
-		this._map.on('insertfile', this._onInsertFile, this);
+		this._map.on('insertgraphic', this._onInsertGraphic, this);
+		this._map.on('insertmultimedia', this._onInsertMultimedia, this);
 		this._map.on('inserturl', this._onInsertURL, this);
 		this._map.on('childid', this._onChildIdMsg, this);
 		this._map.on('selectbackground', this._onSelectBackground, this);
 	},
 
 	removeHooks: function () {
-		this._map.off('insertfile', this._onInsertFile, this);
+		this._map.off('insertgraphic', this._onInsertGraphic, this);
+		this._map.off('insertmultimedia', this._onInsertMultimedia, this);
 		this._map.off('inserturl', this._onInsertURL, this);
 		this._map.off('childid', this._onChildIdMsg, this);
 		this._map.off('selectbackground', this._onSelectBackground, this);
 	},
 
-	_onInsertFile: function (e) {
+	_onInsertGraphic: function (e) {
 		if (!this._childId) {
 			app.socket.sendMessage('getchildid');
-			this._toInsert[Date.now()] = e.file;
+			this._toInsertGraphic[Date.now()] = e.file;
 		}
 		else {
 			this._sendFile(Date.now(), e.file, 'graphic');
 		}
 	},
 
+	_onInsertMultimedia: function (e) {
+		if (!this._childId) {
+			app.socket.sendMessage('getchildid');
+			this._toInsertMultimedia[Date.now()] = e.file;
+		}
+		else {
+			this._sendFile(Date.now(), e.file, 'multimedia');
+		}
+	},
+
 	_onInsertURL: function (e) {
 		if (!this._childId) {
 			app.socket.sendMessage('getchildid');
-			this._toInsertURL[Date.now()] = e.url;
+			this._toInsertURL[Date.now()] = e;
 		}
 		else {
-			this._sendURL(Date.now(), e.url);
+			this._sendURL(Date.now(), e);
 		}
 	},
 
@@ -71,14 +84,19 @@ L.Map.FileInserter = L.Handler.extend({
 
 	_onChildIdMsg: function (e) {
 		// When childId is not created (usually when we insert file/URL very first time), we send message to get child ID
-		// and store the file(s) into respective arrays (look at _onInsertFile, _onInsertURL, _onSelectBackground)
+		// and store the file(s) into respective arrays (look at _onInsertGraphic, _onInsertMultimedia, _onInsertURL, _onSelectBackground)
 		// When we receive the childId we empty all the array and insert respective file/URL from here
 
 		this._childId = e.id;
-		for (var name in this._toInsert) {
-			this._sendFile(name, this._toInsert[name], 'graphic');
+		for (var name in this._toInsertGraphic) {
+			this._sendFile(name, this._toInsertGraphic[name], 'graphic');
 		}
-		this._toInsert = {};
+		this._toInsertGraphic = {};
+
+		for (var name in this._toInsertMultimedia) {
+			this._sendFile(name, this._toInsertMultimedia[name], 'multimedia');
+		}
+		this._toInsertMultimedia = {};
 
 		for (name in this._toInsertURL) {
 			this._sendURL(name, this._toInsertURL[name]);
@@ -102,10 +120,10 @@ L.Map.FileInserter = L.Handler.extend({
 		}
 
 		if (!(file.filename && file.url) && (file.name === '' || file.size === 0)) {
-			var errMsg =  _('The file of type: %0 cannot be uploaded to server since the file has no name');
+			var errMsg =  _('The file of type: {0} cannot be uploaded to server since the file has no name');
 			if (file.size === 0)
-				errMsg = _('The file of type: %0 cannot be uploaded to server since the file is empty');
-			errMsg = errMsg.replace('%0', file.type);
+				errMsg = _('The file of type: {0} cannot be uploaded to server since the file is empty');
+			errMsg = errMsg.replace('{0}', file.type);
 			map.fire('error', {msg: errMsg, critical: false});
 			return;
 		}
@@ -158,8 +176,8 @@ L.Map.FileInserter = L.Handler.extend({
 						map.fire('error', {msg: errorMessages.uploadfile.toolarge});
 					}
 					else {
-						var msg = _('Uploading file to server failed with status: %0');
-						msg = msg.replace('%0', xmlHttp.status);
+						var msg = _('Uploading file to server failed with status: {0}');
+						msg = msg.replace('{0}', xmlHttp.status);
 						map.fire('error', {msg: msg});
 					}
 				}
@@ -184,17 +202,18 @@ L.Map.FileInserter = L.Handler.extend({
 		}
 	},
 
-	_sendURL: function (name, url) {
+	_sendURL: function (name, e) {
 		var sectionName = L.CSections.ContentControl.name;
 		var section;
 		if (app.sectionContainer.doesSectionExist(sectionName)) {
 			section = app.sectionContainer.getSectionWithName(sectionName);
 		}
 
-		if (section && section.sectionProperties.picturePicker) {
-			app.socket.sendMessage('contentcontrolevent type=pictureurl' + ' name=' + encodeURIComponent(url));
+		if (e.urltype == "graphicurl" && section && section.sectionProperties.picturePicker) {
+			// The order argument is important
+			app.socket.sendMessage('contentcontrolevent type=pictureurl name=' + encodeURIComponent(e.url));
 		} else {
-			app.socket.sendMessage('insertfile name=' + encodeURIComponent(url) + ' type=graphicurl');
+			app.socket.sendMessage('insertfile name=' + encodeURIComponent(e.url) + ' type=' + e.urltype);
 		}
 	}
 });

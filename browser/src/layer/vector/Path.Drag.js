@@ -1,3 +1,5 @@
+/* -*- js-indent-level: 8 -*- */
+
 var END = {
 	mousedown:     'mouseup',
 	touchstart:    'touchend',
@@ -62,6 +64,14 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 
 	},
 
+	noManualDrag: window.memo.decorator(function(f) {
+		if ('noManualDrag' in this._path) {
+			return this._path.noManualDrag.bind(this._path)(f).bind(this._path);
+		} else {
+			return f;
+		}
+	}),
+
 	/**
 	* Enable dragging
 	*/
@@ -86,10 +96,8 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 
 		this._path.removeClass(L.Handler.PathDrag.DRAGGING_CLS);
 
-		if (!this._path.options.manualDrag) {
-			L.DomEvent.off(document, 'mousemove touchmove', this._onDrag,    this);
-			L.DomEvent.off(document, 'mouseup touchend',    this._onDragEnd, this);
-		}
+		L.DomEvent.off(document, 'mousemove touchmove', this.noManualDrag(window.memo.bind(this._onDrag, this)),    this);
+		L.DomEvent.off(document, 'mouseup touchend',    this.noManualDrag(window.memo.bind(this._onDragEnd, this)), this);
 	},
 
 	/**
@@ -118,11 +126,9 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 
 		this._path._renderer.addContainerClass('leaflet-interactive');
 
-		if (!this._path.options.manualDrag) {
-			L.DomEvent
-				.on(document, MOVE[eventType], this._onDrag,    this)
-				.on(document, END[eventType],  this._onDragEnd, this);
-		}
+		L.DomEvent
+		 .on(document, MOVE[eventType], this.noManualDrag(window.memo.bind(this._onDrag, this)),    this)
+		 .on(document, END[eventType],  this.noManualDrag(window.memo.bind(this._onDragEnd, this)), this);
 
 		if (this._path._map.dragging.enabled()) {
 			// I guess it's required because mousedown gets simulated with a delay
@@ -234,10 +240,8 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 			this._path._transform(null);
 		}
 
-		if (!this._path.options.manualDrag) {
-			L.DomEvent.off(document, 'mousemove touchmove', this._onDrag,    this);
-			L.DomEvent.off(document, 'mouseup touchend',    this._onDragEnd, this);
-		}
+		L.DomEvent.off(document, 'mousemove touchmove', this.noManualDrag(window.memo.bind(this._onDrag, this)),    this);
+		L.DomEvent.off(document, 'mouseup touchend',    this.noManualDrag(window.memo.bind(this._onDragEnd, this)), this);
 
 		this._restoreCoordGetters();
 
@@ -266,7 +270,7 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 			this._path._map.dragging.enable();
 		}
 
-		if (!this._path.options.manualDrag && !moved && this._mouseDown) {
+		if (!moved && this._mouseDown && !this._path.options.manualDrag(this._mouseDown)) {
 			this._path._map._handleDOMEvent(this._mouseDown);
 			this._path._map._handleDOMEvent(evt);
 		}
@@ -296,7 +300,6 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 		var diff = transformation.untransform(px, scale)
 			.subtract(transformation.untransform(L.point(0, 0), scale));
 		var applyTransform = !dest;
-		var bounds = path._bounds;
 
 		path._bounds = new L.LatLngBounds();
 
@@ -328,12 +331,6 @@ L.Handler.PathDrag = L.Handler.extend(/** @lends  L.Path.Drag.prototype */ {
 						rings[i][j]._add(px);
 					}
 				}
-			}
-		} else if (path instanceof L.SVGGroup) {
-			if (applyTransform) {
-				bounds._southWest = projection.unproject(projection.project(bounds._southWest)._add(diff));
-				bounds._northEast = projection.unproject(projection.project(bounds._northEast)._add(diff));
-				path._bounds = bounds;
 			}
 		}
 
@@ -394,23 +391,3 @@ L.Handler.PathDrag.makeDraggable = function(layer) {
 L.Path.prototype.makeDraggable = function() {
 	return L.Handler.PathDrag.makeDraggable(this);
 };
-
-var fnInitHook = function() {
-	if (this.options.draggable) {
-		// ensure interactive
-		this.options.interactive = true;
-
-		if (this.dragging) {
-			this.dragging.enable();
-		} else {
-			L.Handler.PathDrag.makeDraggable(this);
-			this.dragging.enable();
-		}
-		this.dragging.constraint = this.options.dragConstraint;
-	} else if (this.dragging) {
-		this.dragging.disable();
-		this.dragging.constraint = null;
-	}
-};
-
-L.SVGGroup.addInitHook(fnInitHook);

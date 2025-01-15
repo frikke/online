@@ -7,7 +7,7 @@ FROM archlinux
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm libpng fontconfig cpio \
               nano \
-              openssh inotify-tools \
+              openssh \
               libxcb libxrender libxext \
               wqy-zenhei wqy-microhei ttf-droid \
               noto-fonts-cjk perl
@@ -17,13 +17,12 @@ COPY /instdir /
 
 # copy the shell script which can start Collabora Online (coolwsd)
 COPY /start-collabora-online.sh /
-COPY /start-collabora-online.pl /
 
 # set up Collabora Online (normally done by postinstall script of package)
 # Fix permissions
-RUN setcap cap_fowner,cap_chown,cap_mknod,cap_sys_chroot=ep /usr/bin/coolforkit && \
+RUN setcap cap_fowner,cap_chown,cap_sys_chroot=ep /usr/bin/coolforkit-caps && \
     setcap cap_sys_admin=ep /usr/bin/coolmount && \
-    useradd -r -U -d /opt/cool -m cool && \
+    useradd --system --user-group --create-home --home-dir /opt/cool cool && \
     rm -rf /opt/cool && \
     mkdir -p /opt/cool/child-roots && \
     coolwsd-systemplate-setup /opt/cool/systemplate /opt/lokit >/dev/null 2>&1 && \
@@ -34,7 +33,9 @@ RUN setcap cap_fowner,cap_chown,cap_mknod,cap_sys_chroot=ep /usr/bin/coolforkit 
 
 EXPOSE 9980
 
+RUN usermod -u 972 cool
+
 # switch to cool user (use numeric user id to be compatible with Kubernetes Pod Security Policies)
-USER 974
+USER 972
 
 CMD ["/start-collabora-online.sh"]

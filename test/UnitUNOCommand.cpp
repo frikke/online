@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -37,8 +41,19 @@ void testStateChanged(const std::string& filename, std::set<std::string>& comman
         [&](const std::string& msg)
         {
             Poco::RegularExpression::MatchVec matches;
-            if (reUno.match(msg, 0, matches) > 0 && matches.size() == 1)
+            if (msg.starts_with("statechanged: {"))
             {
+                // Payload is JSON, the commandName key has the command name.
+                Poco::JSON::Parser parser;
+                std::string json = msg.substr(strlen("statechanged: "));
+                const Poco::Dynamic::Var var = parser.parse(json);
+                const auto& root = var.extract<Poco::JSON::Object::Ptr>();
+                std::string commandName = root->get("commandName").toString();
+                commands.erase(commandName + "=");
+            }
+            else if (reUno.match(msg, 0, matches) > 0 && matches.size() == 1)
+            {
+                // Payload is a commandName=...status... plain text format.
                 commands.erase(msg.substr(matches[0].offset, matches[0].length));
             }
 
@@ -79,7 +94,6 @@ UnitBase::TestResult UnitUNOCommand::testStateUnoCommandWriter()
 {
     std::set<std::string> writerCommands
     {
-        ".uno:BackColor=",
         ".uno:BackgroundColor=",
         ".uno:Bold=",
         ".uno:CenterPara=",

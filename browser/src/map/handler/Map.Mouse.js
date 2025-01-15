@@ -14,7 +14,6 @@ L.Map.Mouse = L.Handler.extend({
 	initialize: function (map) {
 		this._map = map;
 		this._mouseEventsQueue = [];
-		this._prevMousePos = null;
 	},
 
 	addHooks: function () {
@@ -39,45 +38,15 @@ L.Map.Mouse = L.Handler.extend({
 		right: 2
 	},
 
-	_onMouseEvent: function (e) {
-		if (this._map.uiManager.isUIBlocked())
+	_onMouseEvent: window.touch.mouseOnly(function (e) {
+		if (this._map.uiManager.isUIBlocked() || app.map.dontHandleMouse)
 			return;
 
 		app.idleHandler.notifyActive();
 		var docLayer = this._map._docLayer;
-		if (!docLayer || (this._map.slideShow && this._map.slideShow.fullscreen) || this._map.rulerActive) {
+		if (!docLayer || this._map.rulerActive || (this._map.slideShow && this._map.slideShow.fullscreen) ||
+			(this._map.slideShowPresenter && this._map.slideShowPresenter.isFullscreen())) {
 			return;
-		}
-		if (docLayer._graphicMarker) {
-			if (docLayer._graphicMarker.isDragged) {
-				return;
-			}
-			if (!docLayer._isEmptyRectangle(docLayer._graphicSelection)) {
-				// if we have a graphic selection and the user clicks inside the rectangle
-				var isInside = docLayer._graphicMarker.getBounds().contains(e.latlng);
-				if (e.type === 'mousedown' && isInside) {
-					this._prevMousePos = e.latlng;
-				}
-				else if (e.type === 'mousemove' && this._mouseDown) {
-					if (!this._prevMousePos && isInside) {
-						// if the user started to drag the shape before the selection
-						// has been drawn
-						this._prevMousePos = e.latlng;
-					}
-					else {
-						this._prevMousePos = e.latlng;
-					}
-				}
-				else if (e.type === 'mouseup') {
-					this._prevMousePos = null;
-				}
-			}
-		}
-
-		for (var key in docLayer._selectionHandles) {
-			if (docLayer._selectionHandles[key].isDragged) {
-				return;
-			}
 		}
 
 		var modifier = 0;
@@ -93,7 +62,7 @@ L.Map.Mouse = L.Handler.extend({
 		buttons |= e.originalEvent.button === this.JSButtons.right ? this.LOButtons.right : 0;
 
 		// Turn ctrl-left-click into right-click for browsers on macOS
-		if (navigator.appVersion.indexOf('Mac') != -1 || navigator.userAgent.indexOf('Mac') != -1) {
+		if (L.Browser.mac) {
 			if (modifier == UNOModifier.CTRL && buttons == this.LOButtons.left) {
 				modifier = 0;
 				buttons = this.LOButtons.right;
@@ -105,14 +74,11 @@ L.Map.Mouse = L.Handler.extend({
 		if (mouseEnteringLeavingMap && e.type === 'mouseover' && this._mouseDown) {
 			L.DomEvent.off(document, 'mousemove', this._onMouseMoveOutside, this);
 			L.DomEvent.off(document, 'mouseup', this._onMouseUpOutside, this);
-			if (this._map._resizeDetector) {
-				L.DomEvent.off(this._map._resizeDetector.contentWindow, 'mousemove', this._onMouseMoveOutside, this);
-				L.DomEvent.off(this._map._resizeDetector.contentWindow, 'mouseup', this._onMouseUpOutside, this);
-			}
 		}
 		else if (e.type === 'mousedown') {
 			docLayer._resetPreFetching();
 			this._mouseDown = true;
+			this._buttonDown = buttons;
 			if (this._holdMouseEvent) {
 				clearTimeout(this._holdMouseEvent);
 			}
@@ -130,6 +96,13 @@ L.Map.Mouse = L.Handler.extend({
 					return;
 				}
 			}
+
+			// Core side is handling the mouseup by itself when the right button is down.
+			// If we fire mouseup for right button, there will be duplicate.
+			// Without this, selected text in a text box is un-selected via a right click. Therefore, copy / cut operations are disabled.
+			if (this._buttonDown === this.LOButtons.right && modifier === 0)
+				return;
+
 			clearTimeout(this._holdMouseEvent);
 			this._holdMouseEvent = null;
 			var timeDiff = Date.now() - this._clickTime;
@@ -153,10 +126,7 @@ L.Map.Mouse = L.Handler.extend({
 				this._clickTime = Date.now();
 				this._clickCount = 1;
 				mousePos = docLayer._latLngToTwips(e.latlng);
-				var timeOut = 250;
-				if (this._map.isEditMode()) {
-					timeOut = 0;
-				}
+				var timeOut = 0;
 				this._mouseEventsQueue.push(L.bind(function() {
 					var docLayer = this._map._docLayer;
 					this._mouseEventsQueue = [];
@@ -164,18 +134,14 @@ L.Map.Mouse = L.Handler.extend({
 					this._map.focus();
 				}, this));
 				this._holdMouseEvent = setTimeout(L.bind(this._executeMouseEvents, this), timeOut);
-
-				for (key in docLayer._selectionHandles) {
-					var handle = docLayer._selectionHandles[key];
-					if (handle._icon) {
-						L.DomUtil.removeClass(handle._icon, 'leaflet-not-clickable');
-					}
-				}
 			}
 
 			this._map.fire('scrollvelocity', {vx: 0, vy: 0});
 		}
 		else if (e.type === 'mousemove' && this._mouseDown) {
+			if (this._mouseOverTimeout)
+				clearTimeout(this._mouseOverTimeout);
+
 			if (this._holdMouseEvent) {
 				clearTimeout(this._holdMouseEvent);
 				this._holdMouseEvent = null;
@@ -194,13 +160,6 @@ L.Map.Mouse = L.Handler.extend({
 			if (!this._map.dragging.enabled()) {
 				mousePos = docLayer._latLngToTwips(e.latlng);
 				docLayer._postMouseEvent('move', mousePos.x, mousePos.y, 1, buttons, modifier);
-
-				for (key in docLayer._selectionHandles) {
-					handle = docLayer._selectionHandles[key];
-					if (handle._icon) {
-						L.DomUtil.addClass(handle._icon, 'leaflet-not-clickable');
-					}
-				}
 
 				this._map.fire('handleautoscroll', {pos: e.containerPoint, map: this._map});
 			}
@@ -226,14 +185,10 @@ L.Map.Mouse = L.Handler.extend({
 			docLayer._postMouseEvent('buttonup', mousePos.x, mousePos.y, count, buttons, modifier);
 		}
 		else if (mouseEnteringLeavingMap && e.type === 'mouseout' && this._mouseDown) {
-			if (this._map._resizeDetector) {
-				L.DomEvent.on(this._map._resizeDetector.contentWindow, 'mousemove', this._onMouseMoveOutside, this);
-				L.DomEvent.on(this._map._resizeDetector.contentWindow, 'mouseup', this._onMouseUpOutside, this);
-			}
 			L.DomEvent.on(document, 'mousemove', this._onMouseMoveOutside, this);
 			L.DomEvent.on(document, 'mouseup', this._onMouseUpOutside, this);
 		}
-	},
+	}),
 
 	_executeMouseEvents: function () {
 		this._holdMouseEvent = null;
@@ -243,25 +198,21 @@ L.Map.Mouse = L.Handler.extend({
 		this._mouseEventsQueue = [];
 	},
 
-	_onMouseMoveOutside: function (e) {
+	_onMouseMoveOutside: window.touch.mouseOnly(function (e) {
 		this._map._handleDOMEvent(e);
 		if (this._map.dragging.enabled()) {
 			this._map.dragging._draggable._onMove(e);
 		}
-	},
+	}),
 
-	_onMouseUpOutside: function (e) {
+	_onMouseUpOutside: window.touch.mouseOnly(function (e) {
 		this._mouseDown = false;
 		L.DomEvent.off(document, 'mousemove', this._onMouseMoveOutside, this);
 		L.DomEvent.off(document, 'mouseup', this._onMouseUpOutside, this);
-		if (this._map._resizeDetector) {
-			L.DomEvent.off(this._map._resizeDetector.contentWindow, 'mousemove', this._onMouseMoveOutside, this);
-			L.DomEvent.off(this._map._resizeDetector.contentWindow, 'mouseup', this._onMouseUpOutside, this);
-		}
 
 		this._map._handleDOMEvent(e);
 		if (this._map.dragging.enabled()) {
 			this._map.dragging._draggable._onUp(e);
 		}
-	}
+	})
 });

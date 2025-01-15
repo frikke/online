@@ -1,5 +1,14 @@
 /* -*- js-indent-level: 8; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * Ruler Handler
  */
 
@@ -19,7 +28,8 @@ L.Control.Ruler = L.Control.extend({
 		unit: null,
 		DraggableConvertRatio: null,
 		timer: null,
-		showruler: true
+		showruler: true,
+		isHorizontalRuler:true
 	},
 
 	onAdd: function(map) {
@@ -27,7 +37,8 @@ L.Control.Ruler = L.Control.extend({
 		map.on('tabstoplistupdate', this._updateTabStops, this);
 		map.on('scrolllimits', this._updatePaintTimer, this);
 		map.on('moveend', this._fixOffset, this);
-		map.on('updatepermission', this._changeInteractions, this);
+		app.events.on('updatepermission', this._changeInteractions.bind(this));
+		this._map.on('rulerchanged', this._onRulerChanged, this);
 		L.DomUtil.addClass(map.getContainer(), 'hasruler');
 		this._map = map;
 
@@ -41,7 +52,7 @@ L.Control.Ruler = L.Control.extend({
 
 	_changeInteractions: function(e) {
 		if (this._lMarginDrag) {
-			if (e.perm === 'edit') {
+			if (e.detail.perm === 'edit') {
 				this._lMarginDrag.style.cursor = 'e-resize';
 				this._rMarginDrag.style.cursor = 'w-resize';
 
@@ -89,60 +100,57 @@ L.Control.Ruler = L.Control.extend({
 
 		// Now we have indentation markers. Next we should bind drag initializers to them..
 		// We will use 3 hammers. 1 hammer is not usable for this case.
-		if (L.Browser.touch) {
-			// Hammer for first line indentation..
-			this._firstLineHammer = new Hammer(this._firstLineMarker);
-			this._firstLineHammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
-			this._firstLineHammer.get('press').set({
-				time: 500
-			});
-			this._firstLineHammer.on('panstart', function (event) {
-				self._initiateIndentationDrag(event);
-			});
-			this._firstLineHammer.on('panmove', function (event) {
-				self._moveIndentation(event);
-			});
-			this._firstLineHammer.on('panend', function (event) {
-				self._moveIndentationEnd(event);
-			});
+		// Hammer for first line indentation..
+		this._firstLineHammer = new Hammer(this._firstLineMarker);
+		this._firstLineHammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
+		this._firstLineHammer.get('press').set({
+			time: 500
+		});
+		this._firstLineHammer.on('panstart', window.touch.touchOnly(function (event) {
+			self._initiateIndentationDrag(event);
+		}));
+		this._firstLineHammer.on('panmove', window.touch.touchOnly(function (event) {
+			self._moveIndentation(event);
+		}));
+		this._firstLineHammer.on('panend', window.touch.touchOnly(function (event) {
+			self._moveIndentationEnd(event);
+		}));
 
-			// Hammer for paragraph start indentation..
-			this._pStartHammer = new Hammer(this._pStartMarker);
-			this._pStartHammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
-			this._pStartHammer.get('press').set({
-				time: 500
-			});
-			this._pStartHammer.on('panstart', function (event) {
-				self._initiateIndentationDrag(event);
-			});
-			this._pStartHammer.on('panmove', function (event) {
-				self._moveIndentation(event);
-			});
-			this._pStartHammer.on('panend', function (event) {
-				self._moveIndentationEnd(event);
-			});
+		// Hammer for paragraph start indentation..
+		this._pStartHammer = new Hammer(this._pStartMarker);
+		this._pStartHammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
+		this._pStartHammer.get('press').set({
+			time: 500
+		});
+		this._pStartHammer.on('panstart', window.touch.touchOnly(function(event) {
+			self._initiateIndentationDrag(event);
+		}));
+		this._pStartHammer.on('panmove', window.touch.touchOnly(function(event) {
+			self._moveIndentation(event);
+		}));
+		this._pStartHammer.on('panend', window.touch.touchOnly(function(event) {
+			self._moveIndentationEnd(event);
+		}));
 
-			// Hammer for paragraph end indentation..
-			this._pEndHammer = new Hammer(this._pEndMarker);
-			this._pEndHammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
-			this._pEndHammer.get('press').set({
-				time: 500
-			});
-			this._pEndHammer.on('panstart', function (event) {
-				self._initiateIndentationDrag(event);
-			});
-			this._pEndHammer.on('panmove', function (event) {
-				self._moveIndentation(event);
-			});
-			this._pEndHammer.on('panend', function (event) {
-				self._moveIndentationEnd(event);
-			});
-		}
-		else {
-			L.DomEvent.on(this._firstLineMarker, 'mousedown', this._initiateIndentationDrag, this);
-			L.DomEvent.on(this._pStartMarker, 'mousedown', this._initiateIndentationDrag, this);
-			L.DomEvent.on(this._pEndMarker, 'mousedown', this._initiateIndentationDrag, this);
-		}
+		// Hammer for paragraph end indentation..
+		this._pEndHammer = new Hammer(this._pEndMarker);
+		this._pEndHammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
+		this._pEndHammer.get('press').set({
+			time: 500
+		});
+		this._pEndHammer.on('panstart', window.touch.touchOnly(function(event) {
+			self._initiateIndentationDrag(event);
+		}));
+		this._pEndHammer.on('panmove', window.touch.touchOnly(function(event) {
+			self._moveIndentation(event);
+		}));
+		this._pEndHammer.on('panend', window.touch.touchOnly(function(event) {
+			self._moveIndentationEnd(event);
+		}));
+
+		L.DomEvent.on(this._firstLineMarker, 'mousedown', window.touch.mouseOnly(this._initiateIndentationDrag), this);
+		L.DomEvent.on(this._pStartMarker, 'mousedown', window.touch.mouseOnly(this._initiateIndentationDrag), this);
+		L.DomEvent.on(this._pEndMarker, 'mousedown', window.touch.mouseOnly(this._initiateIndentationDrag), this);
 	},
 
 	_initLayout: function() {
@@ -154,6 +162,9 @@ L.Control.Ruler = L.Control.extend({
 		// If we delay its initialization, we can't calculate its margins and have to wait for another rulerupdate message to arrive.
 		if (!this.options.showruler) {
 			L.DomUtil.setStyle(this._rWrapper, 'display', 'none');
+		}
+		else {
+			this._map.sendUnoCommand('.uno:ShowRuler');
 		}
 		this._rFace = L.DomUtil.create('div', 'cool-ruler-face', this._rWrapper);
 		this._rMarginWrapper = L.DomUtil.create('div', 'cool-ruler-marginwrapper', this._rFace);
@@ -167,29 +178,37 @@ L.Control.Ruler = L.Control.extend({
 
 		var self = this;
 
-		if (L.Browser.touch) {
-			this._hammer = new Hammer(this._rTSContainer);
-			this._hammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
-			this._hammer.get('press').set({
-				time: 500
-			});
-			this._hammer.on('panstart', function (event) {
-				self._initiateTabstopDrag(event);
-			});
-			this._hammer.on('panmove', function (event) {
-				self._moveTabstop(event);
-			});
-			this._hammer.on('panend', function (event) {
-				self._endTabstopDrag(event);
-			});
-			this._hammer.on('press', function (event) {
-				self._onTabstopContainerLongPress(event);
-			});
-		}
+		this._hammer = new Hammer(this._rTSContainer);
+		this._hammer.add(new Hammer.Pan({ threshold: 0, pointers: 0 }));
+		this._hammer.get('press').set({
+			time: 500
+		});
+		this._hammer.on('panstart', window.touch.touchOnly(function (event) {
+			self._initiateTabstopDrag(event);
+		}));
+		this._hammer.on('panmove', window.touch.touchOnly(function (event) {
+			self._moveTabstop(event);
+		}));
+		this._hammer.on('panend', window.touch.touchOnly(function (event) {
+			self._endTabstopDrag(event);
+		}));
+		this._hammer.on('press', window.touch.touchOnly(function (event) {
+			self._onTabstopContainerLongPress(event);
+		}));
 
 		this._initiateIndentationMarkers();
 
 		return this._rWrapper;
+	},
+
+	_onRulerChanged() {
+		// update show ruler state on rulerChange event
+		this.options.showruler = this._map.uiManager.getBooleanDocTypePref('ShowRuler', true);
+		if(this.options.showruler) {
+			// in case of disabled ruler at docload calculation of offset can be ignored
+			// but after enabling the ruler we need to set the offset.
+			this._fixOffset();
+		}
 	},
 
 	_updateOptions: function(obj) {
@@ -207,6 +226,8 @@ L.Control.Ruler = L.Control.extend({
 		// pageWidth on the other hand *is* really in mm100.
 		this.options.pageWidth = parseInt(obj['pageWidth']);
 
+		this.options.tileMargin = this._map.isPresentationOrDrawing() ? 0 : this.options.tileMargin;
+
 		// to be enabled only after adding support for other length units as well
 		// this.options.unit = obj['unit'].trim();
 
@@ -216,15 +237,19 @@ L.Control.Ruler = L.Control.extend({
 	},
 
 	_updateParagraphIndentations: function() {
+		// if ruler is hidden no need to calculate the indentation of the para
+		if (!this.options.showruler) return;
 		var items = this._map['stateChangeHandler'];
 		var state = items.getItemValue('.uno:LeftRightParaMargin');
+		// in impress/draw values are not as per Inch factore we should consider this case
+		var conversionFactorToInches = this._map.isPresentationOrDrawing() ? 1.76 : 1;
 
 		if (!state)
 			return;
 
-		this.options.firstLineIndent = parseFloat(state.firstline.replace(',', '.'));
-		this.options.leftParagraphIndent = parseFloat(state.left.replace(',', '.'));
-		this.options.rightParagraphIndent = parseFloat(state.right.replace(',', '.'));
+		this.options.firstLineIndent = parseFloat(state.firstline.replace(',', '.')) / conversionFactorToInches ;
+		this.options.leftParagraphIndent = parseFloat(state.left.replace(',', '.')) / conversionFactorToInches ;
+		this.options.rightParagraphIndent = parseFloat(state.right.replace(',', '.')) / conversionFactorToInches ;
 		this.options.indentUnit = state.unit;
 
 		var pxPerMm100 = this._map._docLayer._docPixelSize.x / (this._map._docLayer._docWidthTwips * 2540/1440);
@@ -245,10 +270,11 @@ L.Control.Ruler = L.Control.extend({
 		var fLinePosition = pStartPosition + this.options.firstLineIndent;
 		var pEndPosition = this._rTSContainer.getBoundingClientRect().right - this.options.rightParagraphIndent;
 
+		var presentationControlsWrapperWidth = this._getpresentationControlWrapperWidth();
 		// We calculated the positions. Now we should move them to left in order to make their sharp edge point to the right direction..
-		this._firstLineMarker.style.left = (fLinePosition - (this._firstLineMarker.getBoundingClientRect().width / 2.0)) + 'px';
-		this._pStartMarker.style.left = (pStartPosition - (this._pStartMarker.getBoundingClientRect().width / 2.0)) + 'px';
-		this._pEndMarker.style.left = (pEndPosition - (this._pEndMarker.getBoundingClientRect().width / 2.0)) + 'px';
+		this._firstLineMarker.style.left = (fLinePosition - presentationControlsWrapperWidth - (this._firstLineMarker.getBoundingClientRect().width / 2.0)) + 'px';
+		this._pStartMarker.style.left = (pStartPosition - presentationControlsWrapperWidth - (this._pStartMarker.getBoundingClientRect().width / 2.0)) + 'px';
+		this._pEndMarker.style.left = (pEndPosition - presentationControlsWrapperWidth - (this._pEndMarker.getBoundingClientRect().width / 2.0)) + 'px';
 
 		this._markerVerticalLine.style.top = this._rTSContainer.getBoundingClientRect().bottom + 'px';
 	},
@@ -380,39 +406,19 @@ L.Control.Ruler = L.Control.extend({
 		this._updateParagraphIndentations();
 
 		if (this.options.interactive) {
-			this._changeInteractions({perm:'edit'});
+			this._changeInteractions({ detail: { perm:'edit'} });
 		}
 		else {
-			this._changeInteractions({perm:'readonly'});
+			this._changeInteractions({ detail: { perm:'readonly'} });
 		}
 	},
 
 	_fixOffset: function() {
-		if (!this._map.options.docBounds)
+		// in case of disabled ruler at docload or event like 'moveend' calculation of offset can be ignored
+		if (!this._map.options.docBounds || !this.options.showruler)
 			return;
 
-		var scale = this._map.getZoomScale(this._map.getZoom(), 10);
-		var mapPane = this._map._mapPane;
-		var topLeft = this._map.latLngToLayerPoint(this._map.options.docBounds.getNorthWest());
-		var firstTileXTranslate = topLeft.x;
-
-		var tileContainer = mapPane.getElementsByClassName('leaflet-tile-container');
-		for (var i = 0; i < tileContainer.length; ++i) {
-			if (parseInt(tileContainer[i].style.zIndex) === this._map.getMaxZoom()) {
-				tileContainer = tileContainer[i];
-				break;
-			}
-		}
-		var tileContainerXTranslate = 0;
-		if (tileContainer.style !== undefined)
-			tileContainerXTranslate = parseInt(tileContainer.style.transform.match(/\(([-0-9]*)/)[1]);
-
-		var mapPaneXTranslateMatch = mapPane.style.transform.match(/\(([-0-9]*)/);
-		var mapPaneXTranslate = 0;
-		if (mapPaneXTranslateMatch !== null && mapPaneXTranslateMatch[1] !== undefined)
-			mapPaneXTranslate = parseInt(mapPaneXTranslateMatch[1]);
-
-		var rulerOffset = mapPaneXTranslate + firstTileXTranslate + tileContainerXTranslate + (this.options.tileMargin * scale);
+		const rulerOffset = -app.file.viewedRectangle.cX1 + (this.options.tileMargin * app.getScale());
 
 		this._rFace.style.marginInlineStart = rulerOffset + 'px';
 
@@ -433,18 +439,20 @@ L.Control.Ruler = L.Control.extend({
 		this._lastposition = e.clientX;
 		// halfWidth..
 		var halfWidth = (element.getBoundingClientRect().right - element.getBoundingClientRect().left) * 0.5;
-		this._markerVerticalLine.style.left = String(newLeft + halfWidth) + 'px';
+
+		var presentationControlsWrapperWidth = this._getpresentationControlWrapperWidth();
+		this._markerVerticalLine.style.left = String(newLeft + halfWidth + presentationControlsWrapperWidth) + 'px';
 	},
 
 	_moveIndentationEnd: function(e) {
 		this._map.rulerActive = false;
 
-		if (e.type !== 'panend') { // The screen may support touch and click at the same time, so we do not use L.Browser.touch while checking the event type in order to support both.
+		if (e.type !== 'panend') {
 			L.DomEvent.off(this._rFace, 'mousemove', this._moveIndentation, this);
 			L.DomEvent.off(this._map, 'mouseup', this._moveIndentationEnd, this);
 		}
 
-		var unoObj = {}, indentType = '';
+		var unoObj = {};
 
 		// Calculation step..
 		// The new coordinate of element subject to indentation is sent as a percentage of the page width..
@@ -452,37 +460,33 @@ L.Control.Ruler = L.Control.extend({
 		// We can use TabStopContainer's position as the reference point, as they share the same reference point..
 		var element = document.getElementById(this._indentationElementId);
 
-		var leftValue;
 		// The halfWidth of the shape..
 		var halfWidth = (element.getBoundingClientRect().right - element.getBoundingClientRect().left) * 0.5;
 
-		// We need the pageWidth in pixels, so we can not use "this.options.pageWidth" here, since that's in mm..
-		var pageWidth = parseFloat(this._rFace.style.width.replace('px', ''));
+		var firstLineMargin = this.options.firstLineIndent / this.options.DraggableConvertRatio;
+		var leftValue = this.options.leftParagraphIndent / this.options.DraggableConvertRatio
+		var rightValue = this.options.rightParagraphIndent / this.options.DraggableConvertRatio
 
+		// Calculate and update left, right and firstLine margin according to selected marker
 		if (element.id === 'lo-fline-marker') {
-			indentType = 'FirstLineIndent';
-			// FirstLine indentation is always positioned according to the left indent..
-			// We don't need to add halfWidth here..
-			leftValue = (parseFloat(this._firstLineMarker.style.left.replace('px', '')) - parseFloat(this._pStartMarker.style.left.replace('px', '')));
-		}
-		else if (element.id === 'lo-pstart-marker') {
-			indentType = 'LeftParaIndent';
-			leftValue = element.getBoundingClientRect().left - this._rTSContainer.getBoundingClientRect().left + halfWidth;
+			firstLineMargin = Math.ceil((this._firstLineMarker.getBoundingClientRect().left - this._pStartMarker.getBoundingClientRect().left + halfWidth) / this.options.DraggableConvertRatio);
+			this.options.firstLineIndent = firstLineMargin * this.options.DraggableConvertRatio;
 		}
 		else if (element.id === 'lo-pend-marker') {
-			indentType = 'RightParaIndent';
-			// Right marker is positioned from right, this is rightValue..
-			leftValue = this._rTSContainer.getBoundingClientRect().right - element.getBoundingClientRect().right + halfWidth;
+			rightValue = Math.ceil((this._rTSContainer.getBoundingClientRect().right - this._pEndMarker.getBoundingClientRect().right + halfWidth) / this.options.DraggableConvertRatio);
+		}
+		else if (element.id === 'lo-pstart-marker') {
+			leftValue = Math.ceil((this._pStartMarker.getBoundingClientRect().left - this._rTSContainer.getBoundingClientRect().left + halfWidth) / this.options.DraggableConvertRatio);
 		}
 
-		leftValue = leftValue / pageWidth; // Now it's a percentage..
+		// it is kind of necessary to send all prams details to set values right in CORE other vise for missing values it will take default as 0
+		unoObj['LRSpace.FirstLineIndent'] = { type: 'long', value: firstLineMargin };
+		unoObj['LRSpace.LeftMargin'] = { type: 'long', value: leftValue };
+		unoObj['LRSpace.RightMargin'] = { type: 'long', value: rightValue };
 
-		if (indentType !== '') {
-			unoObj[indentType] = {};
-			unoObj[indentType]['type'] = 'string';
-			unoObj[indentType]['value'] = leftValue;
-			app.socket.sendMessage('uno .uno:ParagraphChangeState ' + JSON.stringify(unoObj));
-		}
+		// Send the command
+		this._map.sendUnoCommand('.uno:LeftRightParaMargin', unoObj);
+
 
 		this._indentationElementId = '';
 		this._markerVerticalLine.style.display = 'none';
@@ -832,6 +836,16 @@ L.Control.Ruler = L.Control.extend({
 			this._map.sendUnoCommand('.uno:ChangeTabStop', params);
 			this.currentPositionInTwips = null;
 		}
+	},
+
+	_getpresentationControlWrapperWidth: function() {
+		// for Impress/Draw we need to remove presentation controls wrapper width to place marker at correct position
+		var presentationControlsWrapper = document.getElementById('presentation-controls-wrapper');
+		var presentationControlsWrapperWidth = 0;
+
+		if (presentationControlsWrapper)
+			presentationControlsWrapperWidth = presentationControlsWrapper.getBoundingClientRect().width;
+		return presentationControlsWrapperWidth;
 	},
 
 });

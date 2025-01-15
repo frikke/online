@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -33,6 +37,7 @@ class UnitOAuth : public WopiTestServer
     )
     _phase;
 
+    inline static const std::string access_token_ttl_value = "123456";
     std::string _credential;
     bool _checkFileInfoCalled;
     bool _getFileCalled;
@@ -49,6 +54,18 @@ public:
     /// The actual assert of the authentication.
     void assertRequest(const Poco::Net::HTTPRequest& request)
     {
+        TST_LOG("URI: " << request.getURI());
+
+        LOK_ASSERT(request.getURI().find("access_token_ttl") != std::string::npos);
+        for (const auto& param : Poco::URI(request.getURI()).getQueryParameters())
+        {
+            if (param.first == "access_token_ttl")
+            {
+                LOK_ASSERT_EQUAL_STR(access_token_ttl_value, param.second);
+                break;
+            }
+        }
+
         // check that the request contains the Authorization: header
         try
         {
@@ -131,7 +148,8 @@ public:
                 WSD_CMD("closedocument");
                 TRANSITION_STATE(_phase, Phase::LoadingHeader);
                 _credential = "basic==";
-                initWebsocket("/wopi/files/1?access_header=Authorization: Basic " + _credential);
+                initWebsocket("/wopi/files/1?access_header=Authorization: Basic " + _credential +
+                              "&access_token_ttl=" + access_token_ttl_value);
                 WSD_CMD("load url=" + getWopiSrc());
                 break;
             case Phase::LoadingHeader:
@@ -154,7 +172,8 @@ public:
             {
                 TRANSITION_STATE(_phase, Phase::LoadToken);
                 _credential = "s3hn3ct0k3v";
-                initWebsocket("/wopi/files/0?access_token=" + _credential);
+                initWebsocket("/wopi/files/0?access_token=" + _credential +
+                              "&access_token_ttl=" + access_token_ttl_value);
 
                 WSD_CMD("load url=" + getWopiSrc());
             }
@@ -166,7 +185,8 @@ public:
             {
                 TRANSITION_STATE(_phase, Phase::LoadingHeader);
                 _credential = "basic==";
-                initWebsocket("/wopi/files/1?access_header=Authorization: Basic " + _credential);
+                initWebsocket("/wopi/files/1?access_header=Authorization: Basic " + _credential +
+                              "&access_token_ttl=" + access_token_ttl_value);
                 WSD_CMD("load url=" + getWopiSrc());
             }
             break;

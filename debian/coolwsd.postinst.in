@@ -3,9 +3,16 @@
 set -e
 
 case "$1" in
+    install|upgrade|configure)
+        # If abi 4.0 is not present, then remove the apparmor profile config
+        if [ ! -e /etc/apparmor.d/abi/4.0 ]; then
+            rm -f /etc/apparmor.d/usr.bin.coolwsd
+        fi
+        ;;
+esac
+
+case "$1" in
     configure)
-	setcap cap_fowner,cap_chown,cap_mknod,cap_sys_chroot=ep /usr/bin/coolforkit || true
-	setcap cap_sys_admin=ep /usr/bin/coolmount || true
 	if [ -f /etc/loolwsd/loolwsd.xml ]; then /usr/bin/coolconfig migrateconfig --write || true; fi
 
 	adduser --quiet --system --group --home /opt/cool cool
@@ -24,7 +31,7 @@ case "$1" in
 	fc-cache @LO_PATH@/share/fonts/truetype
 
 	coolwsd-systemplate-setup /opt/cool/systemplate @LO_PATH@ >/dev/null 2>&1
-	coolwsd-generate-proof-key >/dev/null 2>&1
+	coolconfig generate-proof-key >/dev/null 2>&1
     cat << EOF > /etc/apt/apt.conf.d/25coolwsd
 // Rebuild systemplate of @APP_NAME@
 DPkg::Post-Invoke { "echo Updating coolwsd systemplate;coolwsd-systemplate-setup /opt/cool/systemplate @LO_PATH@ >/dev/null 2>&1 || true"; };

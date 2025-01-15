@@ -1,8 +1,19 @@
 /* -*- js-indent-level: 8 -*- */
 /*
-	Socket to be intialized on opening the log page in Admin console
-*/
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
+ * Socket to be intialized on opening the log page in Admin console
+ */
+
 /* global Admin $ AdminSocketBase */
+
 var AdminSocketLog = AdminSocketBase.extend({
 	_logLines: '',
 
@@ -61,7 +72,7 @@ var AdminSocketLog = AdminSocketBase.extend({
 		// Here we have the log channel list and their respective log levels.
 		// We will create items for them. User will be able to set the log level for each channel.
 		var channelForm = document.getElementById('form-channel-list');
-		channelForm.innerHTML = ''; // Clear and refill it.
+		channelForm.replaceChildren(); // Clear and refill it.
 		var optionList = Array('none', 'fatal', 'critical', 'error', 'warning', 'notice', 'information', 'debug', 'trace');
 		var innerHTML = ''; // Of select elements.
 		for (var i = 0; i < optionList.length; i++) {

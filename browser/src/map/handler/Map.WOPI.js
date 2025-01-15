@@ -3,7 +3,7 @@
  * L.WOPI contains WOPI related logic
  */
 
-/* global w2ui _ app */
+/* global _ app _UNO JSDialog errorMessages URLPopUpSection */
 L.Map.WOPI = L.Handler.extend({
 	// If the CheckFileInfo call fails on server side, we won't have any PostMessageOrigin.
 	// So use '*' because we still needs to send 'close' message to the parent frame which
@@ -24,6 +24,8 @@ L.Map.WOPI = L.Handler.extend({
 	DownloadAsPostMessage: false,
 	UserCanNotWriteRelative: true,
 	EnableInsertRemoteImage: false,
+	EnableInsertRemoteFile: false, /* Separate, because requires explicit integration support */
+	DisableInsertLocalImage: false,
 	EnableInsertRemoteLink: false,
 	EnableShare: false,
 	HideUserList: null,
@@ -31,6 +33,7 @@ L.Map.WOPI = L.Handler.extend({
 	SupportsRename: false,
 	UserCanRename: false,
 	UserCanWrite: false,
+	DisablePresentation: false,
 
 	_appLoadedConditions: {
 		docloaded: false,
@@ -39,6 +42,7 @@ L.Map.WOPI = L.Handler.extend({
 	},
 
 	_appLoaded: false,
+	_insertImageMenuSetupDone: false,
 
 	initialize: function(map) {
 		this._map = map;
@@ -49,7 +53,7 @@ L.Map.WOPI = L.Handler.extend({
 
 		// init messages
 		this._map.on('docloaded', this._postLoaded, this);
-		this._map.on('updatepermission', this._postLoaded, this);
+		app.events.on('updatepermission', this._postLoaded.bind(this));
 		// This indicates that 'viewinfo' message has already arrived
 		this._map.on('viewinfo', this._postLoaded, this);
 
@@ -86,7 +90,6 @@ L.Map.WOPI = L.Handler.extend({
 
 		// init messages
 		this._map.off('docloaded', this._postLoaded, this);
-		this._map.off('updatepermission', this._postLoaded, this);
 		this._map.off('viewinfo', this._postLoaded, this);
 
 		this._map.off('wopiprops', this._setWopiProps, this);
@@ -119,15 +122,18 @@ L.Map.WOPI = L.Handler.extend({
 			overridenFileInfo.DownloadAsPostMessage : !!wopiInfo['DownloadAsPostMessage'];
 		this.UserCanNotWriteRelative = !!wopiInfo['UserCanNotWriteRelative'];
 		this.EnableInsertRemoteImage = !!wopiInfo['EnableInsertRemoteImage'];
+		this.EnableInsertRemoteFile = !!wopiInfo['EnableInsertRemoteFile'];
+		this.DisableInsertLocalImage = !!wopiInfo['DisableInsertLocalImage'];
 		this.EnableRemoteLinkPicker = !!wopiInfo['EnableRemoteLinkPicker'];
 		this.SupportsRename = !!wopiInfo['SupportsRename'];
 		this.UserCanRename = !!wopiInfo['UserCanRename'];
 		this.EnableShare = !!wopiInfo['EnableShare'];
 		this.UserCanWrite = !!wopiInfo['UserCanWrite'];
-		if (this.UserCanWrite) // There are 2 places that set the file permissions, WOPI and URI. Don't change permission if URI doesn't allow.
-			app.file.permission = (app.file.permission === 'edit' ? 'edit': app.file.permission);
-		else
-			app.file.permission = 'readonly';
+		this.DisablePresentation = wopiInfo['DisablePresentation'];
+
+		if (this.UserCanWrite && !app.isReadOnly()) // There are 2 places that set the file permissions, WOPI and URI. Don't change permission if URI doesn't allow.
+			app.setPermission('edit');
+
 		this.IsOwner = !!wopiInfo['IsOwner'];
 
 		if (wopiInfo['HideUserList'])
@@ -147,6 +153,33 @@ L.Map.WOPI = L.Handler.extend({
 			this._map.showBusy(_('Creating new file from template...'), false);
 			this._map.saveAs(wopiInfo['TemplateSaveAs']);
 		}
+
+		this.setupImageInsertionMenu();
+	},
+
+	setupImageInsertionMenu: function() {
+		if (this._insertImageMenuSetupDone) {
+			return;
+		}
+
+		var menuEntriesImage = JSDialog.MenuDefinitions.get('InsertImageMenu');
+		var menuEntriesMultimedia = JSDialog.MenuDefinitions.get('InsertMultimediaMenu');
+
+		if (this.DisableInsertLocalImage) {
+			menuEntriesImage = [];
+			menuEntriesMultimedia = [];
+		}
+
+		if (this.EnableInsertRemoteImage) {
+			menuEntriesImage.push({action: 'remotegraphic', text: _UNO('.uno:InsertGraphic', '', true)});
+		}
+
+		if (this.EnableInsertRemoteFile) {
+			/* Separate, because needs explicit integration support */
+			menuEntriesMultimedia.push({action: 'remotemultimedia', text: _UNO('.uno:InsertAVMedia', '', true)});
+		}
+
+		this._insertImageMenuSetupDone = true;
 	},
 
 	resetAppLoaded: function() {
@@ -185,13 +218,14 @@ L.Map.WOPI = L.Handler.extend({
 	// Checking whether a message came from our iframe's parents is
 	// un-necessarily difficult.
 	_allowMessageOrigin: function(e) {
+		// e.origin === 'null' when sandboxed
+		if (e.origin === 'null')
+			return false;
+
 		// cache - to avoid regexps.
 		if (this._cachedGoodOrigin && this._cachedGoodOrigin === e.origin)
 			return true;
 
-		// e.origin === 'null' when sandboxed (i.e. when the parent is a file on local filesystem).
-		if (e.origin === 'null')
-			return true;
 		try {
 			if (e.origin === window.parent.origin)
 				return true;
@@ -229,17 +263,28 @@ L.Map.WOPI = L.Handler.extend({
 			return true;
 		}
 
+		const eSignature = this._map.eSignature;
+		if (eSignature && eSignature.url === e.origin) {
+			// The sender is our esign popup: accept it.
+			return true;
+		}
+
 		return false;
 	},
 
 	_postMessageListener: function(e) {
-		if (!this._allowMessageOrigin(e))
+		if (!this._allowMessageOrigin(e)) {
+			window.app.console.error('PostMessage not allowed due to incorrect origin.');
 			return;
+		}
 
 		var msg;
 
 		if (('data' in e) && Object.hasOwnProperty.call(e.data, 'MessageId')) {
 			// when e.data already contains the right props, but isn't JSON (a blob is passed for ex)
+			msg = e.data;
+		} else if (typeof e.data === 'object') {
+			// E.g. the esign popup sends us an object, no need to JSON-parse it.
 			msg = e.data;
 		} else {
 			try {
@@ -269,6 +314,21 @@ L.Map.WOPI = L.Handler.extend({
 			}
 			var show = msg.MessageId === 'Show_Button';
 			this._map.uiManager.showButton(msg.Values.id, show);
+			return;
+		}
+		else if (msg.MessageId === 'Show_Command' || msg.MessageId === 'Hide_Command') {
+			if (!msg.Values) {
+				window.app.console.error('Property "Values" not set');
+				return;
+			}
+
+			if (!msg.Values.id) {
+				window.app.console.error('Property "Values.id" not set');
+				return;
+			}
+			var show = msg.MessageId === 'Show_Command';
+			this._map.uiManager.showCommand(msg.Values.id, show);
+			return;
 		}
 		else if (msg.MessageId === 'Remove_Statusbar_Element') {
 			if (!msg.Values) {
@@ -279,23 +339,75 @@ L.Map.WOPI = L.Handler.extend({
 				window.app.console.error('Property "Values.id" not set');
 				return;
 			}
-			if (!w2ui['actionbar'].get(msg.Values.id)) {
-				window.app.console.error('Statusbar element with id "' + msg.Values.id + '" not found.');
-				return;
-			}
-			w2ui['actionbar'].remove(msg.Values.id);
+			// TODO: remove
+			window.app.map.statusBar.showItem(msg.Values.id, false);
+			return;
 		}
 		else if (msg.MessageId === 'Show_Menubar') {
 			this._map.uiManager.showMenubar();
+			return;
 		}
 		else if (msg.MessageId === 'Hide_Menubar') {
 			this._map.uiManager.hideMenubar();
+			return;
 		}
 		else if (msg.MessageId === 'Show_Ruler') {
 			this._map.uiManager.showRuler();
+			return;
 		}
 		else if (msg.MessageId === 'Hide_Ruler') {
 			this._map.uiManager.hideRuler();
+			return;
+		}
+		else if (msg.MessageId === 'Show_StatusBar') {
+			this._map.uiManager.showStatusBar();
+			return;
+		}
+		else if (msg.MessageId === 'Hide_StatusBar') {
+			this._map.uiManager.hideStatusBar(false);
+			return;
+		}
+		else if (msg.MessageId === 'Collapse_Notebookbar') {
+			this._map.uiManager.collapseNotebookbar();
+			return;
+		}
+		else if (msg.MessageId === 'Extend_Notebookbar') {
+			this._map.uiManager.extendNotebookbar();
+			return;
+		}
+		else if (msg.MessageId === 'Show_NotebookTab' || msg.MessageId === 'Hide_NotebookTab') {
+			if (!msg.Values) {
+				window.app.console.error('Property "Values" not set');
+				return;
+			}
+			if (!msg.Values.id) {
+				window.app.console.error('Property "Values.id" not set');
+				return;
+			}
+
+			let show = msg.MessageId === 'Show_NotebookTab';
+			this._map.uiManager.showNotebookTab(msg.Values.id, show);
+			return;
+		}
+		else if (msg.MessageId === 'Show_Sidebar') {
+			/* id is optional */
+                        if (msg.Values) {
+				switch (msg.Values.id) {
+				case 'Navigator':
+				case 'ModifyPage':
+				case 'SlideChangeWindow':
+				case 'CustomAnimation':
+				case 'MasterSlidesPanel':
+					this._map.sendUnoCommand(`.uno:${msg.Values.id}`);
+					return;
+				}
+			}
+			this._map.sendUnoCommand('.uno:SidebarDeck.PropertyDeck');
+			return;
+		}
+		else if (msg.MessageId === 'Hide_Sidebar') {
+			this._map.sendUnoCommand('.uno:SidebarHide');
+			return;
 		}
 		else if (msg.MessageId === 'Show_Menu_Item' || msg.MessageId === 'Hide_Menu_Item') {
 			if (!msg.Values) {
@@ -308,6 +420,9 @@ L.Map.WOPI = L.Handler.extend({
 			}
 			if (!this._map.menubar || !this._map.menubar.hasItem(msg.Values.id)) {
 				window.app.console.error('Menu item with id "' + msg.Values.id + '" not found.');
+				if (this._map.uiManager.getCurrentMode() === 'notebookbar') {
+					window.app.console.error('No menu items in notebookbar');
+				}
 				return;
 			}
 
@@ -316,12 +431,23 @@ L.Map.WOPI = L.Handler.extend({
 			} else {
 				this._map.menubar.hideItem(msg.Values.id);
 			}
+			return;
 		}
 		else if (msg.MessageId === 'Insert_Button' &&
 			msg.Values && msg.Values.id && msg.Values.imgurl) {
 			this._map.uiManager.insertButton(msg.Values);
+			return;
 		} else if (msg.MessageId === 'Send_UNO_Command' && msg.Values && msg.Values.Command) {
 			this._map.sendUnoCommand(msg.Values.Command, msg.Values.Args || '');
+			return;
+		}
+		else if (msg.MessageId === 'Hint_OnscreenKeyboard') {
+			window.keyboard.hintOnscreenKeyboard(true);
+			return;
+		}
+		else if (msg.MessageId === 'Hint_NoOnscreenKeyboard') {
+			window.keyboard.hintOnscreenKeyboard(false);
+			return;
 		}
 		else if (msg.MessageId === 'Disable_Default_UIAction') {
 			// Disable the default handler and action for a UI command.
@@ -333,10 +459,25 @@ L.Map.WOPI = L.Handler.extend({
 			if (msg.Values && msg.Values.action && msg.Values.disable !== undefined) {
 				this._map._disableDefaultAction[msg.Values.action] = msg.Values.disable;
 			}
+			return;
+		}
+		else if (msg.MessageId === 'Error_Messages') {
+			if (msg.Values && msg.Values.list) {
+				msg.Values.list.forEach(function (item) {
+					if (Object.prototype.hasOwnProperty.call(errorMessages.storage, item.type)) {
+						errorMessages.storage[item.type] = item.msg;
+					} else if (Object.prototype.hasOwnProperty.call(errorMessages.uploadfile, item.type)) {
+						errorMessages.uploadfile[item.type] = item.msg;
+					} else if (Object.prototype.hasOwnProperty.call(errorMessages, item.type)) {
+						errorMessages[item.type] = item.msg;
+					}
+				});
+			}
 		}
 
 		// All following actions must be done after initialization is completed.
 		if (!window.WOPIPostmessageReady) {
+			window.app.console.error('PostMessage ignored: not ready.');
 			return;
 		}
 
@@ -354,6 +495,15 @@ L.Map.WOPI = L.Handler.extend({
 		if (msg.MessageId === 'Close_Session') {
 			app.socket.sendMessage('closedocument');
 			return;
+		}
+
+		// when user goes idle we have 'this._appLoaded == false'
+		if (msg.MessageId === 'Get_User_State') {
+			var isIdle = app.idleHandler.isDimActive();
+			this._postMessage({msgId: 'Get_User_State_Resp', args: {
+				State: (isIdle ? 'idle' : 'active'),
+				Elapsed: app.idleHandler.getElapsedFromActivity()
+			}});
 		}
 
 		// For all other messages, warn if trying to interact before we are completely loaded
@@ -386,11 +536,31 @@ L.Map.WOPI = L.Handler.extend({
 		else if (msg.MessageId === 'Action_Close') {
 			this._map.remove();
 		}
+		else if (msg.MessageId === 'Action_Fullscreen') {
+			L.toggleFullScreen();
+		}
+		else if (msg.MessageId === 'Action_FullscreenPresentation' && this._map.getDocType() === 'presentation') {
+			if (msg.Values) {
+				var slideNumber;
+				if (typeof msg.Values.StartSlideNumber != 'undefined') {
+					slideNumber = msg.Values.StartSlideNumber;
+				} else if (msg.Values.CurrentSlide) {
+					slideNumber = this._map.getCurrentPartNumber();
+				}
+				this._map.fire('fullscreen',
+					       {
+						       startSlideNumber: slideNumber
+					       });
+			} else {
+				this._map.fire('fullscreen');
+			}
+		}
 		else if (msg.MessageId === 'Action_Print') {
 			this._map.print();
 		}
 		else if (msg.MessageId === 'Action_Export') {
 			if (msg.Values) {
+				this._notifySave = msg.Values['Notify'];
 				var format = msg.Values.Format;
 				var fileName = this._map['wopi'].BaseFileName;
 				fileName = fileName.substr(0, fileName.lastIndexOf('.'));
@@ -400,7 +570,12 @@ L.Map.WOPI = L.Handler.extend({
 		}
 		else if (msg.MessageId == 'Action_InsertGraphic') {
 			if (msg.Values) {
-				this._map.insertURL(msg.Values.url);
+				this._map.insertURL(msg.Values.url, "graphicurl");
+			}
+		}
+		else if (msg.MessageId == 'Action_InsertMultimedia') {
+			if (msg.Values) {
+				this._map.insertURL(msg.Values.url, "multimediaurl");
 			}
 		}
 		else if (msg.MessageId == 'Action_InsertLink') {
@@ -435,10 +610,16 @@ L.Map.WOPI = L.Handler.extend({
 				if (msg.Values.image && msg.Values.image.indexOf('data:') === 0) {
 					var image = L.DomUtil.create('img', '', preview);
 					image.src = msg.Values.image;
+					image.onload = function() {
+						URLPopUpSection.resetPosition();
+					};
+				} else {
+					L.DomUtil.addClass(preview, 'no-preview');
 				}
 				if (msg.Values.title) {
 					var title = L.DomUtil.create('p', '', preview);
 					title.innerText = msg.Values.title;
+					URLPopUpSection.resetPosition();
 				}
 			}
 		}
@@ -463,10 +644,10 @@ L.Map.WOPI = L.Handler.extend({
 		}
 		else if (msg.MessageId === 'Get_Export_Formats') {
 			var exportFormatsResp = [];
-			for (var index in this._map._docLayer._exportFormats) {
+			for (var index in app.file.exportFormats) {
 				exportFormatsResp.push({
-					Label: this._map._docLayer._exportFormats[index].label,
-					Format: this._map._docLayer._exportFormats[index].format
+					Label: app.file.exportFormats[index].label,
+					Format: app.file.exportFormats[index].format
 				});
 			}
 
@@ -524,7 +705,14 @@ L.Map.WOPI = L.Handler.extend({
 		}
 		else if (msg.MessageId === 'Action_Mention') {
 			var list = msg.Values.list;
-			this._map.fire('openmentionpopup', {data: list});
+			this._map.mention.openMentionPopup(list);
+		}
+		else if (msg.sender === 'EIDEASY_SINGLE_METHOD_SIGNATURE') {
+			// This is produced by the esign popup.
+			const eSignature = this._map.eSignature;
+			if (eSignature) {
+				eSignature.handleSigned(msg);
+			}
 		}
 	},
 

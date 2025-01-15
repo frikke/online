@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,7 +12,6 @@
 #include <config.h>
 
 #include "ProofKey.hpp"
-#include "COOLWSD.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,7 +20,6 @@
 
 #include <Poco/Base64Decoder.h>
 #include <Poco/Base64Encoder.h>
-#include <Poco/BinaryWriter.h>
 #include <Poco/Crypto/RSADigestEngine.h>
 #include <Poco/Crypto/RSAKey.h>
 #include <Poco/LineEndingConverter.h>
@@ -140,7 +142,7 @@ Proof::Proof()
             std::string msg = e.displayText() +
                 "\nNo proof-key will be present in discovery."
                 "\nIf you need to use WOPI security, generate an RSA key using this command:"
-                "\n    coolwsd-generate-proof-key"
+                "\n    sudo coolconfig generate-proof-key"
                 "\nor if your config dir is not /etc, you can run ssh-keygen manually:"
                 "\n    ssh-keygen -t rsa -N \"\" -m PEM -f \"" + keyPath + "\""
                 "\nNote: the proof_key file must be readable by the coolwsd process.";
@@ -210,8 +212,8 @@ std::vector<unsigned char> Proof::RSA2CapiBlob(const std::vector<unsigned char>&
 int64_t Proof::DotNetTicks(const std::chrono::system_clock::time_point& utc)
 {
     // Get time point for Unix epoch; unfortunately from_time_t isn't constexpr
-    const auto aUnxEpoch(std::chrono::system_clock::from_time_t(0));
-    const auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(utc - aUnxEpoch);
+    const auto unxEpoch(std::chrono::system_clock::from_time_t(0));
+    const auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(utc - unxEpoch);
     return duration_ns.count() / 100 + 621355968000000000;
 }
 

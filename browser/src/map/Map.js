@@ -3,7 +3,7 @@
  * L.Map is the central class of the API - it is used to create a map.
  */
 
-/* global app _ Cursor */
+/* global app _ Cursor JSDialog */
 
 L.Map = L.Evented.extend({
 
@@ -12,7 +12,7 @@ L.Map = L.Evented.extend({
 	},
 
 	options: {
-		crs: L.CRS.Simple,
+		crs: L.CRS,
 		center: [0, 0],
 		docParams: {},
 		// Default zoom level in which the document will be loaded.
@@ -26,7 +26,6 @@ L.Map = L.Evented.extend({
 		maxZoom: 18,
 		maxBounds: L.latLngBounds([0, 0], [-100, 100]),
 		fadeAnimation: false, // Not useful for typing.
-		trackResize: true,
 		markerZoomAnimation: true,
 		// defaultZoom:
 		// The zoom level at which the tile size in twips equals the default size (3840 x 3840).
@@ -70,13 +69,9 @@ L.Map = L.Evented.extend({
 			this.options.documentContainer = L.DomUtil.get(this.options.documentContainer);
 		}
 
-		if (!window.ThisIsAMobileApp)
-			this._clip = L.clipboard(this);
+		this._clip = L.clipboard(this);
 		this._initContainer(id);
 		this._initLayout();
-
-		// hack for https://github.com/Leaflet/Leaflet/issues/1980
-		this._onResize = L.bind(this._onResize, this);
 
 		// Start with readonly toolbars on desktop
 		if (window.mode.isDesktop()) {
@@ -118,7 +113,7 @@ L.Map = L.Evented.extend({
 		// Focusing:
 		//
 		// Cursor is visible or hidden (e.g. for graphic selection).
-		this._isCursorVisible = true;
+		app.file.textCursor.visible = true;
 		// The ID of the window with focus. 0 for the document.
 		this._winId = 0;
 		// The object of the dialog, if any (must have .focus callable).
@@ -126,27 +121,17 @@ L.Map = L.Evented.extend({
 		// True only when searching within the doc, as we need to use winId==0.
 		this._isSearching = false;
 
-		this._accessibilityState = false;
-
-		if (L.Browser.cypressTest && window.enableAccessibility && window.isLocalStorageAllowed) {
-			this._accessibilityState = true;
-			window.localStorage.setItem('accessibilityState', 'true');
-		}
-
 		this.callInitHooks();
 
 		this.addHandler('keyboard', L.Map.Keyboard);
 		this.addHandler('dragging', L.Map.Drag);
-		if ((L.Browser.touch && !L.Browser.pointer) || (L.Browser.cypressTest && (window.mode.isMobile() || window.mode.isTablet()))) {
-			this.dragging.disable();
-			this.dragging._draggable._manualDrag = true;
-			this._mainEvents('off');
-			this.addHandler('touchGesture', L.Map.TouchGesture);
-		} else {
-			this.addHandler('mouse', L.Map.Mouse);
-			this.addHandler('scrollHandler', L.Map.Scroll);
-			this.addHandler('doubleClickZoom', L.Map.DoubleClickZoom);
-		}
+		this.dragging.disable(); // FIXME: before unification, this was only called when on a touch device or in a mobile cypress test
+		// It would be better to split dragging.disable into a touch version and a mouse version but this looks like it will require a major rework of its own...
+		this.addHandler('mouse', L.Map.Mouse);
+		this.addHandler('scrollHandler', L.Map.Scroll);
+		this.addHandler('doubleClickZoom', L.Map.DoubleClickZoom);
+		this.addHandler('touchGesture', L.Map.TouchGesture);
+		this.dragging._draggable._manualDrag = window.touch.isTouchEvent;
 
 		if (this.options.imagePath) {
 			L.Icon.Default.imagePath = this.options.imagePath;
@@ -155,6 +140,17 @@ L.Map = L.Evented.extend({
 		app.socket = new app.definitions.Socket(this);
 
 		this._progressBar = L.progressOverlay(new L.point(150, 25));
+
+		this._debug = new L.DebugManager(this);
+		this.on('docloaded', function() {
+			if (this.options.debug && !this._debug.debugOn) {
+				this._debug.toggle();
+			}
+		});
+
+		this.on('modificationindicatorinitialized', function() {
+			this._modIndicatorInitialized = true;
+		});
 
 		// When all these conditions are met, fire statusindicator:initializationcomplete
 		this.initConditions = {
@@ -166,12 +162,12 @@ L.Map = L.Evented.extend({
 		};
 		this.initComplete = false;
 
-		this.on('updatepermission', function(e) {
+		app.events.on('updatepermission', function(e) {
 			if (!this.initComplete) {
 				this._fireInitComplete('updatepermission');
 			}
 
-			if (e.perm === 'readonly') {
+			if (e.detail.perm === 'readonly') {
 				L.DomUtil.addClass(this._container.parentElement, 'readonly');
 				if (window.mode.isDesktop() || window.mode.isTablet()) {
 					L.DomUtil.addClass(L.DomUtil.get('toolbar-wrapper'), 'readonly');
@@ -186,14 +182,13 @@ L.Map = L.Evented.extend({
 				L.DomUtil.removeClass(L.DomUtil.get('main-menu'), 'readonly');
 				L.DomUtil.removeClass(L.DomUtil.get('presentation-controls-wrapper'), 'readonly');
 			}
-		}, this);
+		}.bind(this));
+
 		this.on('doclayerinit', function() {
 			if (!this.initComplete) {
 				this._fireInitComplete('doclayerinit');
 			}
 
-			// We need core's knowledge of whether it is a mobile phone
-			// or not to be in sync with the test in _onJSDialogMsg in TileLayer.js.
 			if (window.mode.isMobile())
 			{
 				document.getElementById('document-container').classList.add('mobile');
@@ -248,7 +243,8 @@ L.Map = L.Evented.extend({
 		// after we receive status for the first time.
 		this._docLoadedOnce = false;
 
-		this._isNotebookbarLoadedOnCore = false;
+		//Last modified time of document saved state
+		this._lastModDateValue = '';
 
 		this.on('commandstatechanged', function(e) {
 			if (e.commandName === '.uno:ModifiedStatus') {
@@ -256,6 +252,10 @@ L.Map = L.Evented.extend({
 
 				// Fire an event to let the client know whether the document needs saving or not.
 				this.fire('postMessage', {msgId: 'Doc_ModifiedStatus', args: { Modified: e.state === 'true' }});
+
+				if (this._everModified) {
+					this.fire('updatemodificationindicator', { status: e.state === 'true' ? 'MODIFIED' : 'SAVED' });
+				}
 			}
 		}, this);
 
@@ -280,8 +280,8 @@ L.Map = L.Evented.extend({
 		this.on('docloaded', function(e) {
 			this._docLoaded = e.status;
 			if (this._docLoaded) {
-				app.socket.sendMessage('blockingcommandstatus isRestrictedUser=' + this.Restriction.isRestrictedUser + ' isLockedUser=' + this.Locking.isLockedUser);
 				app.idleHandler.notifyActive();
+				app.dispatcher = new app.definitions['dispatcher']();
 				if (!document.hasFocus()) {
 					this.fire('editorgotfocus');
 					this.focus();
@@ -311,13 +311,52 @@ L.Map = L.Evented.extend({
 				this._docLoadedOnce = this._docLoaded;
 			}
 		}, this);
+
+		this.fire('postMessage', {
+			msgId: 'App_LoadingStatus',
+			args: {
+				Status: 'Initialized',
+			}
+		});
 	},
 
+	// A11y
+
 	initTextInput: function(docType) {
-		var hasAccessibilitySupport = window.enableAccessibility && this._accessibilityState;
-		this._textInput = hasAccessibilitySupport && docType === 'text' ? L.a11yTextInput() : L.textInput();
+		var hasAccessibilitySupport =
+			window.enableAccessibility && window.prefs.getBoolean('accessibilityState');
+		hasAccessibilitySupport = hasAccessibilitySupport &&
+			(docType === 'text' || docType === 'presentation'|| docType === 'spreadsheet');
+
+		this.setupCoreAccessibility(hasAccessibilitySupport);
+		this.createTextInput(hasAccessibilitySupport);
+	},
+
+	createTextInput: function(enableA11y) {
+		this._textInput = enableA11y ? L.a11yTextInput() : L.textInput();
 		this.addLayer(this._textInput);
 	},
+
+	setupCoreAccessibility: function(enableA11y) {
+		app.socket.sendMessage('a11ystate ' + enableA11y);
+	},
+
+	setAccessibilityState: function(enable) {
+		if (window.prefs.getBoolean('accessibilityState') === enable)
+			return;
+
+		window.prefs.set('accessibilityState', enable);
+		this.setupCoreAccessibility(enable);
+		this.removeLayer(this._textInput);
+		this.createTextInput(enable);
+		this.fire('a11ystatechanged');
+
+		if (enable)
+			this._textInput._requestFocusedParagraph();
+		this._textInput.showCursor();
+	},
+
+	// end of A11y
 
 	loadDocument: function(socket) {
 		app.socket.connect(socket);
@@ -328,7 +367,6 @@ L.Map = L.Evented.extend({
 	sendInitUNOCommands: function() {
 		// TODO: remove duplicated init code
 		app.socket.sendMessage('commandvalues command=.uno:LanguageStatus');
-		app.socket.sendMessage('commandvalues command=.uno:ViewAnnotations');
 		if (this._docLayer._docType === 'spreadsheet') {
 			this._docLayer._gotFirstCellCursor = false;
 			if (this._docLayer.options.sheetGeometryDataEnabled)
@@ -336,6 +374,9 @@ L.Map = L.Evented.extend({
 			this._docLayer.refreshViewData();
 			this._docLayer._update();
 		}
+		// For calc parsing this will need SheetGeometry, so send after
+		// requesting that
+		app.socket.sendMessage('commandvalues command=.uno:ViewAnnotations');
 		this._docLayer._getToolbarCommandsValues();
 	},
 
@@ -394,29 +435,8 @@ L.Map = L.Evented.extend({
 	},
 
 	initializeModificationIndicator: function() {
-		var lastModButton = L.DomUtil.get('menu-last-mod');
-		if (lastModButton !== null && lastModButton !== undefined
-			&& lastModButton.firstChild.innerHTML !== null
-			&& lastModButton.firstChild.childElementCount == 0) {
-			if (this._lastmodtime == null) {
-				// No modification time -> hide the indicator
-				L.DomUtil.setStyle(lastModButton, 'display', 'none');
-				return;
-			}
-			var mainSpan = document.createElement('span');
-			this.lastModIndicator = document.createElement('span');
-			mainSpan.appendChild(this.lastModIndicator);
-
-			this.updateModificationIndicator(this._lastmodtime);
-
-			// Replace menu button body with new content
-			lastModButton.firstChild.innerHTML = '';
-			lastModButton.firstChild.appendChild(mainSpan);
-
-			if (L.Params.revHistoryEnabled) {
-				L.DomUtil.setStyle(lastModButton, 'cursor', 'pointer');
-			}
-		}
+		this.fire('initmodificationindicator', this._lastmodtime);
+		this.updateModificationIndicator(this._lastmodtime);
 	},
 
 	updateModificationIndicator: function(newModificationTime) {
@@ -428,13 +448,16 @@ L.Map = L.Evented.extend({
 
 		clearTimeout(this._modTimeout);
 
-		if (this.lastModIndicator !== null && this.lastModIndicator !== undefined) {
+		if (this._modIndicatorInitialized && this._lastmodtime) {
 			var dateTime = new Date(this._lastmodtime.replace(/,.*/, 'Z'));
 			var dateValue;
 
 			var elapsed = Date.now() - dateTime;
 			var rtf1 = new Intl.RelativeTimeFormat(String.locale, { style: 'narrow' });
-			if (elapsed < 60000) {
+			if (('minSavedMessageTimeoutSecs' in window) && (elapsed < (window.minSavedMessageTimeoutSecs * 1000))) {
+				timeout = window.minSavedMessageTimeoutSecs * 1000;
+				dateValue = '';
+			} else if (elapsed < 60000) {
 				dateValue = _('Last saved:') + ' ' + rtf1.format(-Math.round(elapsed / 1000), 'second');
 				timeout = 6000;
 			} else if (elapsed < 3600000) {
@@ -449,12 +472,24 @@ L.Map = L.Evented.extend({
 				timeout = 60000;
 			}
 
-			this.lastModIndicator.innerHTML = dateValue;
+			this.fire('updatemodificationindicator', {lastSaved: dateValue});
 
 			if (timeout) {
 				this._modTimeout = setTimeout(L.bind(this.updateModificationIndicator, this, -1), timeout);
 			}
 		}
+		if (this.lastModIndicator !== null && this.lastModIndicator !== undefined)
+			this.lastModIndicator.innerHTML = dateValue;
+		this.setLastModDateValue(dateValue);
+		this._modTimeout = setTimeout(L.bind(this.updateModificationIndicator, this, -1), timeout);
+	},
+
+	setLastModDateValue: function(dateValue) {
+		this._lastModDateValue = dateValue;
+	},
+
+	getLastModDateValue: function() {
+		return this._lastModDateValue;
 	},
 
 	showBusy: function(label, bar) {
@@ -482,88 +517,94 @@ L.Map = L.Evented.extend({
 		return Math.pow(1.2, (zoom - this.options.zoom));
 	},
 
-	setDesktopCalcViewOnZoom: function (zoom, animate) {
-		var calcLayer = this._docLayer;
-		if (!calcLayer.options.sheetGeometryDataEnabled || !calcLayer.sheetGeometry)
-			return false;
+	getDesktopCalcZoomCenter: function() {
+		const docLayer = this._docLayer;
 
-		var sheetGeom = calcLayer.sheetGeometry;
-		var zoomScaleAbs = this.zoomToFactor(zoom);
+		if (app.calc.cellCursorRectangle) {
+			const twipsTopLeft = [app.calc.cellCursorRectangle.x1, app.calc.cellCursorRectangle.y1];
+			const cursorInBounds = app.file.viewedRectangle.containsPoint(twipsTopLeft);
 
-		var cssBounds = this.getPixelBounds();
-		var cssBoundsSize = cssBounds.getSize();
-
-		var topLeftCell = sheetGeom.getCellFromPos(
-			cssBounds.getTopLeft().multiplyBy(app.dpiScale), 'corepixels');
-		// top-left w.r.t current zoom.
-		var topLeftPx = sheetGeom.getCellRect(topLeftCell.x, topLeftCell.y)
-			.getTopLeft().divideBy(window.devicePixelRatio);
-		// top-left w.r.t new zoom.
-		var newTopLeftPx = sheetGeom.getCellRect(topLeftCell.x, topLeftCell.y, zoomScaleAbs)
-			.getTopLeft().divideBy(app.dpiScale);
-
-		var cursorInBounds = calcLayer._cursorCorePixels ?
-			cssBounds.contains(
-				L.point(calcLayer._cursorCorePixels.getTopLeft().divideBy(app.dpiScale))) : false;
-
-		var cursorActive = calcLayer.isCursorVisible();
-		if (cursorActive && cursorInBounds) {
-			var cursorBounds = calcLayer._cursorCorePixels;
-			var cursorCenter = calcLayer._corePixelsToTwips(cursorBounds.getCenter());
-			var newCursorCenter = sheetGeom.getTileTwipsAtZoom(cursorCenter, zoomScaleAbs);
-			// convert to css pixels at zoomScale.
-			newCursorCenter._multiplyBy(zoomScaleAbs / 15 / app.dpiScale)._round();
-			var newBounds = new L.Bounds(newTopLeftPx, newTopLeftPx.add(cssBoundsSize));
-
-			if (!newBounds.contains(newCursorCenter)) {
-				var margin = 10;
-				var diffX = 0;
-				var diffY = 0;
-				var docSize = sheetGeom.getSize('corepixels').divideBy(app.dpiScale);
-				if (newCursorCenter.x < newBounds.min.x) {
-					diffX = Math.max(0, newCursorCenter.x - margin) - newBounds.min.x;
-				} else if (newCursorCenter.x > newBounds.max.x) {
-					diffX = Math.min(docSize.x, newCursorCenter.x + margin) - newBounds.max.x;
-				}
-
-				if (newCursorCenter.y < newBounds.min.y) {
-					diffY = Math.max(0, newCursorCenter.y - margin) - newBounds.min.y;
-				} else if (newCursorCenter.y > newBounds.max.y) {
-					diffY = Math.min(docSize.y, newCursorCenter.y + margin) - newBounds.max.y;
-				}
-
-				newTopLeftPx._add(new L.Point(diffX, diffY));
-				topLeftPx._add(new L.Point(diffX / zoomScaleAbs, diffY / zoomScaleAbs));
-				// FIXME: pan to topLeftPx before the animation ?
+			if (cursorInBounds) {
+				return new L.Point(...twipsTopLeft);
 			}
 		}
 
-		var newHalfSize = cssBoundsSize.divideBy(2);
-		var newCenter = newTopLeftPx.add(newHalfSize);
-		var newCenterLatLng = this.unproject(newCenter, zoom);
-		// pinch center w.r.t current zoom scale.
-		var newPinchCenterLatLng = this.unproject(topLeftPx, this.getZoom());
+		if (docLayer._cellSelectionArea) {
+			const twipsCenter = docLayer._cellSelectionArea.center;
+			const selectionInBounds = app.file.viewedRectangle.containsPoint(twipsCenter);
+
+			if (selectionInBounds) {
+				return new L.Point(...twipsCenter);
+			}
+		}
+
+		const viewBounds = this.getPixelBoundsCore();
+		return docLayer._corePixelsToTwips(viewBounds.getCenter());
+	},
+
+	setDesktopCalcViewOnZoom: function (zoom, animate) {
+		zoom = this._limitZoom(zoom);
+
+		if (zoom === this.getZoom()) {
+			return;
+		}
+
+		const docLayer = this._docLayer;
+		if (!docLayer.options.sheetGeometryDataEnabled || !docLayer.sheetGeometry)
+			return false;
+
+		const typing = app.file.textCursor.visible;
+
+		const tsManager = docLayer._painter;
+
+		const ctx = tsManager._paintContext();
+		const splitPos = ctx.splitPos;
+		const viewBounds = ctx.viewBounds;
+		const freePaneBounds = new L.Bounds(viewBounds.min.add(splitPos), viewBounds.max);
+
+		const zoomCenter = docLayer._twipsToCorePixels(this.getDesktopCalcZoomCenter());
+
+		tsManager._offset = new L.Point(0, 0);
+		const docPos = docLayer._painter._getZoomDocPos(
+			zoomCenter,
+			zoomCenter,
+			freePaneBounds,
+			{ freezeX: false, freezeY: false },
+			splitPos,
+			this.getZoomScale(zoom),
+			true
+		);
+
+		const newCenterLatLng = this.unproject(docPos.center.divideBy(app.dpiScale), zoom);
 
 		this._ignoreCursorUpdate = true;
-		var thisObj = this;
-		var mapUpdater = function() {
-			thisObj._resetView(L.latLng(newCenterLatLng), thisObj._limitZoom(zoom));
+
+		const mapUpdater = (animationCalculatedNewCenter) => {
+			if (animationCalculatedNewCenter) {
+				this._resetView(L.latLng(animationCalculatedNewCenter), zoom);
+				return;
+			}
+
+			this._resetView(L.latLng(newCenterLatLng), zoom);
 		};
-		var runAtFinish = function() {
-			thisObj._ignoreCursorUpdate = false;
-			if (cursorActive) {
-				calcLayer.activateCursor();
+		const runAtFinish = () => {
+			this._ignoreCursorUpdate = false;
+			if (typing) {
+				docLayer.activateCursor();
 			}
 		};
 
 		if (animate) {
-			this._docLayer.runZoomAnimation(zoom, newPinchCenterLatLng,
+			this._docLayer.runZoomAnimation(
+				zoom,
+				this.unproject(zoomCenter.divideBy(app.dpiScale), this.getZoom()),
 				mapUpdater,
 				runAtFinish);
-		} else {
-			mapUpdater();
-			runAtFinish();
+			return;
 		}
+
+		mapUpdater(newCenterLatLng);
+		runAtFinish();
 	},
 
 	ignoreCursorUpdate: function () {
@@ -584,7 +625,7 @@ L.Map = L.Evented.extend({
 			return;
 		this._ignoreCursorUpdate = !enable;
 
-		if (!docLayer.isCursorVisible())
+		if (!app.file.textCursor.visible)
 			return;
 
 		if (!enable) {
@@ -628,11 +669,11 @@ L.Map = L.Evented.extend({
 		var cssBounds = this.getPixelBounds();
 		var mapUpdater;
 		var runAtFinish;
-		if (this._docLayer && this._docLayer._visibleCursor && this.getBounds().contains(this._docLayer._visibleCursor.getCenter())) {
+		if (this._docLayer && app.file.textCursor.visible && app.file.viewedRectangle.containsPoint(app.file.textCursor.rectangle.center)) {
 			// Calculate new center after zoom. The intent is that the caret
 			// position stays the same.
 			var zoomScale = 1.0 / this.getZoomScale(zoom, this._zoom);
-			var caretPos = this._docLayer._visibleCursor.getCenter();
+			var caretPos = this._docLayer._twipsToLatLng({ x: app.file.textCursor.rectangle.center[0], y: app.file.textCursor.rectangle.center[1] });
 			var newCenter = new L.LatLng(curCenter.lat + (caretPos.lat - curCenter.lat) * (1.0 - zoomScale),
 						     curCenter.lng + (caretPos.lng - curCenter.lng) * (1.0 - zoomScale));
 
@@ -729,7 +770,14 @@ L.Map = L.Evented.extend({
 		this.options.docBounds = bounds;
 	},
 
+	hasDocBounds: function () {
+		return this.options.docBounds;
+	},
+
 	getCorePxDocBounds: function () {
+		if (!this.options.docBounds)
+			return new L.Bounds(0, 0);
+
 		var topleft = this.project(this.options.docBounds.getNorthWest());
 		var bottomRight = this.project(this.options.docBounds.getSouthEast());
 		return new L.Bounds(this._docLayer._cssPixelsToCore(topleft),
@@ -741,11 +789,14 @@ L.Map = L.Evented.extend({
 		    newCenter = this._limitCenter(center, this._zoom, bounds);
 
 		if (center.equals(newCenter)) { return this; }
+		if (this.distance(center, newCenter) < 0.0000001) { return this; }
 
 		return this.panTo(newCenter, options);
 	},
 
-	invalidateSize: function (options) {
+	// If map size has already been updated, invalidateSize needs the oldSize to work properly
+	// (e.g. if getSize() has already been called whith _sizeChanged === true)
+	invalidateSize: function (options, oldSize) {
 		if (!this._loaded) { return this; }
 
 		options = L.extend({
@@ -753,7 +804,9 @@ L.Map = L.Evented.extend({
 			pan: false
 		}, options === true ? {animate: true} : options);
 
-		var oldSize = this.getSize();
+		if (!oldSize) {
+			oldSize = this.getSize();
+		}
 		this._sizeChanged = true;
 
 		var newSize = this.getSize(),
@@ -865,7 +918,9 @@ L.Map = L.Evented.extend({
 	},
 
 	getViewName: function(viewid) {
-		return this._viewInfo[viewid].username;
+		if (this._viewInfo[viewid] !== undefined)
+			return this._viewInfo[viewid].username;
+		else return null;
 	},
 
 	getViewColor: function(viewid) {
@@ -941,10 +996,6 @@ L.Map = L.Evented.extend({
 		return this._pixelOrigin;
 	},
 
-	getPixelWorldBounds: function (zoom) {
-		return this.options.crs.getProjectedBounds(zoom === undefined ? this.getZoom() : zoom);
-	},
-
 	getPane: function (pane) {
 		return typeof pane === 'string' ? this._panes[pane] : pane;
 	},
@@ -1007,6 +1058,15 @@ L.Map = L.Evented.extend({
 		return this.options.crs.pointToLatLng(L.point(point), zoom);
 	},
 
+	// rescaling
+
+	rescale: function(point, oldZoom, newZoom) {
+		oldZoom = oldZoom === undefined ? this.getZoom() : oldZoom;
+		newZoom = newZoom === undefined ? this.getZoom() : newZoom;
+
+		return this.options.crs.rescale(point, oldZoom, newZoom);
+	},
+
 	/**
 	 * Get LatLng coordinates after negating the X cartesian-coordinate.
 	 * This is useful in Calc RTL mode as mouse events have regular document
@@ -1027,10 +1087,6 @@ L.Map = L.Evented.extend({
 	latLngToLayerPoint: function (latlng) { // (LatLng)
 		var projectedPoint = this.project(L.latLng(latlng))._round();
 		return projectedPoint._subtract(this.getPixelOrigin());
-	},
-
-	wrapLatLng: function (latlng) {
-		return this.options.crs.wrapLatLng(L.latLng(latlng));
 	},
 
 	distance: function (latlng1, latlng2) {
@@ -1183,14 +1239,6 @@ L.Map = L.Evented.extend({
 			throw new Error('Map container is already initialized.');
 		}
 
-		if (window.mode.isDesktop()) {
-			this._resizeDetector = L.DomUtil.create('iframe', 'resize-detector', container);
-			this._resizeDetector.title = 'Intentionally blank';
-			this._resizeDetector.setAttribute('aria-hidden', 'true');
-			this._resizeDetector.contentWindow.addEventListener('touchstart', L.DomEvent.preventDefault, {passive: false});
-			L.DomEvent.on(this._resizeDetector.contentWindow, 'contextmenu', L.DomEvent.preventDefault);
-		}
-
 		this._fileDownloader = L.DomUtil.create('iframe', '', container);
 		L.DomUtil.setStyle(this._fileDownloader, 'display', 'none');
 
@@ -1210,9 +1258,8 @@ L.Map = L.Evented.extend({
 		this._fadeAnimated = this.options.fadeAnimation && L.Browser.any3d;
 
 		L.DomUtil.addClass(container, 'leaflet-container' +
-			(L.Browser.touch ? ' leaflet-touch' : '') +
+			(window.touch.hasAnyTouchscreen() ? ' leaflet-touch' : '') +
 			(L.Browser.retina ? ' leaflet-retina' : '') +
-			(L.Browser.ielt9 ? ' leaflet-oldie' : '') +
 			(L.Browser.safari ? ' leaflet-safari' : '') +
 			(this._fadeAnimated ? ' leaflet-fade-anim' : ''));
 
@@ -1239,7 +1286,6 @@ L.Map = L.Evented.extend({
 		this.createPane('shadowPane');
 		this.createPane('overlayPane');
 		this.createPane('markerPane');
-		this.createPane('popupPane');
 		this.createPane('formfieldPane');
 
 		if (!this.options.markerZoomAnimation) {
@@ -1287,7 +1333,12 @@ L.Map = L.Evented.extend({
 			this.fire('zoomlevelschange');
 		}
 
+		// don't allow to turn off the following when moving to other sheet
+		var backupFollowed = app.getFollowedViewId();
+
 		this.fire('moveend', {hard: !preserveMapOffset});
+
+		app.setFollowingUser(backupFollowed);
 	},
 
 	_rawPanBy: function (offset) {
@@ -1308,7 +1359,7 @@ L.Map = L.Evented.extend({
 	_mainEvents: function (onOff) {
 		L.DomEvent[onOff](this._container, 'click dblclick mousedown mouseup ' +
 			'mouseover mouseout mousemove dragover drop ' +
-			'trplclick qdrplclick', this._handleDOMEvent, this);
+			'trplclick qdrplclick', window.touch.mouseOnly(this._handleDOMEvent), this);
 	},
 
 	_initEvents: function (remove) {
@@ -1322,11 +1373,7 @@ L.Map = L.Evented.extend({
 
 		this._mainEvents(onOff);
 
-		if (this.options.trackResize) {
-			var winTarget = this._resizeDetector && this._resizeDetector.contentWindow ? this._resizeDetector.contentWindow :
-				window;
-			L.DomEvent[onOff](winTarget, 'resize', this._onResize, this);
-		}
+		app.events.on('resize', this._onResize.bind(this));
 
 		L.DomEvent[onOff](window, 'blur', this._onLostFocus, this);
 		L.DomEvent[onOff](window, 'focus', this._onGotFocus, this);
@@ -1344,9 +1391,8 @@ L.Map = L.Evented.extend({
 	},
 
 	showCalcInputBar: function() {
-		var wrapper = document.getElementById('calc-inputbar-wrapper');
-		if (wrapper)
-			wrapper.style.display = 'block';
+		if (this.formulabar)
+			this.formulabar.showFormulabar();
 	},
 
 	// Change the focus to a dialog or editor.
@@ -1374,7 +1420,9 @@ L.Map = L.Evented.extend({
 
 	// Our browser tab lost focus.
 	_onLostFocus: function () {
-		app.idleHandler._deactivate();
+		// don't deactivate view while Drag and Drop in Pivot table dialog
+		if (!JSDialog.isDnDActive())
+			app.idleHandler._deactivate();
 	},
 
 	// The editor got focus (probably a dialog closed or user clicked to edit).
@@ -1410,17 +1458,50 @@ L.Map = L.Evented.extend({
 	},
 
 	_onUpdateProgress: function (e) {
-		if (e.statusType === 'start') {
-			if (e.text) {
-				// e.text translated by Core
-				this.showBusy(e.text);
+
+		// Minimal UX disruption for background save
+		if (e.background)
+		{
+			switch (e.statusType)
+			{
+			case 'start':
+				this.uiManager.documentNameInput.showProgressBar();
+				if (this.saveState)
+					this.saveState.showSavingStatus();
+				break;
+			case 'setvalue':
+				this.uiManager.documentNameInput.setProgressBarValue(e.value);
+				break;
+			case 'finish':
+				this.uiManager.documentNameInput.hideProgressBar();
+				if (this.saveState)
+					this.saveState.showSavedStatus();
+				break;
 			}
 		}
-		else if (e.statusType === 'setvalue') {
-			this._progressBar.setValue(e.value);
-		}
-		else if (e.statusType === 'finish' || e.statusType === 'coolloaded' || e.statusType === 'reconnected') {
-			this.hideBusy();
+		else
+		{
+			switch (e.statusType)
+			{
+			case 'start':
+				// e.text translated by Core
+				this.showBusy(e.text ? e.text : _('Please wait!'));
+				if (e.forceid)
+					this._progressBar.forceid = e.forceid;
+				break;
+			case 'setvalue':
+				this._progressBar.setBar(true);
+				this._progressBar.setValue(e.value);
+				break;
+			case 'finish':
+			case 'coolloaded':
+			case 'reconnected':
+				if(this._progressBar.forceid !== e.forceid)
+					return;
+				this.hideBusy();
+				this._progressBar.forceid = undefined;
+				break;
+			}
 		}
 	},
 
@@ -1459,12 +1540,6 @@ L.Map = L.Evented.extend({
 			if (app.sectionContainer.doesSectionExist(L.CSections.CommentList.name)) {
 				app.sectionContainer.getSectionWithName(L.CSections.CommentList.name).unselect();
 			}
-		}
-
-		// we need to keep track about the last action, this
-		// will help us to avoid wrongly removing the editor
-		if (type === 'keypress') {
-			this.lastActionByUser = true;
 		}
 
 		// we need to keep track if we have entered/left the map
@@ -1632,14 +1707,15 @@ L.Map = L.Evented.extend({
 		}
 	},
 
-	_setFollowing: function(followingState, viewId) {
+	/// instantJump = false allows to set the following but waits for a cursor from core to scroll
+	_setFollowing: function(followingState, viewId, instantJump) {
 		var userDefined = viewId !== null && viewId !== undefined;
 		var followDefined = followingState !== null && followingState !== undefined;
 
 		var followEditor = true;
 		var followUser = false;
 
-		if (userDefined && viewId !== -1 && viewId !== this._docLayer.viewId) {
+		if (userDefined && viewId !== -1) {
 			followUser = true;
 			followEditor = false;
 		}
@@ -1649,28 +1725,25 @@ L.Map = L.Evented.extend({
 			followUser = false;
 		}
 
-		this._docLayer._followUser = followUser;
-		this._docLayer._followEditor = followEditor;
-
 		if (followUser) {
-			this._goToViewId(viewId);
-			this._docLayer._followThis = viewId;
+			if (instantJump) this._goToViewId(viewId);
+			app.setFollowingUser(viewId);
 		}
 		else if (followEditor) {
 			var editorId = this._docLayer._editorId;
 			if (editorId !== -1 && editorId !== this._docLayer.viewId) {
-				this._goToViewId(editorId);
-				this._docLayer._followThis = editorId;
+				if (instantJump) this._goToViewId(editorId);
+				app.setFollowingEditor(editorId);
 			}
 		}
 		else {
-			this.fire('deselectuser', {viewId: this._docLayer._followThis});
-			this._docLayer._followThis = -1;
+			this.fire('deselectuser', {viewId: app.getFollowedViewId()});
+			app.setFollowingOff();
 		}
 
 		// Notify about changes
 		this.fire('postMessage', {msgId: 'FollowUser_Changed',
-			args: {FollowedViewId: this._docLayer._followThis,
+			args: {FollowedViewId: app.getFollowedViewId(),
 				IsFollowUser: followUser,
 				IsFollowEditor: followEditor}});
 	},

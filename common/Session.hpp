@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -12,6 +16,7 @@
 #include <memory>
 #include <map>
 #include <ostream>
+#include <optional>
 #include <type_traits>
 
 #include <Poco/Path.h>
@@ -19,7 +24,6 @@
 
 #include "Protocol.hpp"
 #include "Log.hpp"
-#include "MessageQueue.hpp"
 #include "Message.hpp"
 #include "TileCache.hpp"
 #include "WebSocketHandler.hpp"
@@ -52,7 +56,7 @@ public:
     }
 
     /// Lookup one session in the map that matches this canonical view id, only used by Kit
-    std::shared_ptr<T> findByCanonicalId(int id)
+    std::shared_ptr<T> findByCanonicalId(int id) const
     {
         for (const auto &it : *this) {
             if (it.second->getCanonicalViewId() == id)
@@ -77,6 +81,21 @@ public:
     const std::string& getName() const { return _name; }
     bool isDisconnected() const { return _disconnected; }
 
+    /// Sets the permission to write to storage (for a given document).
+    /// If set to false, will setWritable(false).
+    void setWritePermission(bool write)
+    {
+        _writePermission = write;
+        if (!write)
+        {
+            // Disable writing.
+            setWritable(false);
+        }
+    }
+
+    /// Gets the permission to write to storage (for a given document).
+    bool getWritePermission() const { return _writePermission; }
+
     /// Controls whether writing in the Storage is enabled in this session.
     /// If set to false, will setReadOnly(true) and setAllowChangeComments(false).
     void setWritable(bool writable)
@@ -96,12 +115,15 @@ public:
     virtual void setReadOnly(bool readonly) { _isReadOnly = readonly; }
     bool isReadOnly() const { return _isReadOnly; }
 
-    /// Controls whether commenting is enabled in this session
+    /// Controls whether commenting is enabled in this session.
     void setAllowChangeComments(bool allow) { _isAllowChangeComments = allow; }
     bool isAllowChangeComments() const { return _isAllowChangeComments; }
 
     /// Returns true iff the view is either non-readonly or can change comments.
     bool isEditable() const { return !isReadOnly() || isAllowChangeComments(); }
+
+    /// if certification verification was disabled for the wopi server
+    bool isDisableVerifyHost() const { return _disableVerifyHost; }
 
     /// overridden to prepend client ids on messages by the Kit
     virtual bool sendBinaryFrame(const char* buffer, int length);
@@ -123,12 +145,6 @@ public:
     }
 
     /// Sends a WebSocket Text message.
-    int sendMessage(const std::string& msg)
-    {
-        return sendTextFrame(msg.data(), msg.size());
-    }
-
-    // FIXME: remove synonym - and clean from WebSocketHandler too ... (?)
     bool sendTextFrame(const std::string& text)
     {
         return sendTextFrame(text.data(), text.size());
@@ -187,10 +203,16 @@ public:
     void setIsActive(bool active) { _isActive = active; }
 
     /// Returns the inactivity time of the client in milliseconds.
+    double getInactivityMS(const std::chrono::steady_clock::time_point &now) const
+    {
+        const auto duration = now - _lastActivityTime;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    }
+
+    /// Returns the inactivity time of the client in milliseconds.
     double getInactivityMS() const
     {
-        const auto duration = (std::chrono::steady_clock::now() - _lastActivityTime);
-        return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+        return getInactivityMS(std::chrono::steady_clock::now());
     }
 
     void closeFrame() { _isCloseFrame = true; };
@@ -204,9 +226,13 @@ public:
 
     void setWatermarkText(const std::string& watermarkText) { _watermarkText = watermarkText; }
 
+    void setIsAdminUser(const std::optional<bool> isAdminUser) { _isAdminUser = isAdminUser; }
+
     void setUserExtraInfo(const std::string& userExtraInfo) { _userExtraInfo = userExtraInfo; }
 
     void setUserPrivateInfo(const std::string& userPrivateInfo) { _userPrivateInfo = userPrivateInfo; }
+
+    void setServerPrivateInfo(const std::string& serverPrivateInfo) { _serverPrivateInfo = serverPrivateInfo; }
 
     void setUserName(const std::string& userName) { _userName = userName; }
 
@@ -236,9 +262,13 @@ public:
 
     const std::string& getDocPassword() const { return _docPassword; }
 
+    const std::optional<bool> getIsAdminUser() const { return _isAdminUser; }
+
     const std::string& getUserExtraInfo() const { return _userExtraInfo; }
 
     const std::string& getUserPrivateInfo() const { return _userPrivateInfo; }
+
+    const std::string& getServerPrivateInfo() const { return _serverPrivateInfo; }
 
     const std::string& getDocURL() const { return  _docURL; }
 
@@ -250,6 +280,10 @@ public:
 
     const std::string& getSpellOnline() const { return _spellOnline; }
 
+    const std::string& getDarkTheme() const { return _darkTheme; }
+
+    const std::string& getDarkBackground() const { return _darkBackground; }
+
     const std::string& getBatchMode() const { return _batch; }
 
     const std::string& getEnableMacrosExecution() const { return _enableMacrosExecution; }
@@ -257,6 +291,8 @@ public:
     const std::string& getMacroSecurityLevel() const { return _macroSecurityLevel; }
 
     bool getAccessibilityState() const { return _accessibilityState; }
+
+    void disableSpellCheckIfReadOnly();
 
 protected:
     Session(const std::shared_ptr<ProtocolHandlerInterface> &handler,
@@ -299,10 +335,15 @@ private:
     // Whether websocket received close frame.  Closing Handshake
     std::atomic<bool> _isCloseFrame;
 
-    /// Whether the session can write in storage.
+    /// Whether the session has write permission in storage, as received from WOPI or URL parameters.
+    /// This doesn't change once set.
+    bool _writePermission;
+
+    /// Whether the session can write in storage. May be disabled on error (e.g. low storage).
+    /// Note: A read-only document may still be writable (if _isAllowChangeComments is true), f.e. PDF.
     bool _isWritable;
 
-    /// Whether the session can edit the document.
+    /// Whether the session can edit the document. Disabled when we fail to lock, for example.
     bool _isReadOnly;
 
     /// Whether the session can add/change comments.
@@ -342,11 +383,17 @@ private:
     /// Name of the user to whom the session belongs to, anonymized for logging.
     std::string _userNameAnonym;
 
+    /// If user is admin on the integrator side
+    std::optional<bool> _isAdminUser;
+
     /// Extra info per user, mostly mail, avatar, links, etc.
     std::string _userExtraInfo;
 
     /// Private info per user, not shared with others.
     std::string _userPrivateInfo;
+
+    /// Private info per server, shared with others.
+    std::string _serverPrivateInfo;
 
     /// In case a watermark has to be rendered on each tile.
     std::string _watermarkText;
@@ -366,6 +413,12 @@ private:
     /// The start value of Auto Spell Checking whether it is enabled or disabled on start.
     std::string _spellOnline;
 
+    /// The start value for Dark Theme whether it is active or not on start.
+    std::string _darkTheme;
+    ///
+    /// The start value for Dark Background whether it is active or not on start.
+    std::string _darkBackground;
+
     /// Disable dialogs interactivity.
     std::string _batch;
 
@@ -377,6 +430,10 @@ private:
 
     /// Specifies whether accessibility support is enabled for this session.
     bool _accessibilityState;
+
+    /// Specifies whether certification verification for the wopi server
+    /// should be disabled in core
+    bool _disableVerifyHost;
 };
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

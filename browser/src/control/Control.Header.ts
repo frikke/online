@@ -1,23 +1,29 @@
 /* -*- js-indent-level: 8 -*- */
 /*
-* Control.Header
-*
-* Abstract class, basis for ColumnHeader and RowHeader controls.
-* Used only in spreadsheets, implements the row/column headers.
-*/
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
+ * Control.Header
+ *
+ * Abstract class, basis for ColumnHeader and RowHeader controls.
+ * Used only in spreadsheets, implements the row/column headers.
+ */
 /* global $ L app */
 
 namespace cool {
-
-export type HeaderExtraProperties = { cursor: string };
-export interface HeaderInitProperties extends SectionInitProperties, HeaderExtraProperties {}
 
 export interface SelectionRange {
 	start: number,
 	end: number,
 }
 
-export class Header extends CanvasSectionObject {
+export class Header extends app.definitions.canvasSectionObject {
 	_map: any;
 	_textColor: string;
 	_backgroundColor: string;
@@ -33,18 +39,19 @@ export class Header extends CanvasSectionObject {
 	_headerInfo: HeaderInfo;
 	_dragEntry: HeaderEntryData;
 	_mouseOverEntry: HeaderEntryData;
+	_prevMouseOverEntry: HeaderEntryData;
 	_startSelectionEntry: HeaderEntryData;
+	_lastSelectedIndex: number;
 	_hitResizeArea: boolean;
 	_menuItem: any;
 	_dragDistance: number[];
 	_isColumn: boolean;
-	options: HeaderExtraProperties;
+	cursor: string;
 
 	getFont: () => string;
 
-	constructor (options?: HeaderInitProperties) {
-		super(options);
-		this.options =  { cursor: options.cursor };
+	constructor () {
+		super();
 	}
 
 	_initHeaderEntryStyles (className: string): void {
@@ -66,7 +73,7 @@ export class Header extends CanvasSectionObject {
 
 	_getFontSize(): number {
 		const map = this._map;
-		const zoomScale = map.getZoomScale(map.getZoom(),	map.options.defaultZoom);
+		const zoomScale = map.getZoomScale(map.getZoom(), map.options.defaultZoom);
 		if (zoomScale < 0.68)
 			return Math.round(8 * app.dpiScale);
 		else if (zoomScale < 0.8)
@@ -105,8 +112,8 @@ export class Header extends CanvasSectionObject {
 	}
 
 	_initHeaderEntryResizeStyles (className: string): void {
-		if (this.options.cursor) {
-			this._resizeCursor = this.options.cursor;
+		if (this.cursor) {
+			this._resizeCursor = this.cursor;
 		}
 		else {
 			const baseElem = document.getElementsByTagName('body')[0];
@@ -120,32 +127,40 @@ export class Header extends CanvasSectionObject {
 		return (!!this._headerInfo.getElementData(index).isCurrent) || (!!this._headerInfo.getElementData(index).isHighlighted);
 	}
 
-	onLongPress(): void {
-		if (this._map.isEditMode()) {
+	onContextMenu(evt: MouseEvent): void {
+		if ((window as any).mode.isMobile() && this._map.isEditMode()) {
 			(window as any).contextMenuWizard = true;
 			this._map.fire('mobilewizard', {data: this._menuData});
+		}
+		else if (this._map.isEditMode()) {
+			this._bindContextMenu();
+			$('#canvas-container').contextMenu({x: evt.clientX, y: evt.clientY});
 		}
 	}
 
 	_updateCanvas(): void {
 		if (this._headerInfo) {
-			this._reInitRowColumnHeaderStylesAfterModeChange();
-			this._headerInfo.update(this);
+			this._headerInfo.update(this as any as CanvasSectionObject);
 			this.containerObject.requestReDraw();
 		}
 	}
 
 	_reInitRowColumnHeaderStylesAfterModeChange(): void {
-		// update column DOM element info
-		this._initHeaderEntryStyles('spreadsheet-header-column');
-		this._initHeaderEntryHoverStyles('spreadsheet-header-column-hover');
-		this._initHeaderEntrySelectedStyles('spreadsheet-header-column-selected');
-		this._initHeaderEntryResizeStyles('spreadsheet-header-column-resize');
-		// update column DOM element info
-		this._initHeaderEntryStyles('spreadsheet-header-row');
-		this._initHeaderEntryHoverStyles('spreadsheet-header-row-hover');
-		this._initHeaderEntrySelectedStyles('spreadsheet-header-row-selected');
-		this._initHeaderEntryResizeStyles('spreadsheet-header-row-resize');
+		// add a separation to update row/column DOM element info
+		if (this._isColumn) {
+			// update column DOM element info
+			this._initHeaderEntryStyles('spreadsheet-header-column');
+			this._initHeaderEntryHoverStyles('spreadsheet-header-column-hover');
+			this._initHeaderEntrySelectedStyles('spreadsheet-header-column-selected');
+			this._initHeaderEntryResizeStyles('spreadsheet-header-column-resize');
+		}
+		else {
+			// update row DOM element info
+			this._initHeaderEntryStyles('spreadsheet-header-row');
+			this._initHeaderEntryHoverStyles('spreadsheet-header-row-hover');
+			this._initHeaderEntrySelectedStyles('spreadsheet-header-row-selected');
+			this._initHeaderEntryResizeStyles('spreadsheet-header-row-resize');
+		}
 	}
 
 	optimalHeight (index: number): void {
@@ -220,6 +235,8 @@ export class Header extends CanvasSectionObject {
 
 		this._map.wholeRowSelected = true; // This variable is set early, state change will set this again.
 		this._map.sendUnoCommand('.uno:SelectRow ', command);
+		// Ensures the focus is returned to the map area after the row is selected
+		this._map.focus();
 	}
 
 	_insertRowAbove(): void {
@@ -326,10 +343,9 @@ export class Header extends CanvasSectionObject {
 		const offset = 'A'.charCodeAt(0);
 		let dividend = columnNumber;
 		let columnName = '';
-		let modulo: number;
 
 		while (dividend > 0) {
-			modulo = (dividend - 1) % 26;
+			const modulo: number = (dividend - 1) % 26;
 			columnName = String.fromCharCode(offset + modulo) + columnName;
 			dividend = Math.floor((dividend - modulo) / 26);
 		}
@@ -364,6 +380,8 @@ export class Header extends CanvasSectionObject {
 
 		this._map.wholeColumnSelected = true; // This variable is set early, state change will set this again.
 		this._map.sendUnoCommand('.uno:SelectColumn ', command);
+		// Ensures the focus is returned to the map area after the column is selected
+		this._map.focus();
 	}
 
 	_insertColBefore(): void {
@@ -412,6 +430,10 @@ export class Header extends CanvasSectionObject {
 		}
 	}
 
+	_freezePanes (): void {
+		this._map.sendUnoCommand('.uno:FreezePanes');
+	}
+
 	_entryAtPoint(point: number[]): PointEntryQueryResult {
 		if (!this._headerInfo)
 			return undefined;
@@ -442,6 +464,15 @@ export class Header extends CanvasSectionObject {
 		return;
 	}
 
+	onDraw(): void {
+		this._headerInfo.forEachElement(function(elemData: HeaderEntryData): boolean {
+			this.drawHeaderEntry(elemData);
+			return false; // continue till last.
+		}.bind(this));
+
+		this.drawResizeLineIfNeeded();
+	}
+
 	onDragEnd (dragDistance: number[]): void {
 		return;
 	}
@@ -460,6 +491,7 @@ export class Header extends CanvasSectionObject {
 
 		if (this._mouseOverEntry) {
 			this.containerObject.setPenPosition(this);
+			this._mouseOverEntry.isOver = false;
 			this.drawHeaderEntry(this._mouseOverEntry);
 			this._mouseOverEntry = null;
 		}
@@ -468,19 +500,25 @@ export class Header extends CanvasSectionObject {
 	}
 
 	_bindContextMenu(): void {
+		if ((window as any).mode.isMobile() || this._map.isReadOnlyMode()) {
+			// On mobile, we use the mobile wizard rather than the context menu
+			return;
+		}
+
 		this._unBindContextMenu();
 		$.contextMenu({
-			selector: '#document-canvas',
+			selector: '#canvas-container',
 			className: 'cool-font',
-			zIndex: 10,
+			zIndex: 1500,
 			items: this._menuItem,
 			callback: function() { return; }
 		});
-		$('#document-canvas').contextMenu('update');
+		$('#canvas-container').contextMenu('update');
+		this._map._contextMenu.stopRightMouseUpEvent();
 	}
 
 	_unBindContextMenu(): void {
-		$.contextMenu('destroy', '#document-canvas');
+		$.contextMenu('destroy', '#canvas-container');
 	}
 
 	inResize(): boolean {
@@ -506,28 +544,28 @@ export class Header extends CanvasSectionObject {
 
 	onMouseMove (point: number[], dragDistance?: number[]): void {
 		const result = this._entryAtPoint(point); // Data related to current entry that the mouse is over now.
-		if (result) // Is mouse over an entry.
+		if (result) { // Is mouse over an entry.
+			this._prevMouseOverEntry = this._mouseOverEntry;
 			this._mouseOverEntry = result.entry;
+		}
 
 		if (!this.containerObject.isDraggingSomething()) { // If we are not dragging anything.
 			this._dragDistance = null;
 
 			// If mouse was over another entry previously, we draw that again (without mouse-over effect).
-			if (this._mouseOverEntry && (!result || result.entry.index !== this._mouseOverEntry.index)) {
+			if (this._prevMouseOverEntry && (result && result.entry.index !== this._prevMouseOverEntry.index)) {
 				this.containerObject.setPenPosition(this);
-				this._mouseOverEntry.isOver = false;
-				this.drawHeaderEntry(this._mouseOverEntry);
+				this._prevMouseOverEntry.isOver = false;
+				this.drawHeaderEntry(this._prevMouseOverEntry);
 			}
 
 			let isMouseOverResizeArea = false;
 
-			if (result) { // Is mouse over an entry.
-				this._mouseOverEntry.isOver = true;
-				this._lastMouseOverIndex = this._mouseOverEntry.index; // used by context menu
-				this.containerObject.setPenPosition(this);
-				this.drawHeaderEntry(result.entry);
-				isMouseOverResizeArea = result.hit;
-			}
+			this._mouseOverEntry.isOver = true;
+			this._lastMouseOverIndex = this._mouseOverEntry.index; // used by context menu
+			this.containerObject.setPenPosition(this);
+			this.drawHeaderEntry(result.entry);
+			isMouseOverResizeArea = result.hit;
 
 			// cypress mobile emulation sometimes triggers resizing unintentionally.
 			if (L.Browser.cypressTest)
@@ -542,7 +580,19 @@ export class Header extends CanvasSectionObject {
 		else { // We are in dragging mode.
 			this._dragDistance = dragDistance;
 			this.containerObject.requestReDraw(); // Remove previously drawn line and paint a new one.
+
+			if (this._prevMouseOverEntry && this._lastSelectedIndex == this._prevMouseOverEntry.index)
+				return;
+			if (this._dragEntry)
+				return;
+			const modifier = typeof this._lastSelectedIndex === 'number' && this._lastSelectedIndex >= 0 ? UNOModifier.SHIFT : 0;
+			this._lastSelectedIndex = this._mouseOverEntry.index;
+			this.selectIndex(this._mouseOverEntry.index, modifier);
 		}
+	}
+
+	selectIndex(index: number, modifier: number): void {
+		return;
 	}
 
 	setOptimalWidthAuto(): void {
@@ -578,11 +628,14 @@ export class Header extends CanvasSectionObject {
 		}
 
 		this._startSelectionEntry = this._mouseOverEntry;
+		this._lastSelectedIndex = null;
 	}
 
 	onMouseUp(): void {
 		L.DomUtil.enableImageDrag();
 		L.DomUtil.enableTextSelection();
+
+		this._map.fire('closepopups'); // close all popups if a row/column header is selected
 
 		if (this.containerObject.isDraggingSomething() && this._dragEntry) {
 			this.onDragEnd(this.containerObject.getDragDistance());
@@ -665,51 +718,84 @@ export class HeaderInfo {
 
 	update(section: CanvasSectionObject): void {
 		const cellSelections: cool.Rectangle[] = this._map._docLayer._cellSelections;
-		let currentIndex = -1;
 
-		if (this._map._docLayer._cellCursorXY) {
-			currentIndex = this._isColumn ? this._map._docLayer._cellCursorXY.x: this._map._docLayer._cellCursorXY.y;
+		let currentIndex: number;
+		if (app.calc.cellCursorVisible) {
+			currentIndex = this._isColumn ? app.calc.cellAddress.x: app.calc.cellAddress.y;
+		} else {
+			currentIndex = -1;
 		}
 
-		const startPx = this._isColumn === true ? section.documentTopLeft[0]: section.documentTopLeft[1];
+		const tsManager = this._map._docLayer._painter;
+		const ctx = tsManager._paintContext();
+
+		const splitPos = this._isColumn ?
+			ctx.splitPos.x
+			: ctx.splitPos.y;
+
+		let startPx: number;
+		let scale: number;
+		if (tsManager._inZoomAnim) {
+			const viewBounds = ctx.viewBounds;
+			const freePaneBounds = new L.Bounds(viewBounds.min.add(ctx.splitPos), viewBounds.max);
+
+			scale = tsManager._zoomFrameScale;
+
+			const zoomPos = tsManager._getZoomDocPos(
+				tsManager._newCenter,
+				tsManager._layer._pinchStartCenter,
+				freePaneBounds,
+				{ freezeX: false, freezeY: false },
+				ctx.splitPos,
+				scale,
+				false
+			);
+
+			startPx = this._isColumn ?
+				zoomPos.topLeft.x
+				: zoomPos.topLeft.y;
+		} else {
+			startPx = this._isColumn ?
+				section.documentTopLeft[0] + splitPos
+				: section.documentTopLeft[1] + splitPos;
+			scale = 1;
+		}
+
+		const endPx = this._isColumn ?
+			startPx + section.size[0] / scale
+			: startPx + section.size[1] / scale;
+
 		this._docVisStart = startPx;
-		const endPx = startPx + (this._isColumn === true ? section.size[0]: section.size[1]);
 		let startIdx = this._dimGeom.getIndexFromPos(startPx, 'corepixels');
 		const endIdx = Math.min(this._dimGeom.getIndexFromPos(endPx - 1, 'corepixels'), 1048576 - 1);
 		this._elements = [];
 
-		const splitPosContext = this._map.getSplitPanesContext();
-
 		this._hasSplits = false;
 		this._splitIndex = 0;
-		let splitPos = 0;
 
-		if (splitPosContext) {
-
-			splitPos = (this._isColumn ? splitPosContext.getSplitPos().x : splitPosContext.getSplitPos().y) * app.dpiScale;
+		if (splitPos) {
 			const splitIndex = this._dimGeom.getIndexFromPos(splitPos + 1, 'corepixels');
 
 			if (splitIndex) {
-				// Make sure splitPos is aligned to the cell boundary.
-				splitPos = this._dimGeom.getElementData(splitIndex).startpos;
 				this._splitPos = splitPos;
-				this._dimGeom.forEachInRange(0, splitIndex - 1,
-					function (idx: number, data: DimensionPosSize) {
+				this._dimGeom.forEachInRange(0,
+					splitIndex - 1,
+					(idx: number, data: DimensionPosSize) => {
 						this._elements[idx] = {
 							index: idx,
-							pos: data.startpos + data.size, // end position on the header canvas
-							size: data.size,
+							pos: (data.startpos + data.size) * scale, // end position on the header canvas
+							size: data.size * scale,
 							origsize: data.size,
 							isHighlighted: this.isHeaderEntryHighLighted(cellSelections, data.startpos + data.size * 0.5),
-							isCurrent: idx === currentIndex ? true: false
+							isCurrent: idx === currentIndex
 						};
-					}.bind(this)
+					}
 				);
 
 				this._hasSplits = true;
 				this._splitIndex = splitIndex;
 
-				const freeStartPos = startPx + splitPos + 1;
+				const freeStartPos = startPx;
 				const freeStartIndex = this._dimGeom.getIndexFromPos(freeStartPos + 1, 'corepixels');
 
 				startIdx = freeStartIndex;
@@ -718,29 +804,31 @@ export class HeaderInfo {
 
 		// first free index
 		const dataFirstFree = this._dimGeom.getElementData(startIdx);
-		const firstFreeEnd = dataFirstFree.startpos + dataFirstFree.size - startPx;
+		const firstFreeEnd = dataFirstFree.startpos + dataFirstFree.size - startPx + splitPos;
 		const firstFreeStart = splitPos;
 		const firstFreeSize = Math.max(0, firstFreeEnd - firstFreeStart);
 		this._elements[startIdx] = {
 			index: startIdx,
-			pos: firstFreeEnd, // end position on the header canvas
-			size: firstFreeSize,
+			pos: firstFreeEnd * scale, // end position on the header canvas
+			size: firstFreeSize * scale,
 			origsize: dataFirstFree.size,
 			isHighlighted: this.isHeaderEntryHighLighted(cellSelections, dataFirstFree.startpos + dataFirstFree.size * 0.5),
-			isCurrent: startIdx === currentIndex ? true: false
+			isCurrent: startIdx === currentIndex
 		};
 
 		this._dimGeom.forEachInRange(startIdx + 1,
-			endIdx, function (idx: number, data: DimensionPosSize) {
+			endIdx,
+			(idx: number, data: DimensionPosSize) => {
 				this._elements[idx] = {
 					index: idx,
-					pos: data.startpos - startPx + data.size, // end position on the header canvas
-					size: data.size,
+					pos: (data.startpos - startPx + splitPos + data.size) * scale, // end position on the header canvas
+					size: data.size * scale,
 					origsize: data.size,
 					isHighlighted: this.isHeaderEntryHighLighted(cellSelections, data.startpos + data.size * 0.5),
-					isCurrent: idx === currentIndex ? true: false
+					isCurrent: idx === currentIndex
 				};
-			}.bind(this));
+			}
+		);
 
 		this._startIndex = startIdx;
 		this._endIndex = endIdx;

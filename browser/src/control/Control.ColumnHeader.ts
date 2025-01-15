@@ -1,31 +1,40 @@
 /* -*- js-indent-level: 8 -*- */
 /*
-* Control.ColumnHeader
-*/
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
+ * Control.ColumnHeader
+ */
 
 /* global _UNO app UNOModifier */
 namespace cool {
 
 export class ColumnHeader extends Header {
+	name: string = L.CSections.ColumnHeader.name;
+	anchor: Array<Array<string>> = [[L.CSections.ColumnGroup.name, 'bottom', 'top'], [L.CSections.CornerHeader.name, 'right', 'left']];
+	position: number[] = [0, 0]; // This section's myTopLeft is placed according to corner header and column group sections.
+	size: number[] = [0, 19 * app.dpiScale]; // No initial width is necessary.
+	expand: Array<string> = ['right']; // Expand horizontally.
+	processingOrder: number = L.CSections.ColumnHeader.processingOrder;
+	drawingOrder: number = L.CSections.ColumnHeader.drawingOrder;
+	zIndex: number = L.CSections.ColumnHeader.zIndex;
+	cursor: string = 'col-resize';
 
 	_current: number;
 	_resizeHandleSize: number;
 	_selection: SelectionRange;
 
-	constructor(options?: HeaderExtraProperties) {
-		super({
-			name: L.CSections.ColumnHeader.name,
-			anchor: [[L.CSections.ColumnGroup.name, 'bottom', 'top'], [L.CSections.CornerHeader.name, 'right', 'left']],
-			position: [0, 0], // This section's myTopLeft is placed according to corner header and column group sections.
-			size: [0, 19 * app.dpiScale], // No initial width is necessary.
-			expand: 'right', // Expand horizontally.
-			processingOrder: L.CSections.ColumnHeader.processingOrder,
-			drawingOrder: L.CSections.ColumnHeader.drawingOrder,
-			zIndex: L.CSections.ColumnHeader.zIndex,
-			interactable: true,
-			sectionProperties: {},
-			cursor: (options == undefined || options.cursor === undefined) ? 'col-resize' : options.cursor,
-		});
+	constructor(cursor?: string) {
+		super();
+
+		if (cursor)
+			this.cursor = cursor;
 	}
 
 	onInitialize(): void {
@@ -41,7 +50,8 @@ export class ColumnHeader extends Header {
 
 		this._selectionBackgroundGradient = [ '#3465A4', '#729FCF', '#004586' ];
 
-		this._map.on('move zoomchanged sheetgeometrychanged splitposchanged darkmodechanged', this._updateCanvas, this);
+		this._map.on('move zoomchanged sheetgeometrychanged splitposchanged', this._updateCanvas, this);
+		this._map.on('darkmodechanged', this._reInitRowColumnHeaderStylesAfterModeChange, this);
 
 		this._initHeaderEntryStyles('spreadsheet-header-column');
 		this._initHeaderEntryHoverStyles('spreadsheet-header-column-hover');
@@ -76,6 +86,10 @@ export class ColumnHeader extends Header {
 			'.uno:ShowColumn': {
 				name: _UNO('.uno:ShowColumn', 'spreadsheet', true),
 				callback: (this._showColumn).bind(this)
+			},
+			'.uno:FreezePanes': {
+				name: _UNO('.uno:FreezePanes', 'spreadsheet', true),
+				callback: (this._freezePanes).bind(this)
 			}
 		};
 
@@ -141,8 +155,9 @@ export class ColumnHeader extends Header {
 
 		// draw column borders.
 		this.context.strokeStyle = this._borderColor;
-		this.context.lineWidth = app.dpiScale;
-		this.context.strokeRect(startX - 0.5, 0.5, entry.size, this.size[1]);
+		var offset = this.getLineOffset();
+		this.context.lineWidth = this.getLineWidth();
+		this.context.strokeRect(startX - offset, offset, entry.size, this.size[1]);
 	}
 
 	getHeaderEntryBoundingClientRect (index: number): Partial<DOMRect> {
@@ -167,17 +182,11 @@ export class ColumnHeader extends Header {
 		return {left: left, right: right, top: top, bottom: bottom};
 	}
 
-	onDraw(): void {
-		this._headerInfo.forEachElement(function(elemData: HeaderEntryData): boolean {
-			this.drawHeaderEntry(elemData);
-			return false; // continue till last.
-		}.bind(this));
-
-		this.drawResizeLineIfNeeded();
-	}
-
 	onClick(point: number[], e: MouseEvent): void {
 		if (!this._mouseOverEntry)
+			return;
+
+		if (this._hitResizeArea)
 			return;
 
 		const col = this._mouseOverEntry.index;
@@ -251,15 +260,7 @@ export class ColumnHeader extends Header {
 		super.onMouseUp();
 
 		if (!(this.containerObject.isDraggingSomething() && this._dragEntry)) {
-			const entry = this._mouseOverEntry;
-			let modifier = 0;
-
-			if (this._startSelectionEntry && this._startSelectionEntry.index !== entry.index) {
-				this._selectColumn(this._startSelectionEntry.index, modifier);
-				modifier += UNOModifier.SHIFT;
-				this._selectColumn(entry.index, modifier);
-			}
-
+			this._lastSelectedIndex = null;
 			this._startSelectionEntry = null;
 		}
 	}
@@ -267,16 +268,19 @@ export class ColumnHeader extends Header {
 	setOptimalWidthAuto(): void {
 		if (this._mouseOverEntry) {
 			const column = this._mouseOverEntry.index;
-			const command = {
-				Column: {
-					type: 'long',
-					value: column
-				},
-				Modifier: {
-					type: 'unsigned short',
-					value: 0
-				}
-			};
+			if (!this._hitResizeArea) {
+				const command = {
+					Column: {
+						type: 'long',
+						value: column
+					},
+					Modifier: {
+						type: 'unsigned short',
+						value: 0
+					}
+				};
+				this._map.sendUnoCommand('.uno:SelectColumn', command);
+			}
 
 			const extra = {
 				aExtraHeight: {
@@ -285,7 +289,6 @@ export class ColumnHeader extends Header {
 				}
 			};
 
-			this._map.sendUnoCommand('.uno:SelectColumn', command);
 			this._map.sendUnoCommand('.uno:SetOptimalColumnWidthDirect', extra);
 		}
 	}
@@ -297,12 +300,12 @@ export class ColumnHeader extends Header {
 	_getOrthogonalPos (point: cool.Point): number {
 		return point.y;
 	}
+
+	selectIndex(index: number, modifier: number): void {
+		this._selectColumn(index, modifier);
+	}
 }
 
 }
 
-L.Control.ColumnHeader = cool.ColumnHeader;
-
-L.control.columnHeader = function (options?: cool.HeaderExtraProperties) {
-	return new L.Control.ColumnHeader(options);
-};
+app.definitions.columnHeader = cool.ColumnHeader;

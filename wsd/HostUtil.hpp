@@ -1,11 +1,18 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
 #pragma once
+
+// HostUtil is only used in non-mobile apps.
+#if !MOBILEAPP
 
 #include <Util.hpp>
 #include <Poco/URI.h>
@@ -28,7 +35,7 @@ private:
 
 public:
     /// parse wopi.storage.host
-    static void parseWopiHost(Poco::Util::LayeredConfiguration& conf);
+    static void parseWopiHost(const Poco::Util::LayeredConfiguration& conf);
 
     /// parse wopi.storage.alias_groups.group
     static void parseAliases(Poco::Util::LayeredConfiguration& conf);
@@ -39,9 +46,6 @@ public:
     /// is accessed using different aliases
     static std::string getNewUri(const Poco::URI& uri);
 
-    /// add host to WopiHosts
-    static void addWopiHost(std::string host, bool allow);
-
     static bool allowedWopiHost(const std::string& host);
 
     static bool isWopiEnabled() { return WopiEnabled; }
@@ -50,6 +54,13 @@ public:
     static const Poco::URI getNewLockedUri(const Poco::URI& uri);
 
     static void setFirstHost(const Poco::URI& uri);
+
+    static bool isWopiHostsEmpty();
+
+private:
+    /// add host to WopiHosts
+    static void addWopiHost(const std::string& host, bool allow);
 };
+#endif // !MOBILEAPP
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

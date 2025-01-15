@@ -10,10 +10,14 @@ var mobileHelper = require('./mobile_helper');
  * @returns {void}
  */
 function openRepairDialog(mobile = false) {
+	cy.log('>> openRepairDialog - start');
+
 	if (mobile) {
 		return mobileHelper.selectHamburgerMenuItem(['Edit', 'Repair']);
 	}
 	cy.cGet('#menu-editmenu').click().cGet('#menu-repair').click();
+
+	cy.log('<< openRepairDialog - end');
 }
 
 /**
@@ -24,6 +28,8 @@ function openRepairDialog(mobile = false) {
  * @returns {void}
  */
 function rollbackPastChange(selector, mobile = false) {
+	cy.log('>> rollbackPastChange - start');
+
 	openRepairDialog(mobile);
 
 	cy.cGet('#DocumentRepairDialog').should('exist');
@@ -31,7 +37,7 @@ function rollbackPastChange(selector, mobile = false) {
 	const versions = cy.cGet('#versions');
 
 	versions
-		.contains('.ui-listview-entry', selector)
+		.contains('.ui-treeview-entry', selector)
 		.click();
 
 	if (mobile) {
@@ -39,6 +45,8 @@ function rollbackPastChange(selector, mobile = false) {
 	} else {
 		cy.cGet('#ok.ui-pushbutton.jsdialog').click();
 	}
+
+	cy.log('<< rollbackPastChange - end');
 }
 
 module.exports = {

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -61,32 +65,37 @@ void ProxyRequestHandler::handleRequest(const std::string& relPath,
 
                         CacheFileHash[httpSession->getUrl()] = httpResponse;
 
-                        httpResponse->add("Server", HTTP_SERVER_STRING);
-                        httpResponse->add("Date", Util::getHttpTimeNow());
+                        // We're proxying, we take responsibility.
+                        httpResponse->set("Server", http::getServerString());
+
                         socket->sendAndShutdown(*httpResponse);
                     }
                     else
                     {
-                        HttpHelper::sendErrorAndShutdown(400, socket);
+                        HttpHelper::sendErrorAndShutdown(http::StatusCode::BadRequest, socket);
                     }
                 }
                 catch(std::exception& exc)
                 {
                     LOG_ERR("ProxyCallback: " << exc.what());
-                    HttpHelper::sendErrorAndShutdown(400, socket);
+                    HttpHelper::sendErrorAndShutdown(http::StatusCode::BadRequest, socket);
                 }
                 catch(...)
                 {
                     LOG_ERR("ProxyCallback: Unknown exception");
-                    HttpHelper::sendErrorAndShutdown(400, socket);
+                    HttpHelper::sendErrorAndShutdown(http::StatusCode::BadRequest, socket);
                 }
             };
 
-    sessionProxy->setFinishedHandler(proxyCallback);
-    if (!sessionProxy->asyncRequest(requestProxy, *COOLWSD::getWebServerPoll()))
-    {
-        HttpHelper::sendErrorAndShutdown(400, socket);
-    }
+    sessionProxy->setFinishedHandler(std::move(proxyCallback));
+
+    http::Session::ConnectFailCallback connectFailCallback =
+        [socket](const std::shared_ptr<http::Session>& /* session */) {
+            HttpHelper::sendErrorAndShutdown(http::StatusCode::BadRequest, socket);
+    };
+    sessionProxy->setConnectFailHandler(std::move(connectFailCallback));
+
+    sessionProxy->asyncRequest(requestProxy, *COOLWSD::getWebServerPoll());
 }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

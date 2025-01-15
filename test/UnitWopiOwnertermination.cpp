@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,10 +12,7 @@
 #include "config.h"
 
 #include "WopiTestServer.hpp"
-#include "Log.hpp"
 #include "Unit.hpp"
-#include "UnitHTTP.hpp"
-#include "helpers.hpp"
 #include "lokassert.hpp"
 
 #include <Poco/Net/HTTPRequest.h>
@@ -26,9 +27,9 @@
 /// faster we unload. Also, the test is poorly named.
 class UnitWopiOwnertermination : public WopiTestServer
 {
-    STATE_ENUM(Phase, Start, Load, WaitLoadStatus, WaitModifiedStatus, WaitDocClose) _phase;
+    STATE_ENUM(Phase, Start, Load, WaitLoadStatus, WaitModifiedStatus, WaitDocClose, Done) _phase;
 
-    int _loadedIndex; //< The connection index that is loaded now.
+    int _loadedIndex; ///< The connection index that is loaded now.
 
 public:
     UnitWopiOwnertermination()
@@ -81,21 +82,11 @@ public:
     bool onDocumentError(const std::string& message) override
     {
         LOK_ASSERT_STATE(_phase, Phase::WaitLoadStatus);
-        if (message != "error: cmd=internal kind=load")
-        {
-            LOK_ASSERT_EQUAL_MESSAGE("Expect only documentunloading errors",
-                                     std::string("error: cmd=load kind=docunloading"), message);
-        }
-        else
-        {
-            // We send out two errors when we fail to load.
-            // This is the second one, which is 'cmd=internal kind=load'.
 
-            LOK_ASSERT_EQUAL_MESSAGE("Expect only documentunloading errors",
-                                     std::string("error: cmd=internal kind=load"), message);
+        LOK_ASSERT_EQUAL_MESSAGE("Expect only documentunloading errors",
+                                 std::string("error: cmd=load kind=docunloading"), message);
 
-            passTest("Reload while unloading failed as expected");
-        }
+        TRANSITION_STATE(_phase, Phase::Done);
 
         return true;
     }
@@ -133,6 +124,9 @@ public:
             case Phase::WaitLoadStatus:
             case Phase::WaitModifiedStatus:
             case Phase::WaitDocClose:
+                break;
+            case Phase::Done:
+                passTest("Reload while unloading failed as expected");
                 break;
         }
     }

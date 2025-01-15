@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,9 +11,7 @@
 
 #pragma once
 
-#include <atomic>
-#include <mutex>
-#include <signal.h>
+#include <cstdint>
 #include <string>
 
 namespace SigUtil
@@ -54,13 +56,24 @@ namespace SigUtil
 
     void checkForwardSigUsr2(ForwardSigUsr2Fn forwardSigUsr2);
 
+    /// Add a pre-amble message to be dumped on fatal signal
+    void setActivityHeader(const std::string &message);
+
     /// Add a message to a round-robin buffer to be dumped on fatal signal
     void addActivity(const std::string &message);
+
+    /// Add a message on a view to a round-robin buffer to be dumped on fatal signal
+    void addActivity(const std::string &id, const std::string &message);
 
     /// Called to flag that we are running in unattended mode, not interactive.
     /// In unattended mode we know there is no one to attach a debugger on
     /// faulting, so we do not wait unnecessarily. Otherwise, we wait for 60s.
     void setUnattended();
+
+    /// Reap one or more children.
+    /// Returns a pair of the return value of waitpid(2)
+    /// and WTERMSIG(stat_loc), if it were SEGV, ABRT, or BUS.
+    std::pair<int, int> reapZombieChild(int pid);
 
 #if !MOBILEAPP
 
@@ -76,12 +89,12 @@ namespace SigUtil
     /// Signal log number
     void signalLogNumber(std::size_t num, int base = 10);
 
-    /// Wait for the signal handler, if any,
-    /// and prevent _Exit while collecting backtrace.
-    void waitSigHandlerTrap();
+#endif // !MOBILEAPP
 
     /// Returns the name of the signal.
     const char* signalName(int signo);
+
+#if !MOBILEAPP
 
     /// Register a wakeup function when changing
 
@@ -110,6 +123,17 @@ namespace SigUtil
     /// child pid is removed from the process table
     /// after a certain (short) timeout.
     bool killChild(const int pid, const int signal);
+
+    extern "C"
+    {
+        typedef void (*SigChildHandler)(int);
+    }
+
+    /// Sets a child death signal handler
+    void setSigChildHandler(SigChildHandler fn);
+
+    /// Ensure that if a parent process is killed we go down too
+    void dieOnParentDeath();
 
     /// Dump a signal-safe back-trace
     void dumpBacktrace();

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,17 +12,23 @@
 #include <config.h>
 
 #include "SigUtil.hpp"
+#include "SigHandlerTrap.hpp"
 
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
 #  include <execinfo.h>
 #endif
 #include <csignal>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
+#if !defined(ANDROID) && !defined(IOS) && !defined(__FreeBSD__)
+#  include <sys/prctl.h>
+#endif
 
 #include <atomic>
 #include <cassert>
@@ -38,91 +48,113 @@
 #include "Common.hpp"
 #include "Log.hpp"
 
+namespace
+{
 #ifndef IOS
-static std::atomic<bool> TerminationFlag(false);
-static std::atomic<bool> ShutdownRequestFlag(false);
-#if !MOBILEAPP
+
+/// The valid states of the process.
+enum class RunState : char
+{
+    Run = 0, ///< Normal up-and-running state.
+    ShutDown, ///< Request to shut down gracefully.
+    Terminate ///< Immediate termination.
+};
+
+/// Single flag to control the current run state.
+static std::atomic<RunState> RunStateFlag(RunState::Run);
+#endif // IOS
+
+[[maybe_unused]]
 static std::atomic<bool> DumpGlobalState(false);
-static std::atomic<bool> ForwardSigUsr2Flag(false); //< Flags to forward SIG_USR2 to children.
-#endif
+[[maybe_unused]]
+static std::atomic<bool> ForwardSigUsr2Flag(false); ///< Flags to forward SIG_USR2 to children.
+
+static std::atomic<size_t> ActivityStringIndex = 0;
+static std::string ActivityHeader;
+static std::array<std::atomic<char *>, 16> ActivityStrings;
+static bool UnattendedRun = false;
+#if !MOBILEAPP
+static int SignalLogFD = STDERR_FILENO; ///< The FD where signalLogs are dumped.
+static char* VersionInfo = nullptr;
+static char FatalGdbString[256] = { '\0' };
+static SigUtil::SigChildHandler SigChildHandle;
 #endif
 
-static size_t ActivityStringIndex = 0;
-static std::array<std::string,8> ActivityStrings;
-static bool UnattendedRun = false;
+} // namespace
 
 namespace SigUtil
 {
 #ifndef IOS
-    bool getShutdownRequestFlag()
-    {
-        // ShutdownRequestFlag must be set if TerminationFlag is set.
-        assert(!TerminationFlag || ShutdownRequestFlag);
-        return ShutdownRequestFlag;
-    }
+bool getShutdownRequestFlag() { return RunStateFlag >= RunState::ShutDown; }
 
-    bool getTerminationFlag()
-    {
-        // ShutdownRequestFlag must be set if TerminationFlag is set.
-        assert(!TerminationFlag || ShutdownRequestFlag);
-        return TerminationFlag;
-    }
+bool getTerminationFlag() { return RunStateFlag >= RunState::Terminate; }
 
-    void setTerminationFlag()
+void setTerminationFlag()
+{
+    // Set the forced-termination flag.
+    RunStateFlag = RunState::Terminate;
+
+    if constexpr (!Util::isMobileApp())
     {
-#if !MOBILEAPP
-        // Request shutting down first. Otherwise, we can race with
-        // getTerminationFlag, which asserts ShutdownRequestFlag.
-        ShutdownRequestFlag = true;
-#endif
-        // Set the forced-termination flag.
-        TerminationFlag = true;
-#if !MOBILEAPP
         // And wake-up the thread.
         SocketPoll::wakeupWorld();
-#endif
     }
+}
+
+void requestShutdown()
+{
+    RunState oldState = RunState::Run;
+    if (RunStateFlag.compare_exchange_strong(oldState, RunState::ShutDown))
+        SocketPoll::wakeupWorld();
+}
 
 #if MOBILEAPP
-    void resetTerminationFlags()
-    {
-        TerminationFlag = false;
-        ShutdownRequestFlag = false;
-    }
+    void resetTerminationFlags() { RunStateFlag = RunState::Run; }
 #endif
 #endif // !IOS
 
-    void checkDumpGlobalState(GlobalDumpStateFn dumpState)
+    void checkDumpGlobalState([[maybe_unused]] GlobalDumpStateFn dumpState)
     {
-#if !MOBILEAPP
-        assert(dumpState && "Invalid callback for checkDumpGlobalState");
-        if (DumpGlobalState)
+        if constexpr (!Util::isMobileApp())
         {
-            DumpGlobalState = false;
-            dumpState();
+            assert(dumpState && "Invalid callback for checkDumpGlobalState");
+            if (DumpGlobalState)
+            {
+                DumpGlobalState = false;
+                dumpState();
+            }
         }
-#else
-        (void) dumpState;
-#endif
     }
 
-    void checkForwardSigUsr2(ForwardSigUsr2Fn forwardSigUsr2)
+    void checkForwardSigUsr2([[maybe_unused]] ForwardSigUsr2Fn forwardSigUsr2)
     {
-#if !MOBILEAPP
-        assert(forwardSigUsr2 && "Invalid callback for checkForwardSigUsr2");
-        if (ForwardSigUsr2Flag)
+        if constexpr (!Util::isMobileApp())
         {
-            ForwardSigUsr2Flag = false;
-            forwardSigUsr2();
+            assert(forwardSigUsr2 && "Invalid callback for checkForwardSigUsr2");
+            if (ForwardSigUsr2Flag)
+            {
+                ForwardSigUsr2Flag = false;
+                forwardSigUsr2();
+            }
         }
-#else
-        (void) forwardSigUsr2;
-#endif
+    }
+
+    void setActivityHeader(const std::string &message)
+    {
+        ActivityHeader = message;
     }
 
     void addActivity(const std::string &message)
     {
-        ActivityStrings[ActivityStringIndex++ % ActivityStrings.size()] = message;
+        char *old = ActivityStrings[ActivityStringIndex++ % ActivityStrings.size()].exchange(
+            strdup(message.c_str()));
+        if (old)
+            free (old);
+    }
+
+    void addActivity(const std::string &viewId, const std::string &message)
+    {
+        addActivity("session: " + viewId + ": " + message);
     }
 
     void setUnattended()
@@ -130,9 +162,34 @@ namespace SigUtil
         UnattendedRun = true;
     }
 
-#if !MOBILEAPP
+    std::pair<int, int> reapZombieChild(int pid)
+    {
+        LOG_TRC("Reaping " << pid << " with (WUNTRACED | WNOHANG)");
 
-    static int SignalLogFD(STDERR_FILENO); //< The FD where signalLogs are dumped.
+        int status = 0;
+        pid_t ret = 0;
+        if ((ret = ::waitpid(pid, &status, WUNTRACED | WNOHANG)) > 0)
+        {
+            LOG_DBG("Child " << ret << " terminated with status " << status);
+            if (WIFSIGNALED(status) && (WTERMSIG(status) == SIGSEGV || WTERMSIG(status) == SIGBUS ||
+                                        WTERMSIG(status) == SIGABRT))
+            {
+                LOG_WRN("Zombie child " << ret << " has exited due to "
+                                        << signalName(WTERMSIG(status)));
+                return std::make_pair(ret, WTERMSIG(status));
+            }
+        }
+        else if (pid > 0 && errno != 0) // Don't complain if the process is reaped already.
+        {
+            // Log errno if we had a child pid we expected to reap.
+            LOG_WRN("Failed to reap child process " << pid << " (" << Util::symbolicErrno(errno)
+                                                    << ": " << std::strerror(errno) << ')');
+        }
+
+        return std::make_pair(ret, 0);
+    }
+
+#if !MOBILEAPP
 
     /// Open the signalLog file.
     void signalLogOpen()
@@ -144,6 +201,13 @@ namespace SigUtil
     /// Close the signalLog file.
     void signalLogClose()
     {
+        // We cannot shutdown the logging subsystem
+        // because freeing memory is not signal safe.
+
+        // Flush the IO buffers.
+        fflush(stdout);
+        fflush(stderr);
+
         fsync(SignalLogFD);
     }
 
@@ -198,37 +262,7 @@ namespace SigUtil
         signalLog(buf + i + 1);
     }
 
-    /// This traps the signal-handler so we don't _Exit
-    /// while dumping stack trace. It's re-entrant.
-    /// Used to safely increment and decrement the signal-handler trap.
-    class SigHandlerTrap
-    {
-        static std::atomic<int> SigHandling;
-    public:
-        SigHandlerTrap() { ++SigHandlerTrap::SigHandling; }
-        ~SigHandlerTrap() { --SigHandlerTrap::SigHandling; }
-
-        /// Check that we have exclusive access to the trap.
-        /// Otherwise, there is another signal in progress.
-        bool isExclusive() const
-        {
-            // Return true if we are alone.
-            return SigHandlerTrap::SigHandling == 1;
-        }
-
-        /// Wait for the trap to clear.
-        static void wait()
-        {
-            while (SigHandlerTrap::SigHandling)
-                sleep(1);
-        }
-    };
-    std::atomic<int> SigHandlerTrap::SigHandling;
-
-    void waitSigHandlerTrap()
-    {
-        SigHandlerTrap::wait();
-    }
+#endif // !MOBILEAPP
 
     const char *signalName(const int signo)
     {
@@ -292,27 +326,35 @@ namespace SigUtil
         // LCOV_EXCL_STOP Coverage for these is not very useful.
     }
 
+#if !MOBILEAPP
+
     static
     void handleTerminationSignal(const int signal)
     {
         const auto onrre = errno; // Save.
 
         bool hardExit = false;
-        const char *domain;
-        if (!ShutdownRequestFlag && (signal == SIGINT || signal == SIGTERM))
+        const char* domain;
+        RunState oldState = RunState::Run;
+        if ((signal == SIGINT || signal == SIGTERM) &&
+            RunStateFlag.compare_exchange_strong(oldState, RunState::ShutDown))
         {
             domain = " Shutdown signal received: ";
-            ShutdownRequestFlag = true;
-        }
-        else if (!TerminationFlag)
-        {
-            domain = " Forced-Termination signal received: ";
-            TerminationFlag = true;
         }
         else
         {
-            domain = " ok, ok - hard-termination signal received: ";
-            hardExit = true;
+            assert(RunStateFlag > RunState::Run && "Must have had Terminate flag");
+            oldState = RunState::ShutDown;
+            if (RunStateFlag.compare_exchange_strong(oldState, RunState::Terminate))
+            {
+                domain = " Forced-Termination signal received: ";
+            }
+            else
+            {
+                assert(RunStateFlag == RunState::Terminate && "Must have had Terminate flag");
+                domain = " ok, ok - hard-termination signal received: ";
+                hardExit = true;
+            }
         }
 
         signalLogOpen();
@@ -337,15 +379,6 @@ namespace SigUtil
 
         errno = onrre; // Restore.
     }
-
-    void requestShutdown()
-    {
-        ShutdownRequestFlag = true;
-        SocketPoll::wakeupWorld();
-    }
-
-    static char *VersionInfo = nullptr;
-    static char FatalGdbString[256] = { '\0' };
 
     static
     void handleFatalSignal(const int signal, siginfo_t *info, void * /* uctxt */)
@@ -374,14 +407,16 @@ namespace SigUtil
         signalLog("\n");
 
         signalLog("Recent activity:\n");
+        signalLog(ActivityHeader.c_str());
         for (size_t i = 0; i < ActivityStrings.size(); ++i)
         {
             size_t idx = (ActivityStringIndex + i) % ActivityStrings.size();
-            if (!ActivityStrings[idx].empty())
+            const char *str = ActivityStrings[idx];
+            if (str && str[0] != '\0')
             {
                 // no plausible impl. will heap allocate in c_str.
                 signalLog("\t");
-                signalLog(ActivityStrings[idx].c_str());
+                signalLog(str);
                 signalLog("\n");
             }
         }
@@ -495,6 +530,40 @@ namespace SigUtil
     }
 
     static
+    void handleSigChild(const int /* signal */, siginfo_t *info, void * /* uctxt */)
+    {
+        SigChildHandle(info ? info->si_pid : -1);
+    }
+
+    void setSigChildHandler(SigChildHandler fn)
+    {
+        struct sigaction action;
+
+        SigChildHandle = fn;
+        sigemptyset(&action.sa_mask);
+
+        if (fn)
+        {
+            action.sa_flags = SA_SIGINFO;
+            action.sa_sigaction = handleSigChild;
+        }
+        else
+        {
+            action.sa_flags = 0;
+            action.sa_handler = SIG_DFL;
+        }
+
+        sigaction(SIGCHLD, &action, nullptr);
+    }
+
+    void dieOnParentDeath()
+    {
+#if !defined(ANDROID) && !defined(IOS) && !defined(__FreeBSD__)
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
+#endif
+    }
+
+    static
     void handleUserSignal(const int signal)
     {
         signalLogOpen();
@@ -587,6 +656,5 @@ namespace SigUtil
     }
 #endif // !MOBILEAPP
 }
-
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

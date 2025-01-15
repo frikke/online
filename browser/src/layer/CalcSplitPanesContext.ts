@@ -1,3 +1,15 @@
+/* -*- js-indent-level: 8 -*- */
+
+/*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 declare var L: any;
 
 namespace cool {
@@ -25,6 +37,8 @@ export class CalcSplitPanesContext extends SplitPanesContext {
 
 	/// Calculates the split position in (core-pixels) from the split-cell.
 	public setSplitPosFromCell(forceSplittersUpdate: boolean): void {
+		if (this._docLayer.sheetGeometry.getPart() !== this._docLayer._selectedPart)
+			return;
 		var newSplitPos = this._docLayer.sheetGeometry.getCellRect(this._splitCell.x, this._splitCell.y).min;
 
 		// setSplitPos limits the split position based on the screen size and it fires 'splitposchanged' (if there is any change).

@@ -11,82 +11,13 @@ html[dir='rtl'] .sub-menu-arrow {
 	transform: rotate(0deg);
 	background-position: right;
 }
-/* Related to editor.css */
-#editor-btn{
-	max-width: 160px;
-}
-#editor-btn td:last-of-type{
-	max-width: 96px;
-	padding-left: 8px;
-	text-align: left;
-}
-#currently-msg{
-	padding: 12px 5px;
-}
-input#follow-checkbox {
-	width: var(--btn-size);
-	height: var(--btn-size);
-	-webkit-appearance: none;
-	-moz-appearance: none;
-	-o-appearance: none;
-	appearance: none;
-	border-radius: var(--border-radius);
-	border: 2px solid #aaa;
-	outline: none;
-	box-shadow: #00000015 0px 0px 2px 1px;
-	margin: 0px !important;
-}
-#follow-container {
-	display: block;
-	position: relative;
-	font-size: 22px;
-	-webkit-user-select: none;
-	-moz-user-select: none;
-	-ms-user-select: none;
-	user-select: none;
-}
-.checkmark {
-	position: absolute;
-	top: 0;
-	left: 0;
-	height: 25px;
-	width: 25px;
-}
-.checkmark:after {
-	content: '';
-	position: absolute;
-	display: none;
-	left: 9px;
-	top: 5px;
-	width: 5px;
-	height: 10px;
-	border: solid white;
-	border-width: 0 3px 3px 0;
-	-webkit-transform: rotate(45deg);
-	-ms-transform: rotate(45deg);
-	transform: rotate(45deg);
-}
-input#follow-checkbox:checked ~ .checkmark:after {
-	display: block;
-}
-input#follow-checkbox:checked ~ .checkmark {
-	background-color: var(--color-primary);
-}
-#userlist_table + hr { display: none;}
-div#w2ui-overlay-actionbar.w2ui-overlay{
-	margin-left: -7px;
-}
 
 /* Related to cool.css */
 #toolbar-hamburger {
-	width: 36px;
-	height: 36px;
+	width: 36px !important;
 	position: relative;
 	z-index: 1002;
-}
-#toolbar-hamburger.menuwizard-opened {
-	width: 36px;
-	height: 36px;
+	align-self: center; /* Align items vertically */
 }
 
 .logo {
@@ -104,8 +35,7 @@ div#w2ui-overlay-actionbar.w2ui-overlay{
 
 /* Related to back button */
 #toolbar-mobile-back {
-	width: 36px;
-	height: 36px;
+	width: 42px !important;
 	position: relative;
 	z-index: 1003;
 }
@@ -114,6 +44,15 @@ div#w2ui-overlay-actionbar.w2ui-overlay{
 }
 .editmode-on {
 	background: url('images/lc_listitem-selected.svg') no-repeat center / 28px !important;
+}
+
+/* Permisson mode status */
+.mobile .ui-badge {
+	background-color: transparent;
+	color: var(--color-text-lighter);
+}
+.status-edit-mode {
+	display: none;
 }
 
 
@@ -143,7 +82,7 @@ div#w2ui-overlay-actionbar.w2ui-overlay{
 }
 
 .main-menu-btn {
-	display: inline-block;
+	display: inline-block !important;
 }
 
 .main-nav {
@@ -155,7 +94,7 @@ div#w2ui-overlay-actionbar.w2ui-overlay{
 	z-index: 1010;
 	bottom: 34px !important;
 	background-color: #00000050;
-	display: none;
+	display: none !important;
 }
 
 #main-menu {
@@ -182,25 +121,10 @@ div#w2ui-overlay-actionbar.w2ui-overlay{
 #document-name-input {
 	display: none;
 }
-/* Related to selectionMarkers.css */
-.inputbar_multiline #tb_formulabar_item_formula > div,
-.inputbar_multiline #tb_formulabar_item_address > div {
-	margin-top: 0px;
-}
-.inputbar_multiline #tb_formulabar_item_address{
-	border-right: solid 1px #0000004d !important;
-}
-.inputbar_multiline #addressInput{
-	border: none;
-}
 
 .spreadsheet-tab-selected{
 	color: #0b87e7 !important;
 	border-color: #0b87e7;
-}
-
-#tb_spreadsheet-toolbar_item_insertsheet {
-	padding: 0 7px 0 12px;
 }
 
 .spreadsheet-tab-scroll {
@@ -217,26 +141,11 @@ div#w2ui-overlay-actionbar.w2ui-overlay{
 #spreadsheet-toolbar{
 	background-color: var(--color-main-background);
 	border-top: 1px solid var(--color-border);
+	grid-template-columns: 40px auto;
 	height: 40px;
 	padding: 0;
 }
-#spreadsheet-toolbar .w2ui-tb-image{
-	padding-top: 0px !important;
-	margin-top: 0px !important;
-	margin-bottom: 0px !important;
-}
-#toolbar-down table.w2ui-button.over {
-	border: 1px solid transparent;
-	background-color: var(--color-background-darker);
-	border-radius: 0;
-}
-#toolbar-down table.w2ui-button.checked {
-	border: 1px solid transparent;
-	background-color: var(--color-background-dark);
-	border-radius: 0;
-}
 
-#mobile-wizard-popup .cool-annotation-content,
 #mobile-wizard .cool-annotation-content {
 	margin: 3px 3px 3px 38px;
 	padding: 0px 10px;
@@ -250,21 +159,25 @@ textarea.cool-annotation-textarea {
 
 /* Related to toolbar.css */
 @-moz-document url-prefix() {
-	#formulabar #addressInput{
-		color: var(--color-main-text);
-		border: 1px solid var(--color-border) !important;
-		border-radius: 0px;
-	}
 	#toolbar-up{
 		top: -1px;
 	}
 }
-#tb_actionbar_item_redo.disabled, #tb_actionbar_item_undo.disabled, #tb_actionbar_item_mobile_wizard.disabled, #tb_actionbar_item_insertion_mobile_wizard.disabled {
+#formulabar:not(.expanded) #addressInput {
+	align-self: center;
+}
+#toolbar-up #redo.disabled, #toolbar-up #undo.disabled, #toolbar-up #mobile_wizard.disabled, #toolbar-up #insertion_mobile_wizard.disabled {
 	display: none;
 }
 #toolbar-wrapper.mobile{
 	border-top: none;
 	z-index: auto !important;
+	flex-direction: column;
+}
+.toolbar-row {
+	display: flex;
+	flex-direction: row;
+	height: 38px !important;
 }
 
 .insertshape-grid {
@@ -280,47 +193,43 @@ textarea.cool-annotation-textarea {
 	padding-top: 0px;
 	padding-bottom: 0px;
 	background: transparent;
-}
-nav:not(.spreadsheet-color-indicator) ~ #toolbar-wrapper #toolbar-up.w2ui-toolbar {
-	border-color: transparent;
+	align-self: end;
 }
 .formulabar.unotoolbutton {
-	margin: 0 !important;
-}
-#expand.formulabar {
-	margin-inline-start: -8px !important
+	justify-self: center;
 }
 .formulabar.toolbox {
-	grid-column-gap: 8px;
 	/* fx = inputfield expander */
-	grid-template-columns: 24px auto 16px 0;
+	grid-template-columns: calc(var(--btn-size)*2) auto var(--btn-size);
 	display: grid;
 	grid-auto-flow: column;
-	align-items: center;
+	align-items: start;
 }
 .expanded .formulabar.toolbox {
 	align-items: flex-start;
 }
-#formulabar {
-	padding: 0px !important;
-	border-top: 1px solid #bbbbbb !important;
+#formulabar > .root-container > .formulabar {
+	grid-template-columns: auto;
 }
 #toolbar-search {
 	height: 39px !important;
+	display: none;
 }
-#tb_actionbar_item_fullscreen{display: none;}
+#toolbar-up #fullscreen{display: none;}
 #toolbar-down {
 	border-top: 1px solid var(--color-border) !important;
+	display: none;
 }
-#toolbar-down > .w2ui-scroll-wrapper {
+.ui-scroll-wrapper {
 	overflow-x: scroll !important;
 	scrollbar-width: none; /*css draft (firefox only)*/
 	-ms-scrollbar: none; /*ie*/
 }
-#toolbar-down > .w2ui-scroll-wrapper::-webkit-scrollbar { /*webkit only*/
+.ui-scroll-wrapper::-webkit-scrollbar { /*webkit only*/
 	display: none;
 }
-#toolbar-down .w2ui-scroll-left, #toolbar-down .w2ui-scroll-right{
+.ui-scroll-left,
+.ui-scroll-right {
 	background: none;
 	height: 100%;
 	width: 0px;
@@ -328,7 +237,7 @@ nav:not(.spreadsheet-color-indicator) ~ #toolbar-wrapper #toolbar-up.w2ui-toolba
 	box-shadow: 8px 0 13px 2px #0b87e7, -6px 0px 6px 6px #007cdc;
 	border-radius: 0px;
 }
-#toolbar-down .w2ui-scroll-right{
+.ui-scroll-right {
 	display: block !important;
 	right: 0;
 	-webkit-transform: rotate(180deg);
@@ -337,35 +246,8 @@ nav:not(.spreadsheet-color-indicator) ~ #toolbar-wrapper #toolbar-up.w2ui-toolba
 	-o-transform: rotate(180deg);
 	transform: rotate(180deg);
 }
-#addressInput{
-	margin-inline-start: 8px;
-	width: 50px;
-	height: 23px;
-	text-align: center;
-	border-color: 1px solid #808080 !important;
-}
 .w2ui-icon.equal, .w2ui-icon.autosum{width: 38px !important;}
 
-#calc-inputbar-wrapper {
-	display: block;
-	border: none;
-}
-
-#calc-inputbar {
-	display: block;
-	width: 100%;
-	position: relative;
-	padding: 0px;
-	margin: 0px;
-}
-
-#toolbar-wrapper.mobile td[id^='tb_actionbar_item'] .w2ui-tb-image {
-	width: 36px !important;
-}
-
-#tb_actionbar_item_userlist table{
-	margin: -1px 0px auto 3px !important;
-}
 #toolbar-up .checked{
 	border-color: transparent !important;
 	background: none !important;
@@ -413,22 +295,6 @@ nav:not(.spreadsheet-color-indicator) ~ #toolbar-wrapper #toolbar-up.w2ui-toolba
 #setgamma input.spinfield, #linewidth input.spinfield, #nolines input.spinfield{
 	width: 140px !important;
 }
-td[id^='tb_spreadsheet-toolbar_item'] table.w2ui-button.over {
-	background: none;
-	border-color: #fff;
-}
-td[id^='tb_spreadsheet-toolbar_item'] table.w2ui-button{
-	border: none !important;
-}
-td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button, td[id^='tb_spreadsheet-toolbar_item']:active table.w2ui-button{
-	background-color: #eaf5ff;
-	outline: none;
-	border: none;
-}
-td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[id^='tb_spreadsheet-toolbar_item']:active table.w2ui-button div.w2ui-icon{
-	-webkit-filter: grayscale(100%) brightness(80%) sepia(100%) hue-rotate(-190deg) saturate(900%) contrast(0.8);
-	filter: grayscale(100%) brightness(80%) sepia(100%) hue-rotate(-190deg) saturate(900%) contrast(0.8);
-}
 #toolbar-down table.w2ui-button:not(.checked) td.w2ui-tb-down > div {
 	border-top: none !important;
 	margin-top: 0 !important;
@@ -439,38 +305,17 @@ td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[
 	border-top: 5px solid #8D99A7;
 	margin-bottom: 5px !important;
 }
-#w2ui-overlay-editbar .menu{
-	border-radius: var(--border-radius);
-}
-#w2ui-overlay-editbar:before{
-	border: none !important;
-}
-#w2ui-overlay-editbar:after{
-	border: none;
-	border-top: 8px solid #000000;
-	border-top-color: inherit;
-	border-right: 8px solid transparent;
-	border-left: 8px solid transparent;
-	top: 100%;
-	margin-top: -3px;
-}
-#toolbar-search #tb_searchbar_item_search *{
+#toolbar-search #search *{
 	width: 100% !important;
 }
 #toolbar-search input#search-input{
 	font-size: 16px;
 }
-#toolbar-search #tb_searchbar_item_left, #tb_searchbar_right {
-	display: none;
-}
-#toolbar-search #tb_searchbar_item_hidesearchbar{
+#toolbar-search #hidesearchbar{
 	padding: 1px 8px !important;
 }
-#toolbar-search #tb_searchbar_item_search{
+#toolbar-search #search{
 	width: 80%;
-}
-#toolbar-search #search-input-group > label{
-	display: none;
 }
 .context-menu-link{
 	display: flex;
@@ -578,22 +423,9 @@ td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[
 	right: 0;
 }
 
-/* Related to mobilewizard.cxx */
-#mobile-wizard-header.landscape {
-	display: none;
-}
-#mobile-wizard-header.portrait {
-	display: block;
-}
-
 /* Related to mobile-wizard based menubar */
 #mobile-wizard.menuwizard.landscape #mobile-wizard-content.landscape {
 	overflow-y: auto !important;
-}
-
-/* Disable tooltips when on touch devices */
-.w2ui-tag .w2ui-tag-top {
-	display: none !important;
 }
 
 .impress-comment-highlight {
@@ -626,6 +458,12 @@ td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[
 }
 .context-menu-list .context-menu-item:nth-child(4) span {
 	background: url('images/lc_ok.svg') no-repeat left center /24px;
+}
+.context-menu-list .context-menu-item:nth-child(5) span {
+	background: url('images/lc_swresredline_deleted.svg') no-repeat left center /24px;
+}
+.context-menu-list .context-menu-item:nth-child(6) span {
+	background: url('images/lc_resolvethread.svg') no-repeat left center /24px;
 }
 
 /* Related to jsdialogs.css */
@@ -663,19 +501,17 @@ td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[
 	height: auto;
 	border-color: var(--color-border);
 }
-#mobile-wizard-content #MacroSelectorDialog #categories > .ui-treeview-body > .mobile-wizard li {
+#mobile-wizard-content #MacroSelectorDialog #categories > .ui-treeview-entry {
 	border-bottom: 1px solid var(--color-border);
 }
 #mobile-wizard-content #MacroSelectorDialog #commands {
 	margin-bottom: 6px;
+	min-height: auto;
 }
 #mobile-wizard-content #MacroSelectorDialog #commands.selected {
 	border-color: var(--color-primary-dark);
 }
-#mobile-wizard-content #MacroSelectorDialog #commands > .mobile-wizard.ui-treeview-body {
-	min-height: auto;
-}
-#mobile-wizard-content #MacroSelectorDialog #commands.empty > .mobile-wizard.ui-treeview-body::after {
+#mobile-wizard-content #MacroSelectorDialog #commands.empty ::after {
 	content: '…';
 	width: 22px;
 	height: 22px;
@@ -687,15 +523,27 @@ td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[
 }
 
 /* busy popup */
-
-#mobile-wizard.popup:not(.snackbar) {
+#mobile-wizard.popup:not(.snackbar):not(.busypopup) {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh !important;
+}
+#mobile-wizard.busypopup {
 	border-radius: 16px 16px 0 0;
 }
-#mobile-wizard.popup #mobile-wizard-content {
+#mobile-wizard.popup #mobile-wizard-content,
+#mobile-wizard.snackbar .mobile-wizard-content,
+#mobile-wizard.busypopup #mobile-wizard-content,
+#mobile-wizard.busypopup .mobile-wizard-content {
 	display: flex;
-	align-items: center;
+	align-items: start;
 	justify-content: center;
 	flex-wrap: wrap;
+}
+#mobile-wizard.snackbar #mobile-wizard-content,
+#mobile-wizard.snackbar .mobile-wizard-content {
+	align-items: center;
 }
 #mobile-wizard.popup.potrait #mobile-wizard-content {
 	flex-direction: column;
@@ -726,6 +574,13 @@ td[id^='tb_spreadsheet-toolbar_item']:focus table.w2ui-button div.w2ui-icon, td[
 }
 #mobile-wizard.popup.snackbar #button {
 	font-size: 14px !important;
+}
+/* Separators */
+.mobile-wizard.ui-separator {
+	/* Hide separators coming from core when on mobile
+	since we are already adding border top on every
+	#mobile-wizard .mobile-wizard.ui-text */
+	display: none;
 }
 /*   - Import text */
 #mobile-wizard-content #separatoroptions {
@@ -833,4 +688,29 @@ div#fontstyletoolbox + div#style.mobile-wizard {
 	display: flex;
 	flex-direction: row;
 	justify-content: space-between;
+}
+/* feature_lock */
+#mobile-wizard #unlock-features-popup .container {
+	flex-direction: column;
+}
+#mobile-wizard #unlock-features-popup #unlock-image {
+	max-width: 92%;
+	margin: 4%;
+	align-self: center;
+	flex: 2 1 auto;
+	height: 238px;
+	background-position: center;
+}
+#mobile-wizard #unlock-features-popup h1 {
+	font-size: 1.4em !important;
+}
+#unlock-features-popup .item ul {
+	text-shadow: none;
+	font-size: 1em !important;
+	margin-left: 5px;
+	margin-right: 5px;
+}
+
+.progress-bar {
+	margin-block-end: 0px !important;
 }

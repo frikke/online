@@ -1,20 +1,16 @@
 /* CSS specific for tablets. */
 
-/* Disable tooltips when on touch devices */
-.w2ui-tag .w2ui-tag-top {
-	display: none !important;
-}
-
 /* Make the upper toolbar scrollable using swipe as on phones. */
-#toolbar-up > .w2ui-scroll-wrapper {
+.ui-scroll-wrapper {
 	overflow-x: scroll !important;
 	scrollbar-width: none; /*css draft (firefox only)*/
 	-ms-scrollbar: none; /*ie*/
 }
-#toolbar-up > .w2ui-scroll-wrapper::-webkit-scrollbar { /*webkit only*/
+.ui-scroll-wrapper::-webkit-scrollbar { /*webkit only*/
 	display: none;
 }
-#toolbar-up .w2ui-scroll-left, #toolbar-up .w2ui-scroll-right{
+.ui-scroll-left,
+.ui-scroll-right {
 	background: none;
 	height: 100%;
 	width: 0px;
@@ -22,7 +18,7 @@
 	box-shadow: 8px 0 13px 2px var(--color-primary), -6px 0px 6px 6px var(--color-primary);
 	border-radius: 0px;
 }
-#toolbar-up .w2ui-scroll-right{
+.ui-scroll-right {
 	right: 0;
 	-webkit-transform: rotate(180deg);
 	-moz-transform: rotate(180deg);
@@ -63,13 +59,7 @@
 
 .notebookbar-tabs-container > div {
 	white-space: nowrap;
-	-webkit-box-flex: 1;
-	-webkit-flex: 1 0 auto;
-	-ms-flex: 1 0 auto;
-	flex: 1 0 auto;
-	display: -webkit-box;
-	display: -webkit-flex;
-	display: -ms-flexbox;
+	flex: 0 0 auto;
 	display: flex;
 	list-style-type: none;
 }
@@ -109,6 +99,10 @@
 	display: inline-flex;
 	margin: 0 32px 0 4px;
 	width: auto;
+}
+
+.main-nav:not(.readonly) #document-name-input {
+	display: none;
 }
 
 .main-nav.readonly.hasnotebookbar #document-titlebar {

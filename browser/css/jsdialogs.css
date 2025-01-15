@@ -1,7 +1,5 @@
-/* JSDialog */
+/* Overlay for popups and dropdowns allowing to handle click outside */
 .jsdialog-overlay {
-	-webkit-animation: vex-fadein .5s;
-	animation: vex-fadein .5s;
 	position: absolute;
 	background: transparent;
 	top: 0;
@@ -12,6 +10,7 @@
 	max-height: 100%;
 	z-index: 2000;
 	display: flex;
+	overflow: hidden;
 }
 
 .jsdialog-overlay.cancellable {
@@ -22,6 +21,8 @@
 .jsdialog-overlay.dimmed {
 	background: #1c5fa814;
 }
+
+/* JSDialog windows */
 
 .lokdialog_container.ui-dialog.ui-widget-content.modalpopup,
 .jsdialog-window.modalpopup {
@@ -41,22 +42,37 @@
 	min-width: 400px;
 }
 
-img.ui-drawing-area {
-	width: -webkit-fill-available;
-	width: -moz-available;
+.jsdialog-container:not(.snackbar) td[role='gridcell'] {
+	padding-left: 5px;
+	padding-right: 5px;
 }
 
+#AcceptRejectChangesDialog {
+	width: max-content;
+	max-width: 1000px;
+}
 .jsdialog.one-child-popup {
 	border: 0;
 	margin: 0 !important;
+	padding: 0 !important;
 }
 
-.jsdialog-window.modalpopup:not(.snackbar) {
+div#autoFillPreviewTooltip {
+	min-width: fit-content;
+	max-width: fit-content;
+}
+
+div#autoFillPreviewTooltip .lokdialog.ui-dialog-content.ui-widget-content {
+	padding: 0em 0.2em;
+}
+
+.jsdialog-window.modalpopup:not(.snackbar),
+.hyperlink-pop-up-container {
 	min-width: 198px;
 	max-width: 498px;
 	border: 1px solid var(--color-border-darker) !important;
 	border-radius: var(--border-radius);
-	box-shadow: 0 0 3px var(--color-border-darker);
+	box-shadow: 0 0 3px var(--color-box-shadow);
 	overflow: auto;
 	position: relative;
 	margin: auto;
@@ -78,9 +94,28 @@ img.ui-drawing-area {
 }
 
 .jsdialog-container .ui-dialog-content {
+	max-height: calc( 90vh - 34px);
+	overflow-y: auto !important;
 	background-color: var(--color-background-lighter) !important;
 	font-family: var(--jquery-ui-font);
 	line-height: 1.5;
+}
+
+#SortKeyWindow {
+	/* As used in .jsdialog-container .ui-dialog-content 90 % of the viewport
+	   minus 352px:
+		- 34px the dialog's header
+		- 112px the next sibling
+		- 50px the dialog's buttons
+		- 80px status bar and calc sheet bar
+		- 38px formulabar
+		- 38px document-header
+   */
+	max-height: calc( 90vh - 352px);
+}
+
+.jsdialog-container .ui-dialog-content > div:not(.ui-scrollwindow) {
+	overflow: hidden; /* don't inherit scrollbar from parent */
 }
 
 .jsdialog-container .lokdialog.ui-dialog-content.ui-widget-content {
@@ -118,21 +153,6 @@ img.ui-drawing-area {
 	background: var(--color-background-darker);
 }
 
-.jsdialog.ui-separator.vertical {
-	height: 100%;
-	padding-right: 6px;
-	/* border-right: 1px dashed #888; */
-	background-image: linear-gradient(#888 22%, rgba(255,255,255,0) 0%);
-	background-position: right center;
-	background-size: 1px 14px;
-	background-repeat: repeat-y;
-	box-shadow: inset 0 34px 0 0 white;
-}
-
-.jsdialog.ui-separator.horizontal {
-	padding-bottom: 6px;
-}
-
 .jsdialog.row {
 	display: table-row;
 }
@@ -142,7 +162,7 @@ img.ui-drawing-area {
 	vertical-align: middle;
 }
 
-.jsdialog.vertical:not(.sidebar) {
+.jsdialog.vertical:not(.sidebar):not(.ui-separator) {
 	width: 100%;
 }
 
@@ -172,6 +192,13 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 	grid-gap: 4px;
 }
 
+/* Special Characters dialog */
+#SpecialCharactersDialog #viewgrid,
+#SpecialCharactersDialog #favgrid {
+	grid-gap: 4px;
+	width: fit-content;
+}
+
 /* Find and replace dialog */
 #search_grid, #replace_grid {
 	grid-template-columns: minmax(100px, min-content) auto !important;
@@ -188,8 +215,11 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 	/* don't occupy space showing empty area */
 	width: 0px !important;
 	height: 0px !important;
+	min-width: 0px !important;
+	min-height: 0px !important;
 	margin: 0px !important;
 	padding: 0px !important;
+	flex-grow: initial !important;
 }
 
 /* Page number dialog placed under Insert menu */
@@ -206,12 +236,77 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 	max-height: 500px;
 	max-width: 700px;
 }
+/* - Also used in SpellingDialog where suggestion come in form
+     of an image*/
+.jsdialog.ui-scrollwindow.has-ui-drawing-area {
+	width: max-content;
+}
 
 /* AccessibilityCheckDialog hack to prevent huge height in Firefox */
 #AccessibilityCheckDialog .cell {
 	vertical-align: unset !important;
 }
 
+/* Separator */
+
+.jsdialog:focus-visible + .jsdialog.ui-separator.vertical {
+	background-color: transparent;
+}
+.jsdialog.ui-separator.vertical {
+	margin: 5px 0px;
+	padding-right: 1px;
+	background-color: var(--color-background-darker);
+}
+
+.ui-toolbar .ui-separator.vertical {
+	height: 14px;
+	align-self: center;
+	margin: 0 3px;
+}
+
+.jsdialog.ui-separator.horizontal {
+	margin: 0px;
+	background-color: var(--color-border-lighter);
+	border: none;
+	height: 1px;
+}
+
+/* Badge */
+.ui-badge {
+	padding: 5px !important;
+	background-color: var(--color-background-darker);
+	color: var(--color-text-darker);
+	border-width: 0px;
+	border-radius: var(--border-radius);
+	font-family: var(--cool-font);
+	font-size: var(--default-font-size);
+	font-weight: normal;
+}
+
+#toolbar-down .ui-separator.vertical {
+	background-color: var(--color-status-badge);
+	opacity: 0.2;
+}
+
+#toolbar-down .ui-badge,
+#toolbar-down .unolabel {
+	font-family: var(--cool-font);
+	font-size: var(--default-font-size);
+	color: var(--color-status-badge) !important;
+}
+
+#toolbar-down .ui-badge:hover,
+#toolbar-down .menubutton:hover .unolabel {
+	color: var(--color-main-text) !important;
+}
+
+#toolbar-down .unoarrow {
+	border-top-color: var(--color-status-badge);
+}
+
+#toolbar-down .menubutton:hover .unoarrow {
+	border-top-color: var(--color-main-text);
+}
 /* Tabs */
 
 .ui-tabs-content.jsdialog {
@@ -285,7 +380,8 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 }
 
 .ui-expander-label::before,
-.ui-treeview-expandable.collapsed > .ui-treeview-expander::before {
+.ui-treeview-expandable.collapsed > div > .ui-treeview-expander::before,
+.ui-treeview div[aria-expanded='false'] > div > .ui-treeview-expander::before {
 	display: inline-block;
 	content: 'V';
 	color: transparent;
@@ -295,7 +391,8 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 }
 
 .ui-expander-label.expanded::before,
-.ui-treeview-expandable:not(.collapsed) > .ui-treeview-expander::before  {
+.ui-treeview-expandable:not(.collapsed) > div > .ui-treeview-expander::before,
+.ui-treeview div[aria-expanded='true'] > div > .ui-treeview-expander::before  {
 	content: 'V';
 	color: transparent;
 	margin-inline-end: 7px;
@@ -305,14 +402,17 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 }
 
 [data-theme='dark'] .ui-expander-label::before,
-[data-theme='dark'] .ui-treeview-expandable > .ui-treeview-expander::before  {
+[data-theme='dark'] .ui-treeview-expandable > div > .ui-treeview-expander::before,
+[data-theme='dark'] .ui-treeview div[aria-expanded] > div > .ui-treeview-expander::before  {
 	filter: brightness(1);
 }
 
-.ui-treeview-expandable > .ui-treeview-expander::before {
+.ui-treeview-expandable > div > .ui-treeview-expander::before,
+.ui-treeview div[aria-expanded] > div > .ui-treeview-expander::before {
 	margin-inline-end: 7px !important;
 	display: inline-block;
 	position: relative !important;
+	cursor: pointer;
 }
 
 .ui-treeview-header-sort-icon::after {
@@ -330,10 +430,11 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 	display: inline-block;
 }
 
-.ui-listview-icon {
-	height: var(--btn-size);
-	width: var(--btn-size);
+.ui-treeview-icon {
+	height: var(--btn-img-size-s);
+	width: var(--btn-img-size-s);
 	margin-inline-end: 8px;
+	vertical-align: middle;
 }
 
 .ui-expander-label.expanded {
@@ -356,37 +457,59 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 .ui-expander-content > .root-container.jsdialog {
 	margin: 4px;
 }
+
+/* Link Button*/
+
+.ui-linkbutton {
+	color: var(--color-text-dark) !important;
+}
+
+.ui-linkbutton:hover {
+	cursor: pointer;
+	color: var(--color-text-lighter) !important;
+}
+
 /* TreeView */
 
 .ui-treeview {
-	display: block;
+	display: grid;
+	grid-template-columns: repeat(1, auto);
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius);
 	overflow-y: auto;
 	overflow-x: hidden;
 	max-width: 1000px;
+	min-width: 150px;
+	min-height: 100px;
 	padding: 1px;
 	padding-inline-end: 3px;
+	color: var(--color-main-text);
+	font-size: var(--default-font-size);
+	line-height: var(--default-height);
+	align-content: start;
+	justify-content: stretch;
 }
 
-.ui-treeview.disabled {
+.ui-treeview * {
+	border-radius: initial;
+}
+
+.jsdialog:not(.sidebar).ui-treeview {
+	max-height: 150px; /* only in dialogs */
+}
+
+.ui-treeview.disabled,
+.ui-treeview-entry div.disabled {
 	background-color: var(--color-background-dark) !important;
 	color: var(--color-text-lighter) !important;
 }
 
-.ui-treeview-body,
 #custom_animation_label_parent {
-	color: var(--color-main-text);
-	font-size: var(--default-font-size);
-	line-height: var(--default-height);
 	display: block;
-	min-height: 100px;
-	min-width: 100px;
-	max-height: 150px;
-	width: 100%;
+	width: inherit;
 }
 
-.ui-treeview.empty .ui-treeview-body {
+.ui-treeview.empty {
 	color: var(--color-text-lighter);
 }
 
@@ -394,31 +517,89 @@ td.jsdialog > [id^='table-box']:not(.sidebar) {
 	cursor: context-menu;
 }
 
-.ui-treeview-expandable.collapsed + ul {
-	display: none;
+.ui-treeview-expandable.collapsed + .ui-treeview-expanded-content {
+	display: none !important;
 }
 
-.ui-treeview-body > ul {
-	margin: 0;
-	padding: 0;
+/* real tree requires spacing - inline-flex, headers require synchronized grid */
+.ui-treeview:not(.ui-treeview-tree) .ui-treeview-entry {
+	display: grid;
+	grid-template-columns: subgrid;
 }
 
-.ui-treeview-body ul {
-	list-style-type: none;
-}
-
-.ui-treeview-entry {
-	display: flex;
+.ui-treeview.ui-treeview-tree .ui-treeview-entry {
+	display: inline-flex;
 	width: 100%;
 }
 
-.ui-treeview-entry:not(.autofilter) {
-	padding-inline-start: 2px;
-	margin-inline-end: 2px;
-	background-color: var(--color-background-lighter);
+.ui-treeview-entry,
+.ui-treeview-expanded-content {
+	grid-auto-flow: column;
+	/* grid-column: '1 / ' + (this._columns + 1) - set inside JS */
+	justify-content: stretch;
+	align-items: start;
+	white-space: nowrap;
 }
 
-.ui-treeview.disabled .ui-treeview-entry:not(.autofilter) {
+.ui-treeview-expanded-content {
+	display: grid;
+}
+
+.ui-treeview-entry > div.ui-treeview-expander-column {
+	width: 20px !important; /* overwrite first-child rule */
+}
+
+.ui-treeview div.ui-treeview-icon-column {
+	width: 30px; /* in table with headers has to be 100% */
+}
+
+.ui-treeview div.ui-treeview-icon-column img {
+	max-width: 30px;
+}
+
+.ui-treeview div.ui-treeview-state-column {
+	width: 38px;
+}
+
+.ui-treeview-headers {
+	white-space: nowrap;
+	display: grid;
+	grid-auto-flow: column;
+	/* grid-column: '1 / ' + (this._columns + 1) - set inside JS */
+}
+
+.ui-treeview-header {
+	display: inline-block;
+	width: 100%;
+}
+
+.ui-treeview-header-text {
+	font-weight: bold;
+}
+
+.ui-treeview-entry > div {
+	display: table-cell;
+	width: 100%;
+}
+
+.ui-treeview-entry div:first-child {
+	display: flex;
+	width: min-content;
+	justify-content: start;
+}
+
+.ui-treeview-entry div:last-child {
+	display: flex;
+	width: 100%;
+	justify-content: start;
+}
+
+.ui-treeview-entry div:not(.autofilter) {
+	padding-inline-start: 2px;
+	margin-inline-end: 2px;
+}
+
+.ui-treeview.disabled .ui-treeview-entry div:not(.autofilter) {
 	background-color: var(--color-background-dark);
 }
 
@@ -429,11 +610,12 @@ input[type='checkbox'].autofilter, .jsdialog input[type='checkbox'] {
 	appearance: none;
 	width: 20px;
 	height: 20px;
+	vertical-align: middle;
 	background: url('images/lc_checkboxoff.svg') no-repeat center;
 	margin: 1px 8px;
 }
 
-[data-theme='dark'] input[type='checkbox'].autofilter, .jsdialog input[type='checkbox'] {
+[data-theme='dark'] input[type='checkbox'].autofilter, [data-theme='dark'] .jsdialog input[type='checkbox'] {
 	background: url('images/dark/lc_checkboxoff.svg') no-repeat center;
 }
 
@@ -442,38 +624,35 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 	background-image: url('images/lc_checkbox.svg');
 }
 
-[data-theme='dark'] input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:checked {
+[data-theme='dark'] input[type='checkbox']:checked.autofilter, [data-theme='dark'] .jsdialog input[type='checkbox']:checked {
 	background-image: url('images/dark/lc_checkbox.svg');
 }
 
-.ui-treeview-entry span {
+.ui-treeview-entry div span {
 	width: 100%;
 }
 
-.ui-treeview-entry.mobile-wizard {
+.ui-treeview-entry div.mobile-wizard {
 	line-height: 40px;
 	padding-left: 10px;
 	padding-right: 10px;
 }
 
-.ui-treeview-entry.selected,
-.ui-listview-entry.selected {
+.ui-treeview-entry.selected {
 	background-color: var(--color-background-dark);
 	color: var(--color-text-dark);
 }
 
-.ui-treeview.disabled .ui-treeview-entry.selected,
-.ui-treeview.disabled .ui-listview-entry.selected {
+.ui-treeview.disabled .ui-treeview-entry.selected {
 	background-color: var(--color-background-darker) !important;
 }
 
-.ui-treeview-entry:hover,
-.ui-listview-entry:hover {
+.ui-treeview-entry:hover {
 	background-color: var(--color-background-darker);
 	color: var(--color-text-darker);
 }
 
-#mobile-wizard .ui-treeview-body input[type='checkbox'] {
+#mobile-wizard tbody input[type='checkbox'] {
 	float: none;
 	vertical-align: middle;
 }
@@ -486,7 +665,37 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 	box-shadow: 0 0 2px 0 #777;
 }
 
+/* tree grid */
+
+.ui-treeview div[aria-level='1'] + .ui-treeview-expanded-content {
+	margin-left: 2.5ch;
+}
+
+.ui-treeview div[aria-level='2'] + .ui-treeview-expanded-content {
+	margin-left: 5ch;
+}
+
+.ui-treeview div[aria-level='3'] + .ui-treeview-expanded-content {
+	margin-left: 7.5ch;
+}
+
+.ui-treeview div[aria-level='4'] + .ui-treeview-expanded-content {
+	margin-left: 10ch;
+}
+
+.ui-treeview div[aria-level='5'] + .ui-treeview-expanded-content {
+	margin-left: 12.5ch;
+}
+
+.ui-treeview div.ui-treeview-expander {
+	vertical-align: top;
+	justify-content: end;
+}
+
 /* context menu */
+.context-menu-root:focus {
+	outline: none;
+}
 .context-menu-list {
 	background: var(--color-background-lighter);
 	border: 1px solid var(--color-border-dark);
@@ -508,6 +717,10 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 }
 /* input text */
 
+.ui-dialog .jsdialog.ui-edit:focus-visible {
+	outline-offset: -2px;
+}
+
 .jsdialog.ui-edit, #hyperlink-text-box:not(.mobile-wizard) {
 	color: var(--color-text-dark);
 	background-color: var(--color-background-dark);
@@ -520,6 +733,7 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 	border-radius: var(--border-radius);
 	overflow: hidden;
 	align-self: center;
+	padding-inline: 4px;
 }
 
 #search_edit.ui-edit.autofilter {
@@ -536,6 +750,9 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 
 .jsdialog.checkbutton {
 	white-space: nowrap;
+	display: flex;
+	margin: 0;
+	align-items: center;
 }
 
 .jsdialog.checkbutton input,
@@ -562,10 +779,12 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 	border: none;
 	height: 18px;
 	width: 20px;
+	display: block;
 }
 
 .jsdialog .radiobutton > label {
 	vertical-align: middle;
+	white-space: nowrap;
 }
 
 .jsdialog input[type='radio'][disabled='disabled'] ~ label {
@@ -575,10 +794,25 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 /* text label */
 
 .ui-dialog-content .jsdialog.ui-text {
+	padding-inline-start: 0;
+	margin: auto 5px;
+}
+
+.jsdialog.ui-grid-cell input[type='checkbox'] + label[for^='hidden-part-checkbox'] {
+	vertical-align: super;
+}
+
+.jsdialog.ui-text {
 	padding-inline-start: 8px;
 }
 
 /* spinfield */
+
+.spinfieldcontainer {
+	margin-inline-end: 5px;
+	min-width: 70px;
+	width: 100%;
+}
 
 .spinfieldcontainer input {
 	border: 1px solid var(--color-border-dark);
@@ -587,10 +821,14 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 	color: var(--color-text-dark);
 }
 
-.spinfieldcontainer input:hover {
+.spinfieldcontainer input:not([disabled]):hover {
 	border: 1px solid var(--color-border-darker);
 	color: var(--color-text-darker);
 	background-color: var(--color-background-lighter);
+}
+
+.jsdialog.spinfieldcontainer[disabled] input {
+	border: 1px solid var(--color-border-lighter);
 }
 
 .spinfield {
@@ -606,7 +844,7 @@ input[type='checkbox']:checked.autofilter, .jsdialog input[type='checkbox']:chec
 	font-size: var(--default-font-size);
 	color: var(--color-text-dark);
 	margin: 5px;
-	margin-inline-start: calc(-40px);
+	margin-inline-start: calc(-50px);
 }
 /* spinfield (number) */
 input[type='number'] {
@@ -627,27 +865,46 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	cursor: pointer;
 }
 /* listbox */
-.jsdialog.ui-listbox-container {
+.ui-listbox-container,
+.ui-combobox {
 	display: flex;
 	margin: auto 0;
+	align-items: center;
+	box-sizing: border-box;
+	height: 24px;
 }
 
-.jsdialog.ui-listbox {
+.ui-listbox {
+	padding: 0 14px 0 4px;
+	border: 1px solid var(--color-border-dark);
+}
+
+.ui-listbox,
+.ui-combobox,
+.ui-timefield  {
 	box-sizing: border-box;
 	-webkit-appearance: none;
 	-moz-appearance: none;
 	appearance: none;
-	min-width: 100px;
-	width: 100%;
-	height: 28px;
+	height: 24px;
 	line-height: normal;
 	font-size: var(--default-font-size);
 	font-family: var(--jquery-ui-font);
-	border: 1px solid var(--color-border-dark);
 	border-radius: var(--border-radius);
-	padding: 0 14px 0 4px;
 	background-color: var(--color-background-dark);
 	color: var(--color-text-dark);
+}
+
+.jsdialog-window .ui-listbox,
+.jsdialog-window .ui-combobox,
+.jsdialog-window .ui-timefield {
+	height: 32px;/* Use the same height as in .jsdialog.ui-edit */
+	min-width: 100px;
+	width: 100%;
+}
+
+.jsdialog .ui-combobox {
+	line-height: 22px;
 }
 
 .ui-listbox option {
@@ -665,14 +922,13 @@ input[type='number']:hover::-webkit-outer-spin-button {
 .ui-listbox-arrow {
 	content: '';
 	background: url('images/jquery-ui-lightness/ui-icons_222222_256x240.png') no-repeat transparent;
-	background-position: -67px -18px !important;
+	background-position: -67px -17px !important;
 	display: inline-block;
 	position: relative;
 	width: 11px;
 	height: 11px;
 	cursor: pointer;
 	pointer-events: none;
-	margin-block-start: 8px;
 	margin-inline-start: -16px;
 	margin-inline-end: 4px;
 }
@@ -681,9 +937,161 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	background: url('images/jquery-ui-lightness/ui-icons_ffffff_256x240.png') no-repeat transparent;
 }
 
-.ui-listbox[disabled='disabled'] ~ .ui-listbox-arrow {
+.ui-listbox[disabled='disabled'] ~ .ui-listbox-arrow,
+.ui-combobox[disabled='disabled'] ~ .ui-listbox-arrow {
 	opacity: 0.5;
 	cursor: auto;
+}
+
+/* ui-combobox */
+.ui-combobox,
+.ui-timefield {
+	border: 1px solid var(--color-border);
+}
+
+.ui-combobox-content {
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	border: none;
+	border-start-start-radius: var(--border-radius);
+	border-end-start-radius: var(--border-radius);
+	color: var(--color-text-dark);
+	background-color: var(--color-background-lighter);
+	padding-inline: 5px;
+}
+
+.ui-combobox-button {
+	padding-left: 20px;
+	border-left: 1px solid var(--color-border);
+}
+
+.ui-combobox-button:hover {
+	cursor: pointer;
+	border-left-color: transparent;
+	background-color: var(--color-background-darker);
+}
+
+.ui-combobox-dropdown {
+	position: absolute;
+	z-index: 2001;
+	padding: 0px;
+	overflow-y: auto;
+	max-height: 500px;
+	background-color: var(--color-background-dark);
+	border: 1px solid var(--color-border-dark);
+	border-radius: var(--border-radius);
+}
+
+.modalpopup[id$='-dropdown'] {
+	/* submenu is inserted into the same overlay, dont make it relative to parent */
+	position: absolute !important;
+}
+
+.modalpopup[id$='-dropdown'] .ui-dialog-content {
+	padding: 0px;
+}
+
+.modalpopup[id$='-dropdown'] .ui-grid {
+	grid-gap: 0px;
+}
+
+.ui-combobox-entry {
+	width: calc(100% + 15px); /* + padding for scrollbar */
+	display: flex;
+	align-items: center;
+}
+
+.ui-combobox-entry:hover {
+	background-color: var(--color-background-dark);
+}
+
+.ui-combobox-entry.selected:not(:hover) span {
+	border: 1px solid var(--color-primary);
+	background-color: var(--color-primary);
+	color: var(--color-primary-text);
+}
+
+.ui-combobox-entry span {
+	border: 1px solid transparent;
+	padding: 5px;
+	display: block;
+	width: 100%;
+	font-size: var(--default-font-size);
+	font-family: var(--jquery-ui-font);
+	color: var(--color-text-dark);
+}
+
+.ui-combobox-entry.checked::before {
+	content: '\2713';
+	display: inline-block;
+	color: var(--color-primary);
+	padding: 0 6px;
+}
+
+.ui-combobox-entry.notchecked::before {
+	content: '\2713';
+	display: inline-block;
+	visibility: hidden;
+	padding: 0 6px;
+}
+
+.ui-combobox-icon {
+	background-repeat: no-repeat !important;
+	width: var(--btn-size);
+	height: var(--btn-size);
+}
+
+/* these rules are for custom rendering like font previews */
+.ui-combobox-entry img {
+	border: 1px solid transparent;
+	max-height: 24px; /* required for hidpi*/
+}
+
+.ui-combobox-entry img:hover {
+	border: 1px solid var(--color-border-darker);
+	filter: contrast(0.5);
+}
+
+.ui-combobox-entry.selected img:not(:hover) {
+	border: 1px solid var(--color-primary);
+}
+
+[data-theme='dark'] .ui-combobox-entry img {
+	filter: invert(1);
+}
+
+/* Combobox entry with menu and thus arrow/chevron */
+.ui-combobox-entry.ui-has-menu {
+	display: grid;
+	grid-template-columns: 1fr 25px;
+	align-items: center;
+}
+/* Arrow/chevron */
+.ui-combobox-entry.ui-has-menu::after {
+	content: '';
+	display: inline-block;
+	width: 9px;
+	background: url('images/lc_menu_chevron.svg') no-repeat;
+	height: 9px;
+	margin-inline-start: -9px;
+}
+
+.ui-combobox-entry.ui-has-menu > span {
+	/* menu entries have 5px all around padding,
+	 add extra 9px at the horizontal end = 14px
+	 so we can re-position the arrow/chevron  */
+	padding-inline-end: 14px;
+}
+
+/* Apply style always show real colors */
+#applystyle-dropdown .ui-dialog-content {
+	background-color: white !important;
+}
+
+#applystyle-dropdown .ui-combobox-entry img {
+	filter: none !important;
+	max-height: 30px; /* hidpi, avoid blurry text */
 }
 
 /* ui-textarea */
@@ -692,6 +1100,9 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	background-color: var(--color-background-dark);
 	border: 1px solid var(--color-border-dark);
 	border-radius: var(--border-radius);
+	vertical-align: top;
+	width: -webkit-fill-available;
+	width: -moz-available;
 }
 
 /* buttons: btns.css */
@@ -700,10 +1111,10 @@ input[type='number']:hover::-webkit-outer-spin-button {
 
 .ui-iconview {
 	overflow: auto;
-	display: inline-flex;
-	display: -ms-inline-flexbox;
-	flex-wrap: wrap;
 	justify-content: space-between;
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	max-height: 40vh;
 }
 
 .ui-iconview.mobile-wizard {
@@ -725,6 +1136,8 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	border: 1px solid transparent;
 	border-radius: var(--border-radius);
 	padding-top: 5px;
+	text-wrap: nowrap;
+	font-family: var(--jquery-ui-font);
 }
 
 .ui-iconview-entry.selected {
@@ -740,6 +1153,17 @@ input[type='number']:hover::-webkit-outer-spin-button {
 
 .ui-iconview-separator {
 	flex: 0 0 99%;
+}
+
+.icon-view-item-container {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin: 5px;
+	text-align: center;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 /* Autofilter dropdown */
@@ -773,7 +1197,7 @@ input[type='number']:hover::-webkit-outer-spin-button {
 .autofilter-container .ui-treeview {
 	border: none;
 }
-.autofilter-container #menu.ui-treeview .ui-treeview-body {
+.autofilter-container #menu.ui-treeview {
 	height: auto;
 	width: 100%;
 	padding: 8px 1px;
@@ -834,15 +1258,11 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	line-height: normal;
 }
 
-.autofilter-container #check_tree_box.ui-treeview .ui-treeview-body,
-.autofilter-container #check_list_box.ui-treeview .ui-treeview-body {
+.autofilter-container #check_tree_box.ui-treeview,
+.autofilter-container #check_list_box.ui-treeview {
 	width: 100%;
 	min-width: 200px;
 	max-height: 150px;
-}
-
-#ZoteroDialog .ui-treeview-body {
-	max-height: 500px;
 }
 
 .autofilter-container-submenu > .autofilter-container {
@@ -851,6 +1271,19 @@ input[type='number']:hover::-webkit-outer-spin-button {
 
 .autofilter-container-submenu .autofilter.root-container .ui-treeview {
 	border-color: transparent;
+}
+
+/* hide radio in filter by color */
+.jsdialog.autofilter #background .ui-treeview-entry div:nth-of-type(1),
+.jsdialog.autofilter #textcolor .ui-treeview-entry div:nth-of-type(1),
+.jsdialog.autofilter #background > div:nth-of-type(1),
+.jsdialog.autofilter #textcolor > div:nth-of-type(1) {
+	display: none;
+}
+
+/* hide arrow icons in the autofilter menu*/
+#menu img.jsdialog.autofilter.ui-treeview-checkbox {
+	display: none;
 }
 
 /* Word count dialog */
@@ -870,7 +1303,8 @@ input[type='number']:hover::-webkit-outer-spin-button {
 #mobile-wizard #wordslabel2,
 #mobile-wizard #inclspaceslabel2,
 #mobile-wizard #exclspaceslabel2,
-#mobile-wizard #cjkcharsft2
+#mobile-wizard #cjkcharsft2,
+#mobile-wizard #commentslabel
 {
 	float: left !important;
 	clear: left !important;
@@ -885,7 +1319,8 @@ input[type='number']:hover::-webkit-outer-spin-button {
 #mobile-wizard #docwords,
 #mobile-wizard #docchars,
 #mobile-wizard #doccharsnospaces,
-#mobile-wizard #doccjkchars
+#mobile-wizard #doccjkchars,
+#mobile-wizard #docComments
 {
 	float: right !important;
 	clear: right !important;
@@ -950,21 +1385,24 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	border-color: transparent;
 }
 
-#MacroSelectorDialog #categories .ui-treeview-entry.selected, #MacroSelectorDialog #categories .ui-listview-entry, #MacroSelectorDialog #categories .ui-listview-entry.selected {
+#MacroSelectorDialog #categories .ui-treeview-entry div.selected, #MacroSelectorDialog #categories .ui-treeview-entry, #MacroSelectorDialog #categories .ui-treeview-entry.selected {
 	background-color: var(--color-background-dark);
 	color: var(--color-text-dark);
 }
-#MacroSelectorDialog #categories .ui-treeview-entry:hover, #MacroSelectorDialog #categories .ui-treeview-entry.selected:hover, #MacroSelectorDialog #categories .ui-listview-entry:hover, #MacroSelectorDialog #categories .ui-listview-entry.selected:hover, #MacroSelectorDialog #categories .ui-treeview-entry.selected {
+#MacroSelectorDialog #categories .ui-treeview-entry div:hover, #MacroSelectorDialog #categories .ui-treeview-entry div.selected:hover, #MacroSelectorDialog #categories .ui-treeview-entry:hover, #MacroSelectorDialog #categories .ui-treeview-entry.selected:hover, #MacroSelectorDialog #categories .ui-treeview-entry div.selected {
 	background-color: var(--color-background-darker);
 	color: var(--color-text-darker);
 }
 
 /* color selector */
+.has-colorpicker.unotoolbutton > .unobutton img {
+	height: var(--btn-img-colorpicker-size);
+}
 .unotoolbutton .selected-color {
-	height: 5px;
-	width: 24px;
+	box-sizing: border-box;
+	height: var(--btn-color-colorpicker-size);
+	width: calc(var(--btn-img-size) - var(--btn-padding) * 2);
 	position: relative;
-	top: -6px;
 	border: 1px solid var(--color-border-dark);
 	border-radius: 7px;
 	outline: 1px solid var(--color-background-lighter);
@@ -980,26 +1418,31 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	border-top: 5px solid var(--color-main-text);
 	display: inline-block !important;
 	margin-left: 3px;
+	margin-top: 4px;
 }
 
-.unoarrow:hover, .menubutton .arrow:hover {
+.unoarrow:not([disabled]):hover, .menubutton .arrow:not([disabled]):hover {
 	border-top: 5px solid var(--color-text-darker);
 }
 
 .arrowbackground {
-	width: 15px;
-	height: 23px;
-	display: inline-block;
+	box-sizing: border-box;
+	width: 16px;
+	height: 100%;
+	display: flex;
+	align-items: center;
 	border-left: 1px solid transparent;
 	background-color: transparent;
+	grid-column: 3;
+	position: relative;
 }
 
 .arrowbackground:hover {
 	border-left-color: transparent;
-	background-color: transparent;
+	background-color: var(--color-background-darker);
 }
 
-.unoarrow:hover, .arrowbackground:hover .unoarrow {
+.unoarrow:not([disabled]):hover, .arrowbackground:not([disabled]):hover .unoarrow {
 	border-top-color: var(--color-text-darker);
 }
 
@@ -1016,12 +1459,9 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	background-color: var(--color-background-dark);
 }
 
-.menubutton span {
-	margin: 0px 5px;
-}
-
-.jsdialog.menubutton img {
-	vertical-align: middle;
+.jsdialog .unobutton img {
+	width: var(--btn-img-size);
+	height: var(--btn-img-size);
 }
 
 .menubutton .arrow {
@@ -1030,15 +1470,23 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	margin: 5px 0px 5px 5px;
 }
 
-/* sum button in formulabar */
-.formulabar.menubutton {
-	padding: 0px !important;
-	margin: 0 4px 0 0 !important;
+.jsdialog.menubutton[disabled] {
+	background-color: var(--color-background-lighter) !important;
+	color: var(--color-text-lighter) !important;
+}
+
+.jsdialog.menubutton[disabled] .arrow {
+	border-top-color: var(--color-text-lighter);
 }
 
 /* toolbox */
 .jsdialog.toolbox {
 	display: flex;
+}
+
+.jsdialog.ui-spacer {
+	display: flex;
+	flex-grow: 1;
 }
 
 /* spinner */
@@ -1054,6 +1502,51 @@ input[type='number']:hover::-webkit-outer-spin-button {
 @keyframes spin {
 	0% { transform: rotate(0deg); }
 	100% { transform: rotate(360deg); }
+}
+
+/* color picker */
+.ui-color-picker {
+	padding: 4px;
+}
+
+.ui-color-picker,
+#ui-color-picker-custom,
+#ui-color-picker-recent {
+	display: grid;
+	grid-gap: 4px;
+	align-items: center;
+}
+
+.ui-color-picker-palette {
+	display: grid;
+	grid-gap: 4px;
+	margin-top: 3px;
+}
+
+.ui-color-picker-entry {
+	border: 1px solid transparent;
+	cursor: pointer;
+	width: 16px;
+	height: 16px;
+}
+
+.ui-color-picker-entry:hover {
+	border: 1px solid var(--color-primary);
+}
+
+#ui-color-picker-custom,
+#ui-color-picker-recent {
+	grid-auto-flow: column;
+}
+
+.ui-color-picker .ui-listbox-container,
+.ui-color-picker button {
+	margin: 0px !important;
+	width: 100% !important;
+}
+
+#ui-color-picker-custom input {
+	max-width: 75px;
 }
 
 /* busy popup */
@@ -1117,144 +1610,54 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	100%{transform: translateY(60px) translateX(15px); opacity: 0;}
 }
 
-.spinner-img.text-doctype #spinner-box-f-right {
-	fill: rgba(var(--blue1-txt-primary-color),0.5);
+.spinner-img #spinner-box-f-right {
+	fill: rgba(var(--doc-type),0.5);
 }
-.spinner-img.text-doctype #spinner-box-f-left {
-	fill: rgba(var(--blue1-txt-primary-color),0.2);
+.spinner-img #spinner-box-f-left {
+	fill: rgba(var(--doc-type),0.2);
 }
-.spinner-img.text-doctype #spinner-inner-right {
-	fill: rgba(var(--blue1-txt-primary-color),0.5);
+.spinner-img #spinner-inner-right {
+	fill: rgba(var(--doc-type),0.5);
 }
-.spinner-img.text-doctype #spinner-box-back {
-	fill: rgba(var(--blue1-txt-primary-color),0.4);
+.spinner-img #spinner-box-back {
+	fill: rgba(var(--doc-type),0.4);
 }
-.spinner-img.text-doctype #spinner-handle {
-	stroke: rgba(var(--blue1-txt-primary-color),0.8);
+.spinner-img #spinner-handle {
+	stroke: rgba(var(--doc-type),0.8);
 }
-.spinner-img.text-doctype #spinner-inner-left-linearGradient stop:first-child {
-	stop-color: rgba(var(--blue1-txt-primary-color));
+.spinner-img #spinner-inner-left-linearGradient stop:first-child {
+	stop-color: rgba(var(--doc-type));
 	stop-opacity: 0.7;
 }
-.spinner-img.text-doctype #spinner-inner-left-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--blue1-txt-primary-color));
+.spinner-img #spinner-inner-left-linearGradient stop:nth-child(2) {
+	stop-color: rgba(var(--doc-type));
 	stop-opacity: 0.5;
 }
-.spinner-img.text-doctype #spinner-paper-fold {
-	fill: rgba(var(--blue1-txt-primary-color),0.8);
+.spinner-img #spinner-paper-fold {
+	fill: rgba(var(--doc-type),0.8);
 }
-.spinner-img.text-doctype #spinner-paper-linearGradient stop:first-child {
-	stop-color: rgba(var(--blue1-txt-primary-color));
+.spinner-img #spinner-paper-linearGradient stop:first-child {
+	stop-color: rgba(var(--doc-type));
 	stop-opacity: 0.3;
 }
-.spinner-img.text-doctype #spinner-paper-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--blue1-txt-primary-color));
+.spinner-img #spinner-paper-linearGradient stop:nth-child(2) {
+	stop-color: rgba(var(--doc-type));
 	stop-opacity: 0.2;
 }
 
-.spinner-img.spreadsheet-doctype #spinner-box-f-right {
-	fill: rgba(var(--green0-txt-primary-color),0.5);
-}
-.spinner-img.spreadsheet-doctype #spinner-box-f-left {
-	fill: rgba(var(--green0-txt-primary-color),0.2);
-}
-.spinner-img.spreadsheet-doctype #spinner-inner-right {
-	fill: rgba(var(--green0-txt-primary-color),0.5);
-}
-.spinner-img.spreadsheet-doctype #spinner-box-back {
-	fill: rgba(var(--green0-txt-primary-color),0.4);
-}
-.spinner-img.spreadsheet-doctype #spinner-handle {
-	stroke: rgba(var(--green0-txt-primary-color),0.8);
-}
-.spinner-img.spreadsheet-doctype #spinner-inner-left-linearGradient stop:first-child {
-	stop-color: rgba(var(--green0-txt-primary-color));
-	stop-opacity: 0.7;
-}
-.spinner-img.spreadsheet-doctype #spinner-inner-left-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--green0-txt-primary-color));
-	stop-opacity: 0.5;
-}
-.spinner-img.spreadsheet-doctype #spinner-paper-fold {
-	fill: rgba(var(--green0-txt-primary-color),0.8);
-}
-.spinner-img.spreadsheet-doctype #spinner-paper-linearGradient stop:first-child {
-	stop-color: rgba(var(--green0-txt-primary-color));
-	stop-opacity: 0.3;
-}
-.spinner-img.spreadsheet-doctype #spinner-paper-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--green0-txt-primary-color));
-	stop-opacity: 0.2;
+/* progressbar */
+.ui-progressbar {
+	display: flex;
+	align-items: center;
 }
 
-.spinner-img.presentation-doctype #spinner-box-f-right {
-	fill: rgba(var(--orange1-txt-primary-color),0.5);
-}
-.spinner-img.presentation-doctype #spinner-box-f-left {
-	fill: rgba(var(--orange1-txt-primary-color),0.2);
-}
-.spinner-img.presentation-doctype #spinner-inner-right {
-	fill: rgba(var(--orange1-txt-primary-color),0.5);
-}
-.spinner-img.presentation-doctype #spinner-box-back {
-	fill: rgba(var(--orange1-txt-primary-color),0.4);
-}
-.spinner-img.presentation-doctype #spinner-handle {
-	stroke: rgba(var(--orange1-txt-primary-color),0.8);
-}
-.spinner-img.presentation-doctype #spinner-inner-left-linearGradient stop:first-child {
-	stop-color: rgba(var(--orange1-txt-primary-color));
-	stop-opacity: 0.7;
-}
-.spinner-img.presentation-doctype #spinner-inner-left-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--orange1-txt-primary-color));
-	stop-opacity: 0.5;
-}
-.spinner-img.presentation-doctype #spinner-paper-fold {
-	fill: rgba(var(--orange1-txt-primary-color),0.8);
-}
-.spinner-img.presentation-doctype #spinner-paper-linearGradient stop:first-child {
-	stop-color: rgba(var(--orange1-txt-primary-color));
-	stop-opacity: 0.3;
-}
-.spinner-img.presentation-doctype #spinner-paper-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--orange1-txt-primary-color));
-	stop-opacity: 0.2;
+.ui-progressbar progress {
+	width: 100%;
 }
 
-.spinner-img.drawing-doctype #spinner-box-f-right {
-	fill: rgba(var(--yellow0-txt-primary-color),0.5);
-}
-.spinner-img.drawing-doctype #spinner-box-f-left {
-	fill: rgba(var(--yellow0-txt-primary-color),0.2);
-}
-.spinner-img.drawing-doctype #spinner-inner-right {
-	fill: rgba(var(--yellow0-txt-primary-color),0.5);
-}
-.spinner-img.drawing-doctype #spinner-box-back {
-	fill: rgba(var(--yellow0-txt-primary-color),0.4);
-}
-.spinner-img.drawing-doctype #spinner-handle {
-	stroke: rgba(var(--yellow0-txt-primary-color),0.8);
-}
-.spinner-img.drawing-doctype #spinner-inner-left-linearGradient stop:first-child {
-	stop-color: rgba(var(--yellow0-txt-primary-color));
-	stop-opacity: 0.7;
-}
-.spinner-img.drawing-doctype #spinner-inner-left-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--yellow0-txt-primary-color));
-	stop-opacity: 0.5;
-}
-.spinner-img.drawing-doctype #spinner-paper-fold {
-	fill: rgba(var(--yellow0-txt-primary-color),0.8);
-}
-.spinner-img.drawing-doctype #spinner-paper-linearGradient stop:first-child {
-	stop-color: rgba(var(--yellow0-txt-primary-color));
-	stop-opacity: 0.3;
-}
-.spinner-img.drawing-doctype #spinner-paper-linearGradient stop:nth-child(2) {
-	stop-color: rgba(var(--yellow0-txt-primary-color));
-	stop-opacity: 0.2;
+.snackbar .ui-progressbar progress {
+	min-width: 120px;
+	margin-right: 10px;
 }
 
 /* snackbar */
@@ -1263,6 +1666,11 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 .snackbar.jsdialog-window {
 	overflow: visible;
+}
+.snackbar #snackbar-container,
+.snackbar #snackbar-container-progress {
+	align-items: center;
+	max-width: calc(80vw);
 }
 #mobile-wizard.popup.snackbar,
 .snackbar.jsdialog-container .ui-dialog-content {
@@ -1299,42 +1707,80 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	padding: 2px 8px;
 }
 
-#mobile-wizard.popup.snackbar #button,
-.snackbar.jsdialog-container #button.ui-pushbutton.jsdialog {
+#mobile-wizard.popup.snackbar [id$='button'],
+.snackbar.jsdialog-container [id$='button'].ui-pushbutton.jsdialog {
 	padding-right: 12px;
 	background-color: transparent !important;
 	border: none !important;
 	margin: 0 !important;
 }
 
-.snackbar.jsdialog-container #button.ui-pushbutton.jsdialog {
-	padding-right: 0;
+.snackbar.jsdialog-container [id$='button'].ui-pushbutton.jsdialog {
+	padding: 8px;
 }
 
-#mobile-wizard.popup.snackbar #button,
-.snackbar.jsdialog-container #button {
+#snackbar-container-progress .ui-progressbar {
+	display: grid;
+	grid-column: 1 / 3;
+}
+
+#snackbar-container-progress {
+	grid-template-rows: repeat(2, auto);
+	grid-template-columns: repeat(2, auto);
+}
+
+#mobile-wizard.popup.snackbar [id$='button'],
+.snackbar.jsdialog-container [id$='button'] {
 	color: #469cff !important;
 	font-weight: 600;
 	font-size: var(--header-font-size) !important;
 	padding: 8px;
 }
-.snackbar.jsdialog-container #button:hover {
+.snackbar.jsdialog-container [id$='button']:hover {
 	background-color: #ffffff15 !important;
 }
 
 /* toolbuttons */
-
 .jsdialog .ui-content.unobutton {
-	width: var(--btn-size);
 	height: var(--btn-size);
-	margin-inline-end: 5px;
+	width: var(--btn-size);
+	display: flex;
+	flex-direction: column;
+	padding: var(--btn-padding);
 	vertical-align: middle;
 	background-color: transparent;
 	border: none;
+	position: relative;
+	overflow: hidden;
+	justify-content: center;
+	align-items: center;
 }
 
-.unotoolbutton.jsdialog.sidebar.ui-content > .arrowbackground {
-	width: auto;
+#toolbar-wrapper:not(.mobile) ~ #toolbar-down .has-dropdown > .ui-content.unobutton {
+	width: max-content;
+}
+
+.unoarrow::after,
+.jsdialog .ui-content.unobutton::after {
+	--click-increment: -1px;
+	position: absolute;
+	content: '';
+	top: var(--click-increment);
+	right: var(--click-increment);
+	bottom: var(--click-increment);
+	left: var(--click-increment);
+}
+
+.notebookbar .ui-content.unobutton:hover,
+.jsdialog .ui-content.unobutton:hover {
+	background-color: var(--color-background-darker);
+}
+
+.unotoolbutton.has-dropdown {
+	display: grid;
+	align-items: center;
+	grid-auto-flow: column;
+	grid-template-rows: auto 0px;
 }
 
 /* handling show/hide state */
@@ -1343,24 +1789,17 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 
 /* dialog/popup fade animation */
+@media (prefers-reduced-motion: no-preference) {
+	.fadeout {
+		animation: fade 0.7s;
+	}
 
-.fadeout {
-	animation: fade 0.7s;
-	-webkit-animation: fade 0.7s;
-	-moz-animation: fade 0.7s;
+	.jsdialog-overlay {
+		animation: fade reverse .3s;
+	}
 }
 
 @keyframes fade {
-	from { opacity: 1 }
-	to { opacity: 0 }
-}
-
-@-moz-keyframes fade {
-	from { opacity: 1 }
-	to { opacity: 0 }
-}
-
-@-webkit-keyframes fade {
 	from { opacity: 1 }
 	to { opacity: 0 }
 }
@@ -1375,13 +1814,40 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	margin: auto;
 }
 
+/* Writer - Insert - Page Number - page preview image */
+[data-theme='dark'] #PageNumberDialog #previewImage {
+	filter: invert(.95)
+}
+
+/* Writer - Table of Contents, Index or Bibliography dialog, Columns tab */
+[data-theme='dark'] #ColumnPage #pageexample-img,
+[data-theme='dark'] #ColumnPage #valueset-img {
+	filter: invert(.9)
+}
+
+/* scrollable content */
+.ui-scrollable-content {
+	overflow-x: scroll;
+	overflow-y: hidden;
+	scrollbar-width: none; /* Firefox >= 64 */
+	overflow: -moz-scrollbars-none; /* Firefox < 64 */
+	-ms-overflow-style: none;  /* Internet Explorer 10+ */
+	display: flex;
+	align-items: center;
+}
+
+.ui-scrollable-content::-webkit-scrollbar { /* WebKit */
+	width: 0;
+	height: 0;
+}
+
 /* formulabar */
 #sc_input_window.formulabar {
-	height: 28px;
 	border: 1px solid var(--color-border);
 	flex-grow: 1;
 	background-color: var(--color-background-lighter);
 	border-radius: var(--border-radius) 0 0 var(--border-radius);
+	align-self: stretch;
 }
 
 .ui-custom-textarea {
@@ -1409,7 +1875,7 @@ input[type='number']:hover::-webkit-outer-spin-button {
 	grid-column: 1;
 	grid-row: 1;
 	white-space: pre-wrap;
-	text-wrap: wrap;
+	white-space: wrap;
 }
 
 .ui-custom-textarea-cursor-layer {
@@ -1432,17 +1898,30 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 
 #sc_input_window.formulabar.expanded {
-	height: 72px !important;
 	border-radius: var(--border-radius) 0 var(--border-radius) var(--border-radius) !important;
 }
 
-.formulabar.unotoolbutton {
-	margin-inline-end: 4px !important;
-	opacity: 0.8;
+#formulabar-buttons-toolbox.formulabar.toolbox {
+	display: grid;
+	grid-auto-flow: column;
+	align-items: center;
+	grid-column-gap: 4px;
+	grid-template-columns: repeat(3, 30px);
 }
 
-#acceptformula {
-	margin-inline-start: 3px;
+#formulabar-buttons-toolbox * {
+	align-items: center;
+	justify-content: center;
+}
+
+.unotoolbutton.formulabar {
+	display: flex;
+}
+
+.formulabar.unotoolbutton {
+	margin: 0 !important;
+	padding: 0 !important;
+	opacity: 0.8;
 }
 
 .formulabar.unotoolbutton:hover {
@@ -1456,7 +1935,7 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 
 #expand.formulabar {
-	height: 28px !important;
+	height: 30px !important;
 	margin: 0 !important;
 	border-radius: 0 var(--border-radius) var(--border-radius) 0 !important;
 	border-inline-start: none !important;
@@ -1464,6 +1943,11 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 
 /* Zotero dialog*/
+
+#ZoteroDialog .ui-treeview {
+	max-height: 500px;
+	max-width: 100%;
+}
 
 #ZoteroDialog-mainbox.jsdialog .ui-treeview {
 	height: 400px;
@@ -1484,7 +1968,7 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 
 #zoterolist.jsdialog {
-	width: 800px;
+	width: calc(min(800px, 80vw));
 }
 
 .jsdialog[id^='zotero'][id$='-label'] {
@@ -1496,16 +1980,55 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 
 /* hover effect */
-.jsdialog.menubutton:hover,
-.jsdialog.ui-listbox:hover,
-.jsdialog.ui-edit:hover,
-.jsdialog.ui-textarea:hover {
+.jsdialog.menubutton:not([disabled]):hover,
+.ui-listbox:not([disabled]):hover,
+.jsdialog.ui-edit:not([disabled]):hover,
+.jsdialog.ui-textarea:not([disabled]):hover {
 	color: var(--color-text-darker);
 	background-color: var(--color-background-lighter);
 	border: 1px solid var(--color-border-darker);
 }
-
+#toolbar-down .jsdialog.menubutton:not([disabled]):hover,
+#toolbar-down .ui-listbox:not([disabled]):hover,
+#toolbar-down .jsdialog.ui-edit:not([disabled]):hover,
+#toolbar-down .jsdialog.ui-textarea:not([disabled]):hover {
+	color: var(--color-text-darker);
+	background-color: transparent !important;
+	border-color: transparent;
+}
+#toolbar-down .unobutton .unolabel {
+	cursor: pointer;
+}
+#toolbar-down .unotoolbutton:hover {
+	background-color: transparent !important;
+	border-color: transparent;
+}
 /* Formula Wizard */
+#FormulaDialog .ui-tabs-root {
+	background-color: var(--color-background-tabs-group);
+	border-radius: var(--border-radius-large);
+}
+#FormulaDialog .jsdialog.ui-tabpage {
+	display: flex;
+}
+#FormulaDialog .jsdialog.ui-tabpage > .ui-grid {
+	grid-template-rows: 0 auto !important;
+	grid-gap: 0px;
+}
+#FormulaDialog #StructPage {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	grid-row-gap: 4px;
+}
+#FormulaDialog #StructPage .ui-treeview-entry div {
+	background-color: transparent;
+}
+#FormulaDialog #search {
+	display: flex;
+}
+#FormulaDialog #search-input {
+	flex-grow: 1;
+}
 #FormulaDialog #ParameterPage > .ui-grid-cell {
 	display: flex;
 	flex-direction: column;
@@ -1521,6 +2044,12 @@ input[type='number']:hover::-webkit-outer-spin-button {
 }
 #FormulaDialog #box3 {
 	display: grid;
+	min-width: 400px;
+}
+#FormulaDialog .ui-tabs-content.jsdialog {
+	grid-auto-columns: 250px;
+	margin-right: 0.2em;
+	margin-top: 0px;
 }
 
 div [id^='TemplateDialog'] {
@@ -1531,7 +2060,176 @@ div [id^='TemplateDialog'] {
 	min-width: 656px;
 }
 
-/* Spellchecking dialog */
-#suggestionslb {
-	min-width: 540px;
+/* Keyboard input keys */
+kbd,
+.kbd {
+	background-color: var(--color-background-dark);
+	border-radius: var(--border-radius);
+	border: 1px solid var(--color-border-dark);
+	color: var(--color-text-dark);
+	display: inline-block;
+	font-family: monospace;
+	font-size: .85em;
+	line-height: 1;
+	padding: 4px;
+	white-space: nowrap;
+}
+
+.kbd--plus {
+	color: var(--color-text-dark);
+	padding: 0 4px;
+	font-size: 0.85em;
+}
+
+.warn-copy-paste {
+	width: 100%;
+}
+
+/* manage changes dialog */
+
+.jsdialog #writerchanges tbody {
+	min-height: 300px;
+}
+
+/* Insert hyperlink dialog */
+
+#HyperlinkInternetPage #grid2,
+#HyperlinkInternetPage #label2,
+#HyperlinkInternetPage #lbProtocol,
+#HyperlinkInternetPage #linktyp_ftp,
+#HyperlinkInternetPage #linktyp_internet {
+	display: none;
+}
+
+/* feature_lock */
+#modal-dialog-unlock-features-popup {
+	width: 652px;
+	min-width: auto;
+	max-width: none;
+}
+#unlock-features-popup .container {
+	display: flex;
+	flex-direction: row;
+}
+#unlock-features-popup #unlock-image {
+	flex: 1.3;
+	background: transparent no-repeat left 4px /contain;
+	background-image: none;
+	height: 288px;
+	margin-inline-end: 0.5em;
+}
+#unlock-features-popup .item {
+	flex: 1;
+}
+#unlock-features-popup .item *:not(ul, li) {
+	margin-inline-start: 1.1em;
+}
+#unlock-features-popup .item ul {
+	list-style: none;
+	padding: 0;
+	font-size: 0.84em;
+	text-shadow: 1px 1px 12px #ffbf0038, 0 0 0.5px #00000026;
+}
+#unlock-features-popup h1 {
+	margin-bottom: .5em;
+	font-size: 1.1em;
+	color: #fda208;
+}
+#unlock-features-popup ul {
+	list-style: none;
+	padding: 0;
+	font-size: 0.84em;
+	text-shadow: 1px 1px 12px #ffbf0038, 0 0 0.5px #00000026;
+}
+
+#unlock-features-popup ul li {
+	display: flex;
+	justify-content: flex-start;
+	align-items: flex-start;
+}
+
+#unlock-features-popup ul li::before {
+	content: '\2022';
+	color: #fda208;
+	font-weight: bold;
+	display: inline-block;
+	width: 1em;
+	min-width: 1em;
+	margin-inline-start: 0.5em;
+}
+
+/* clipboard warning dialog */
+#modal-dialog-copy_paste_download_progress .ui-dialog-content {
+	width: 450px;
+}
+
+/* help */
+#modal-dialog-online-help-content-box {
+	min-width: 75%;
+}
+
+/* Keyboard shortcuts */
+#modal-dialog-keyboard-shortcuts-content-box {
+	width: 468px;
+	max-width: 95%; /* Safe guard for when window is too small */
+}
+
+/* Calc -> Insert -> Pivot Table */
+#PivotTableLayout #box2 {
+	grid-gap: 12px; /* make space for vertical separator */
+}
+
+/* Modal info with 2 line message*/
+.jsdialog-container [id^='info-modal-label'] {
+	display: flex;
+}
+
+/* DocumentPropertiesDialog Custom props */
+#DocumentPropertiesDialog #headerbox,
+#DocumentPropertiesDialog #properties > .jsdialog.ui-grid {
+	grid-template-columns: 128px 128px auto 26px !important;
+	align-items: center;
+	margin-block-start: 4px;
+}
+
+#DocumentPropertiesDialog #properties > .jsdialog.ui-grid > .ui-grid-cell > .ui-grid-cell {
+	align-items: center;
+	grid-column-gap: 4px;
+}
+
+#DocumentPropertiesDialog #customprops button {
+	line-height: 16px;
+	width: 100%;
+	margin: 0;
+}
+
+#DocumentPropertiesDialog #customprops #CustomInfoPage > .jsdialog.ui-scrollwindow:not(.formulabar) {
+	height: 540px;
+	max-height: none;
+}
+
+#ServerAuditDialog #ServerAuditDialog-mainbox {
+	min-width: calc(min(800px, 80vw));
+}
+
+#ServerAuditDialog .ui-treeview {
+	border-color: transparent;
+}
+#ServerAuditDialog .ui-treeview td[role='gridcell'] {
+	padding-inline-start: 0;
+}
+#ServerAuditDialog div:first-child .ui-treeview-header-sort-icon:after {
+	display: none;
+}
+#ServerAuditDialog div:first-child .ui-treeview-header-sort-icon {
+	background: url('images/lc_serverauditheader.svg') no-repeat center;
+	width: 16px;
+	display: table-caption;
+	height: 16px;
+}
+
+/* text-area overflow on function wizard window */
+
+#FormulaDialog #ed_formula.ui-textarea {
+	max-width: 392px;
 }

@@ -1,4 +1,13 @@
 /* -*- js-indent-level: 8 -*- */
+/*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 /* Stringtable for Admin Console User Interface */
 var l10nstrings = {};
 
@@ -55,7 +64,8 @@ l10nstrings.strLogLevels = _('Log Levels');
 l10nstrings.strCloseModal = _('Close');
 l10nstrings.strUpdateLogLevels = _('Update Log Levels');
 l10nstrings.strVersionInfo = _('Version Information');
-
+l10nstrings.strLicense = _('License');
+l10nstrings.strAbout = _('About');
 if (module) {
 	module.exports = l10nstrings;
 }

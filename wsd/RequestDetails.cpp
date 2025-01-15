@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,13 +11,16 @@
 
 #include <config.h>
 
-#include "COOLWSD.hpp"
 #include "RequestDetails.hpp"
 #include "Util.hpp"
 #include "common/Log.hpp"
-#include "HostUtil.hpp"
+#if !MOBILEAPP
+#include <HostUtil.hpp>
+#endif // !MOBILEAPP
 
 #include <Poco/URI.h>
+#include <sstream>
+#include <stdexcept>
 #include "Exceptions.hpp"
 
 namespace
@@ -24,8 +31,18 @@ std::map<std::string, std::string> getParams(const std::string& uri)
     std::map<std::string, std::string> result;
     for (const auto& param : Poco::URI(uri).getQueryParameters())
     {
-        std::string key = Util::decodeURIComponent(param.first);
-        std::string value = Util::decodeURIComponent(param.second);
+        // getQueryParameters() decodes the values. Compare with the URI.
+        if (param.first == "WOPISrc" && uri.find(param.second) != std::string::npos)
+        {
+            LOG_WRN("WOPISrc validation error: unencoded WOPISrc [" << param.second
+                                                                    << "] in URL: " << uri);
+#if ENABLE_DEBUG
+            throw std::runtime_error("WOPISrc must be URI-encoded");
+#endif // ENABLE_DEBUG
+        }
+
+        std::string key = Uri::decode(param.first);
+        std::string value = Uri::decode(param.second);
         LOG_TRC("Decoding param [" << param.first << "] = [" << param.second << "] -> [" << key
                                    << "] = [" << value << ']');
 
@@ -39,7 +56,7 @@ std::map<std::string, std::string> getParams(const std::string& uri)
 RequestDetails::RequestDetails(Poco::Net::HTTPRequest &request, const std::string& serviceRoot)
 {
     // Check and remove the ServiceRoot from the request.getURI()
-    if (!Util::startsWith(request.getURI(), serviceRoot))
+    if (!request.getURI().starts_with(serviceRoot))
         throw BadRequestException("The request does not start with prefix: " + serviceRoot);
 
     // re-writes ServiceRoot out of request
@@ -50,16 +67,15 @@ RequestDetails::RequestDetails(Poco::Net::HTTPRequest &request, const std::strin
     _isGet = method == "GET";
     _isHead = method == "HEAD";
     auto it = request.find("ProxyPrefix");
-	_isProxy = it != request.end();
+    _isProxy = it != request.end();
     if (_isProxy)
         _proxyPrefix = it->second;
     it = request.find("Upgrade");
     _isWebSocket = it != request.end() && Util::iequal(it->second, "websocket");
-#if MOBILEAPP
+    _closeConnection = !request.getKeepAlive(); // HTTP/1.1: closeConnection true w/ "Connection: close" only!
     // request.getHost fires an exception on mobile.
-#else
-	_hostUntrusted = request.getHost();
-#endif
+    if constexpr (!Util::isMobileApp())
+        _hostUntrusted = request.getHost();
 
     processURI();
 }
@@ -69,9 +85,46 @@ RequestDetails::RequestDetails(const std::string &mobileURI)
     , _isHead(false)
     , _isProxy(false)
     , _isWebSocket(false)
+    , _closeConnection(false)
 {
     _uriString = mobileURI;
     dehexify();
+    processURI();
+}
+
+RequestDetails::RequestDetails(const std::string& wopiSrc, const std::vector<std::string>& options,
+                               const std::string& compat)
+    : _isGet(true)
+    , _isHead(false)
+    , _isProxy(false)
+    , _isWebSocket(false)
+    , _closeConnection(false)
+{
+    // /cool/<encoded-document-URI+options>/ws?WOPISrc=<encoded-document-URI>&compat=/ws[/<sessionId>/<command>/<serial>]
+
+    const std::string decodedWopiSrc = Uri::decode(wopiSrc);
+    std::string wopiSrcWithOptions = decodedWopiSrc;
+    if (!options.empty())
+    {
+        wopiSrcWithOptions += '?';
+    }
+
+    for (const std::string& option : options)
+    {
+        wopiSrcWithOptions += option;
+        wopiSrcWithOptions += '&';
+    }
+
+    // To avoid duplicating the complex logic in processURI(),
+    // and to have a single canonical implementation, we
+    // create a valid URI and let it parse and set the various
+    // members, as necessary.
+    std::ostringstream oss;
+    oss << "/cool/" << Uri::encode(wopiSrcWithOptions);
+    oss << "/ws?WOPISrc=" << Uri::encode(decodedWopiSrc);
+    oss << "&compat=/ws" << compat;
+    _uriString = oss.str();
+
     processURI();
 }
 
@@ -99,7 +152,7 @@ void RequestDetails::dehexify()
 
         res += _uriString.substr(end); // Concatinate the remainder.
 
-        _uriString = res; // Replace the original uri with the decoded one.
+        _uriString = std::move(res); // Replace the original uri with the decoded one.
     }
 }
 
@@ -142,7 +195,7 @@ void RequestDetails::processURI()
 
     const auto posLastWS = uriRes.rfind("/ws");
     // DocumentURI is the second segment in cool URIs.
-    if (_pathSegs.equals(0, "cool"))
+    if (_pathSegs.equals(0, "cool") || _pathSegs.equals(0, "wasm"))
     {
         //FIXME: For historic reasons the DocumentURI includes the WOPISrc.
         // This is problematic because decoding a URI that embeds not one, but
@@ -164,11 +217,11 @@ void RequestDetails::processURI()
 
         const std::string docUri = uriRes.substr(0, end);
 
-        _fields[Field::LegacyDocumentURI] = Util::decodeURIComponent(docUri);
+        _fields[Field::LegacyDocumentURI] = Uri::decode(docUri);
 
         // Find the DocumentURI proper.
         end = uriRes.find_first_of("/?", 0, 2);
-        _fields[Field::DocumentURI] = Util::decodeURIComponent(uriRes.substr(0, end));
+        _fields[Field::DocumentURI] = Uri::decode(uriRes.substr(0, end));
     }
     else // Otherwise, it's the full URI.
     {
@@ -208,11 +261,7 @@ void RequestDetails::processURI()
 Poco::URI RequestDetails::sanitizeURI(const std::string& uri)
 {
     // The URI of the document should be url-encoded.
-#if !MOBILEAPP
-    Poco::URI uriPublic(Util::decodeURIComponent(uri));
-#else
-    Poco::URI uriPublic(uri);
-#endif
+    Poco::URI uriPublic((Util::isMobileApp() ? uri : Uri::decode(uri)));
 
     if (uriPublic.isRelative() || uriPublic.getScheme() == "file")
     {
@@ -233,7 +282,7 @@ Poco::URI RequestDetails::sanitizeURI(const std::string& uri)
         // look for encoded query params (access token as of now)
         if (param.first == "access_token")
         {
-            param.second = Util::decodeURIComponent(param.second);
+            param.second = Uri::decode(param.second);
         }
     }
 
@@ -243,17 +292,32 @@ Poco::URI RequestDetails::sanitizeURI(const std::string& uri)
     return uriPublic;
 }
 
+std::string RequestDetails::getLineModeKey(const std::string& /*access_token*/) const
+{
+    // This key is based on the WOPISrc and the access_token only.
+    // However, we strip the host:port and scheme from the WOPISrc.
+    const std::string wopiSrc = Poco::URI(getField(RequestDetails::Field::WOPISrc)).getPath();
+
+    //FIXME: For now, just use the path.
+    // return wopiSrc + "?access_token=" + access_token;
+    return wopiSrc;
+}
+
 #if !defined(BUILDING_TESTS)
 std::string RequestDetails::getDocKey(const Poco::URI& uri)
 {
     // resolve aliases
 #if !MOBILEAPP
     const std::string newUri = HostUtil::getNewUri(uri);
+    if (newUri != uri.toString())
+    {
+        LOG_TRC("Canonicalized URI [" << uri.toString() << "] to [" << newUri << ']');
+    }
 #else
-    const std::string newUri = uri.getPath();
+    const std::string& newUri = uri.getPath();
 #endif
 
-    std::string docKey = Util::encodeURIComponent(newUri);
+    std::string docKey = Uri::encode(newUri);
     LOG_INF("DocKey from URI [" << uri.toString() << "] => [" << docKey << ']');
     return docKey;
 }

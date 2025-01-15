@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -28,8 +32,6 @@
 #if ENABLE_SSL
 #  include <SslSocket.hpp>
 #endif
-
-SocketPoll DumpSocketPoll("websocket");
 
 // Dumps incoming websocket messages and doesn't respond.
 class DumpSocketHandler : public WebSocketHandler
@@ -81,7 +83,7 @@ private:
         LOG_TRC('#' << socket->getFD() << " handling incoming " << in.size() << " bytes.");
 
         // Find the end of the header, if any.
-        static const std::string marker("\r\n\r\n");
+        constexpr std::string_view marker("\r\n\r\n");
         auto itBody = std::search(in.begin(), in.end(),
                                   marker.begin(), marker.end());
         if (itBody == in.end())
@@ -93,21 +95,15 @@ private:
         // Skip the marker.
         itBody += marker.size();
 
-        Poco::MemoryInputStream message(&in[0], in.size());
+        Poco::MemoryInputStream message(in.data(), in.size());
         Poco::Net::HTTPRequest request;
         try
         {
             request.read(message);
 
             LOG_INF('#' << socket->getFD() << ": Client HTTP Request: " << request.getMethod()
-                        << ' ' << request.getURI() << ' ' << request.getVersion() <<
-                    [&](auto& log)
-                    {
-                        for (const auto& it : request)
-                        {
-                            log << " / " << it.first << ": " << it.second;
-                        }
-                    });
+                        << ' ' << request.getURI() << ' ' << request.getVersion() << ' '
+                        << [&](auto& log) { Util::joinPair(log, request, " / "); });
 
             const std::streamsize contentLength = request.getContentLength();
             const auto offset = itBody - in.begin();
@@ -147,8 +143,7 @@ private:
             }
             else
             {
-                Poco::Net::HTTPResponse response;
-                response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+                http::Response response(http::StatusCode::BadRequest);
                 response.setContentLength(0);
                 LOG_INF("DumpWebSockets bad request");
                 socket->send(response);
@@ -158,7 +153,7 @@ private:
         catch (const std::exception& exc)
         {
             // Bad request.
-            HttpHelper::sendErrorAndShutdown(400, socket);
+            HttpHelper::sendErrorAndShutdown(http::StatusCode::BadRequest, socket);
 
             // NOTE: Check _wsState to choose between HTTP response or WebSocket (app-level) error.
             LOG_INF('#' << socket->getFD() << " Exception while processing incoming request: [" <<
@@ -191,17 +186,19 @@ private:
 public:
     DumpSocketFactory(bool isSSL) : _isSSL(isSSL) {}
 
-    std::shared_ptr<Socket> create(const int physicalFd) override
+    std::shared_ptr<Socket> create(const int physicalFd, Socket::Type type) override
     {
 #if ENABLE_SSL
         if (_isSSL)
             return StreamSocket::create<SslStreamSocket>(
-                std::string(), physicalFd, false, std::make_shared<ClientRequestDispatcher>());
+                std::string(), physicalFd, type, false, HostType::Other,
+                std::make_shared<ClientRequestDispatcher>());
 #else
         (void)_isSSL;
 #endif
-        return StreamSocket::create<StreamSocket>(std::string(), physicalFd, false,
-                                                  std::make_shared<ClientRequestDispatcher>());
+        return StreamSocket::create<StreamSocket>(
+            std::string(), physicalFd, type, false, HostType::Other,
+            std::make_shared<ClientRequestDispatcher>());
     }
 };
 
@@ -220,9 +217,12 @@ public:
         {}
 };
 
+// coverity[root_function] : don't warn about uncaught exceptions
 int main (int argc, char **argv)
 {
     (void) argc; (void) argv;
+
+    SocketPoll DumpSocketPoll("websocket");
 
     if (!UnitWSD::init(UnitWSD::UnitType::Wsd, ""))
     {
@@ -230,6 +230,7 @@ int main (int argc, char **argv)
     }
 
     Log::initialize("WebSocketDump", "trace", true, false,
+                    std::map<std::string, std::string>(), false,
                     std::map<std::string, std::string>());
 
     CoolConfig config;
@@ -264,7 +265,9 @@ int main (int argc, char **argv)
 
     // Setup listening socket with a factory for connected sockets.
     auto serverSocket = std::make_shared<ServerSocket>(
-        Socket::Type::All, DumpSocketPoll,
+        Socket::Type::All,
+        std::chrono::steady_clock::now(),
+        DumpSocketPoll,
         std::make_shared<DumpSocketFactory>(isSSL));
 
     if (!serverSocket->bind(ServerSocket::Type::Public, port))

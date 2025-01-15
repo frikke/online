@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,17 +11,16 @@
 
 #pragma once
 
-#include <cmath>
 #include <ctime>
 #include <list>
 #include <memory>
+#include <regex>
 #include <set>
 #include <string>
 #include <utility>
 #include <Poco/URI.h>
 
 #include <common/Log.hpp>
-#include "Util.hpp"
 #include "net/WebSocketHandler.hpp"
 
 struct DocumentAggregateStats;
@@ -157,12 +160,13 @@ class Document
     Document& operator = (const Document &) = delete;
 
 public:
-    Document(std::string docKey, pid_t pid, std::string filename, Poco::URI wopiSrc)
-        : _docKey(std::move(docKey))
+    Document(const std::string& docKey, pid_t pid,
+             const std::string& filename, const Poco::URI& wopiSrc)
+        : _docKey(docKey)
         , _pid(pid)
         , _activeViews(0)
-        , _filename(std::move(filename))
-        , _wopiSrc(std::move(wopiSrc))
+        , _filename(filename)
+        , _wopiSrc(wopiSrc)
         , _memoryDirty(0)
         , _lastJiffy(0)
         , _lastCpuPercentage(0)
@@ -379,6 +383,8 @@ public:
 
     void addRecvStats(uint64_t recv);
 
+    void addConnectionStats(size_t connections);
+
     void setCpuStatsSize(unsigned size);
 
     void setMemStatsSize(unsigned size);
@@ -408,7 +414,8 @@ public:
     void setViewLoadDuration(const std::string& docKey, const std::string& sessionId, std::chrono::milliseconds viewLoadDuration);
     void setDocWopiDownloadDuration(const std::string& docKey, std::chrono::milliseconds wopiDownloadDuration);
     void setDocWopiUploadDuration(const std::string& docKey, const std::chrono::milliseconds wopiUploadDuration);
-    void addSegFaultCount(unsigned segFaultCount);
+    void addErrorExitCounters(unsigned segFaultCount, unsigned killedCount,
+                              unsigned oomKilledCount);
     void setForKitPid(pid_t pid) { _forKitPid = pid; }
     void addLostKitsTerminated(unsigned lostKitsTerminated);
 
@@ -427,12 +434,16 @@ public:
     static int getKitPidsFromSystem(std::vector<int> *pids);
     bool isDocSaved(const std::string&);
     bool isDocReadOnly(const std::string&);
-    void setCurrentMigDoc(const std::string& docKey) { _currentMigDoc = docKey; }
+    void setMigratingInfo(const std::string& docKey, const std::string& routeToken, const std::string& serverId);
+    void resetMigratingInfo();
     std::string getCurrentMigDoc() { return _currentMigDoc; }
-    void setCurrentMigToken(const std::string& routeToken) { _currentMigToken = routeToken; }
     std::string getCurrentMigToken() { return _currentMigToken; }
+    std::string getTargetMigServerId() { return _targetMigServerId; }
     void sendMigrateMsgAfterSave(bool lastSaveSuccessful, const std::string& docKey);
     std::string getWopiSrcMap();
+    std::string getFilename(int pid);
+    void routeTokenSanityCheck();
+    void sendShutdownReceivedMsg();
 
 private:
     void doRemove(std::map<std::string, std::unique_ptr<Document>>::iterator &docIt);
@@ -442,6 +453,8 @@ private:
     std::string getSentActivity();
 
     std::string getRecvActivity();
+
+    std::string getConnectionActivity();
 
     std::string getCpuStats();
 
@@ -469,11 +482,16 @@ private:
     std::list<unsigned> _recvStats;
     unsigned _recvStatsSize = 200;
 
+    std::list<size_t> _connStats;
+    unsigned _connStatsSize = 200;
+
     uint64_t _sentBytesTotal = 0;
     uint64_t _recvBytesTotal = 0;
 
     uint64_t _segFaultCount = 0;
     uint64_t _lostKitsTerminatedCount = 0;
+    uint64_t _killedCount = 0;
+    uint64_t _oomKilledCount = 0;
 
     pid_t _forKitPid = 0;
 
@@ -485,6 +503,8 @@ private:
     std::string _currentMigDoc = std::string();
 
     std::string _currentMigToken = std::string();
+
+    std::string _targetMigServerId = std::string();
 };
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

@@ -1,3 +1,14 @@
+/* -*- js-indent-level: 8 -*- */
+
+/*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 declare var L: any;
 
 namespace cool {
@@ -122,6 +133,8 @@ export class SheetGeometry {
 		updatePositions: boolean): void {
 		this._columns.setTileGeometryData(tileWidthTwips, tileSizePixels, updatePositions);
 		this._rows.setTileGeometryData(tileHeightTwips, tileSizePixels, updatePositions);
+
+		if (app.map) app.map.fire('sheetgeometrychanged');
 	}
 
 	public setViewArea(topLeftTwipsPoint: Point, sizeTwips: Point): boolean {
@@ -245,12 +258,16 @@ export class SheetGeometry {
 			this._rows.getTileTwipsPosFromPrint(point.y));
 	}
 
+	public convertToTileTwips(simplePoint: cool.SimplePoint): void {
+		simplePoint.x = this._columns.getTileTwipsPosFromPrint(simplePoint.x);
+		simplePoint.y = this._rows.getTileTwipsPosFromPrint(simplePoint.y);
+	}
+
 	// accepts a point in tile-twips coordinates and returns the equivalent point
 	// in print-twips.
 	public getPrintTwipsPointFromTile(point: Point): Point {
 		if (!(point instanceof L.Point)) {
-			console.error('Bad argument type, expected L.Point');
-			return point;
+			console.warn('Bad argument type, expected L.Point');
 		}
 
 		return new L.Point(this._columns.getPrintTwipsPosFromTile(point.x),

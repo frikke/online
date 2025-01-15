@@ -1,9 +1,18 @@
 /* -*- js-indent-level: 8; fill-column: 100 -*- */
 /*
-* Control.ContextMenu
-*/
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
+ * Control.ContextMenu
+ */
 
-/* global $ _ _UNO */
+/* global $ _ _UNO app GraphicSelection */
 L.Control.ContextMenu = L.Control.extend({
 	options: {
 		SEPARATOR: '---------',
@@ -28,6 +37,9 @@ L.Control.ContextMenu = L.Control.extend({
 					  'SetAnchorToChar', 'SetAnchorToFrame',
 					  'WrapMenu', 'WrapOff', 'WrapOn', 'WrapIdeal', 'WrapLeft', 'WrapRight', 'WrapThrough',
 					  'WrapThroughTransparencyToggle', 'WrapContour', 'WrapAnchorOnly',
+					  'ConvertMenu', 'ChangeBezier',
+					  'DistributeHorzCenter', 'DistributeHorzDistance','DistributeHorzLeft','DistributeHorzRight',
+					  'DistributeVertBottom', 'DistributeVertCenter', 'DistributeVertDistance', 'DistributeVertTop',
 					  'ArrangeFrameMenu', 'ArrangeMenu', 'BringToFront', 'ObjectForwardOne', 'ObjectBackOne', 'SendToBack',
 					  'RotateMenu', 'RotateLeft', 'RotateRight', 'TransformDialog', 'FormatLine', 'FormatArea',
 					  'FormatChartArea', 'InsertTitles', 'InsertRemoveAxes',
@@ -36,28 +48,29 @@ L.Control.ContextMenu = L.Control.extend({
 					  'FormatAxis', 'FormatMajorGrid', 'FormatMinorGrid', 'FormatDataLabels',
 					  'FormatDataLabel', 'FormatDataPoint', 'FormatMeanValue', 'FormatXErrorBars', 'FormatYErrorBars',
 					  'FormatTrendline', 'FormatTrendlineEquation', 'FormatSelection', 'FormatStockLoss',
-					  'FormatStockGain', 'InsertDataLabel' , 'DeleteDataLabel', 'ResetDataPoint',
+					  'FormatStockGain', 'InsertDataLabel', 'InsertDataLabels' , 'DeleteDataLabel', 'DeleteDataLabels', 'ResetDataPoint',
 					  'InsertTrendline', 'InsertMeanValue', 'InsertXErrorBars' , 'InsertYErrorBars', 'ResetAllDataPoints' , 'DeleteAxis',
 					  'InsertAxisTitle', 'InsertMinorGrid', 'InsertMajorGrid' , 'InsertAxis', 'DeleteMajorGrid' , 'DeleteMinorGrid',
 					  'SpellCheckIgnoreAll', 'LanguageStatus', 'SpellCheckApplySuggestion', 'PageDialog',
 					  'CompressGraphic', 'GraphicDialog', 'InsertCaptionDialog',
-					  'NextTrackedChange', 'PreviousTrackedChange', 'RejectTrackedChange', 'AcceptTrackedChange'],
+					  'AnimationEffects', 'ExecuteAnimationEffect',
+					  'NextTrackedChange', 'PreviousTrackedChange', 'RejectTrackedChange', 'AcceptTrackedChange', 'InsertAnnotation'],
 
 			text: ['TableInsertMenu',
 				   'InsertRowsBefore', 'InsertRowsAfter', 'InsertColumnsBefore', 'InsertColumnsAfter',
 				   'TableDeleteMenu', 'SetObjectToBackground', 'SetObjectToForeground',
-				   'DeleteRows', 'DeleteColumns', 'DeleteTable',
+				   'DeleteRows', 'DeleteColumns', 'DeleteTable', 'EditCurrentRegion',
 				   'MergeCells', 'SetOptimalColumnWidth', 'SetOptimalRowHeight',
 				   'UpdateCurIndex','RemoveTableOf',
 				   'ReplyComment', 'DeleteComment', 'DeleteAuthor', 'DeleteAllNotes',
 				   'SpellingAndGrammarDialog', 'FontDialog', 'FontDialogForParagraph', 'TableDialog',
-				   'SpellCheckIgnore'],
+				   'SpellCheckIgnore', 'FrameDialog', 'UnfloatFrame', 'ContentControlProperties', 'DeleteContentControl'],
 
 			spreadsheet: ['MergeCells', 'SplitCell', 'InsertCell', 'DeleteCell',
 				      'RecalcPivotTable', 'DataDataPilotRun', 'DeletePivotTable',
 				      'FormatCellDialog', 'DeleteNote', 'SetAnchorToCell', 'SetAnchorToCellResize',
 				      'FormatSparklineMenu', 'InsertSparkline', 'DeleteSparkline', 'DeleteSparklineGroup',
-				      'EditSparklineGroup', 'EditSparkline', 'GroupSparklines', 'UngroupSparklines'],
+				      'EditSparklineGroup', 'EditSparkline', 'GroupSparklines', 'UngroupSparklines', 'AutoFill'],
 
 			presentation: ['SetDefault'],
 			drawing: []
@@ -88,7 +101,7 @@ L.Control.ContextMenu = L.Control.extend({
 			'SpellingAndGrammarDialog', 'FontDialog', 'FontDialogForParagraph',
 			// spreadsheet
 			'FormatCellDialog', 'DataDataPilotRun',
-			'GroupSparklines', 'UngroupSparklines'
+			'GroupSparklines', 'UngroupSparklines', 'AutoFill'
 		]
 	},
 
@@ -96,15 +109,23 @@ L.Control.ContextMenu = L.Control.extend({
 
 	onAdd: function (map) {
 		this._prevMousePos = null;
+		this._autoFillContextMenu = false;
 
 		map._contextMenu = this;
 		map.on('locontextmenu', this._onContextMenu, this);
 		map.on('mousedown', this._onMouseDown, this);
+		map.on('mouseup', this._onMouseUp, this);
 		map.on('keydown', this._onKeyDown, this);
 		map.on('closepopups', this._onClosePopup, this);
 	},
 
 	_onClosePopup: function () {
+
+		if (this._autoFillContextMenu) {
+			this._autoFillContextMenu = false;
+			app.map._docLayer._resetReferencesMarks();
+		}
+
 		$.contextMenu('destroy', '.leaflet-layer');
 		this.hasContextMenu = false;
 	},
@@ -115,9 +136,14 @@ L.Control.ContextMenu = L.Control.extend({
 		this._onClosePopup();
 	},
 
+	_onMouseUp: function (e) {
+		this._currMousePos = { x: e.originalEvent.pageX, y: e.originalEvent.pageY };
+	},
+
 	_onKeyDown: function(e) {
 		if (e.originalEvent.keyCode === 27 /* ESC */) {
 			$.contextMenu('destroy', '.leaflet-layer');
+			this.hasContextMenu = false;
 		}
 	},
 
@@ -134,10 +160,22 @@ L.Control.ContextMenu = L.Control.extend({
 		this._amendContextMenuData(obj);
 
 		var contextMenu = this._createContextMenuStructure(obj);
+
+		if (Object.keys(contextMenu).length == 0) {
+			// We can sometimes end up filtering out everything in the menu ... in this case, there's nothing to display
+			return;
+		}
+
 		var spellingContextMenu = false;
+		var autoFillContextMenu = false;
 		for (var menuItem in contextMenu) {
 			if (menuItem.indexOf('.uno:SpellCheckIgnore') !== -1) {
 				spellingContextMenu = true;
+				break;
+			} else if (menuItem.indexOf('.uno:AutoFill') !== -1) {
+				// we should close the autofill preview popup before open autofill context menu
+				map.fire('closeautofillpreviewpopup');
+				this._autoFillContextMenu = autoFillContextMenu = true;
 				break;
 			}
 		}
@@ -148,12 +186,15 @@ L.Control.ContextMenu = L.Control.extend({
 		} else {
 			L.installContextMenu({
 				selector: '.leaflet-layer',
-				className: 'cool-font',
+				className: 'cool-font on-the-fly-context-menu',
 				trigger: 'none',
+				zIndex: 1500,
 				build: function() {
 					return {
 						callback: function(key) {
-							if (map._clip === undefined || !map._clip.filterExecCopyPaste(key)) {
+							if (key === '.uno:InsertAnnotation') {
+								app.map.insertComment();
+							} else if (map._clip === undefined || !map._clip.filterExecCopyPaste(key)) {
 								map.sendUnoCommand(key);
 								// For spelling context menu we need to remove selection
 								if (spellingContextMenu)
@@ -164,17 +205,37 @@ L.Control.ContextMenu = L.Control.extend({
 						},
 						items: contextMenu
 					};
+				},
+				events: {
+					show: function (opt) {
+						var $menu = opt.$menu;
+						$menu.attr('tabindex', 0); // Make the context menu focusable
+					},
+					activated: function (opt) {
+						if (autoFillContextMenu) {
+							var $layer = opt.$layer;
+							$layer.css('pointer-events', 'none'); // disable mouse clicks for the layer
+						}
+					},
+					hide: function() {
+						if(autoFillContextMenu)
+							app.map._docLayer._resetReferencesMarks();
+						map.focus();
+					}
 				}
 			});
-
-			$('.leaflet-layer').contextMenu(this._prevMousePos);
+			if (autoFillContextMenu)
+				$('.leaflet-layer').contextMenu(this._currMousePos);
+			else
+				$('.leaflet-layer').contextMenu(this._prevMousePos);
+			$('.context-menu-root').focus();
 			this.hasContextMenu = true;
 		}
 	},
 
 	_amendContextMenuData: function(obj) {
 		// Add a 'delete' entry  for graphic selection on desktop and mobile device (in browser or app).
-		if (this._map._docLayer.hasGraphicSelection()) {
+		if (GraphicSelection.hasActiveSelection()) {
 			var insertIndex = -1;
 			obj.menu.forEach(function(item, index) {
 				if (item.command === '.uno:Paste') {
@@ -201,13 +262,28 @@ L.Control.ContextMenu = L.Control.extend({
 				continue;
 			}
 
+			// If the command was hidden with the Hide_Command postmessage...
+			if (this._map.uiManager.hiddenCommands[item.command]) {
+				continue;
+			}
+
 			// reduce Paste Special submenu
-			if (item.type === 'menu' && item.text.replace('~', '') === 'Paste Special'
+			if (item.type === 'menu' && item.text && item.text.replace('~', '') === 'Paste Special'
 				&& item.menu && item.menu.length) {
 				item.text = _('Paste Special');
 				item.command = '.uno:PasteSpecial';
 				item.type = item.menu[0].type;
 				item.menu = undefined;
+			}
+
+			if (item.type === 'command' && item.text && item.text.replace('~', '') === 'Copy Cells') {
+				item.text = _('Copy Cells');
+				item.command = '.uno:AutoFill?Copy:bool=true';
+			}
+
+			if (item.type === 'command' && item.text && item.text.replace('~', '') === 'Fill Series') {
+				item.text = _('Fill Series');
+				item.command = '.uno:AutoFill?Copy:bool=false';
 			}
 
 			if (item.type === 'separator') {
@@ -247,7 +323,9 @@ L.Control.ContextMenu = L.Control.extend({
 				if (commandName == 'None' && !item.text)
 					continue;
 
-				if (hasParam || commandName === 'None' || commandName === 'FontDialogForParagraph' || commandName === 'Delete') {
+				if (hasParam || commandName === 'None' || commandName === 'FontDialogForParagraph' || commandName === 'Delete' || commandName == 'PasteSpecial') {
+					// These commands have a custom item.text, don't overwrite
+					// that with a label based on 'item.command'.
 					itemName = window.removeAccessKey(item.text);
 					itemName = itemName.replace(' ', '\u00a0');
 				} else {
@@ -255,9 +333,13 @@ L.Control.ContextMenu = L.Control.extend({
 					itemName = _UNO(item.command, docType, true);
 				}
 
+				var toSnakeCase = function (text) {
+					return text.replace(/[ _]/gi, '-').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+				};
+
 				contextMenu[item.command] = {
 					// Using 'click' and <a href='#' is vital for copy/paste security context.
-					name: (window.mode.isMobile() ? _(itemName) : '<a href="#" class="context-menu-link">' +  _(itemName) + '</a'),
+					name: (window.mode.isMobile() ? _(itemName) : '<a href="#" class="context-menu-link ' + toSnakeCase(commandName) + '">' + _(itemName) + '</a'),
 					isHtmlName: true,
 				};
 
@@ -296,7 +378,19 @@ L.Control.ContextMenu = L.Control.extend({
 		}
 
 		return contextMenu;
-	}
+	},
+
+    // Prevents right mouse button's mouseup event from triggering menu item accidentally.
+    stopRightMouseUpEvent: function() {
+        var menuItems = document.getElementsByClassName('context-menu-item');
+
+        for (var i = 0 ; i < menuItems.length; i++) {
+            menuItems[i].addEventListener('mouseup', function(e) {
+                if (e.button == 2) // Is a right mouse button event?
+                    e.stopPropagation();
+            });
+        }
+    }
 });
 
 L.control.contextMenu = function (options) {
@@ -334,6 +428,5 @@ L.installContextMenu = function(options) {
 			$menu.css('right', $menu.css('left'));
 		};
 	}
-
 	$.contextMenu(options);
 };

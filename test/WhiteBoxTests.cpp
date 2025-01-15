@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -11,18 +15,19 @@
 #include <cppunit/TestAssert.h>
 #include <cstddef>
 
+#include <common/Anonymizer.hpp>
 #include <Auth.hpp>
 #include <ChildSession.hpp>
 #include <Common.hpp>
 #include <FileUtil.hpp>
 #include <Kit.hpp>
-#include <MessageQueue.hpp>
 #include <Protocol.hpp>
 #include <TileDesc.hpp>
 #include <Util.hpp>
 #include <JsonUtil.hpp>
 
 #include <common/Message.hpp>
+#include <common/ThreadPool.hpp>
 #include <wsd/FileServer.hpp>
 #include <net/Buffer.hpp>
 #include <net/NetUtil.hpp>
@@ -42,9 +47,9 @@ class WhiteBoxTests : public CPPUNIT_NS::TestFixture
     CPPUNIT_TEST(testPathPrefixTrimming);
     CPPUNIT_TEST(testMessageAbbreviation);
     CPPUNIT_TEST(testReplace);
+    CPPUNIT_TEST(testReplaceAllOf);
     CPPUNIT_TEST(testRegexListMatcher);
     CPPUNIT_TEST(testRegexListMatcher_Init);
-    CPPUNIT_TEST(testEmptyCellCursor);
     CPPUNIT_TEST(testTileDesc);
     CPPUNIT_TEST(testTileData);
     CPPUNIT_TEST(testRectanglesIntersect);
@@ -53,20 +58,15 @@ class WhiteBoxTests : public CPPUNIT_NS::TestFixture
     CPPUNIT_TEST(testIso8601Time);
     CPPUNIT_TEST(testClockAsString);
     CPPUNIT_TEST(testBufferClass);
-    CPPUNIT_TEST(testHexify);
-    CPPUNIT_TEST(testUIDefaults);
-    CPPUNIT_TEST(testCSSVars);
     CPPUNIT_TEST(testStat);
     CPPUNIT_TEST(testStringCompare);
     CPPUNIT_TEST(testParseUri);
     CPPUNIT_TEST(testParseUriUrl);
     CPPUNIT_TEST(testParseUrl);
     CPPUNIT_TEST(testSafeAtoi);
-    CPPUNIT_TEST(testBytesToHex);
     CPPUNIT_TEST(testJsonUtilEscapeJSONValue);
-#if ENABLE_DEBUG
-    CPPUNIT_TEST(testUtf8);
-#endif
+    CPPUNIT_TEST(testFindInVector);
+    CPPUNIT_TEST(testThreadPool);
     CPPUNIT_TEST_SUITE_END();
 
     void testCOOLProtocolFunctions();
@@ -75,9 +75,9 @@ class WhiteBoxTests : public CPPUNIT_NS::TestFixture
     void testPathPrefixTrimming();
     void testMessageAbbreviation();
     void testReplace();
+    void testReplaceAllOf();
     void testRegexListMatcher();
     void testRegexListMatcher_Init();
-    void testEmptyCellCursor();
     void testTileDesc();
     void testTileData();
     void testRectanglesIntersect();
@@ -86,18 +86,17 @@ class WhiteBoxTests : public CPPUNIT_NS::TestFixture
     void testIso8601Time();
     void testClockAsString();
     void testBufferClass();
-    void testHexify();
-    void testUIDefaults();
-    void testCSSVars();
     void testStat();
     void testStringCompare();
     void testParseUri();
     void testParseUriUrl();
     void testParseUrl();
     void testSafeAtoi();
-    void testBytesToHex();
     void testJsonUtilEscapeJSONValue();
-    void testUtf8();
+    void testFindInVector();
+    void testThreadPool();
+
+    size_t waitForThreads(size_t count);
 };
 
 void WhiteBoxTests::testCOOLProtocolFunctions()
@@ -138,9 +137,6 @@ void WhiteBoxTests::testCOOLProtocolFunctions()
 
     LOK_ASSERT(COOLProtocol::getTokenStringFromMessage(message, "bar", bar));
     LOK_ASSERT_EQUAL(std::string("hello-sailor"), bar);
-
-    LOK_ASSERT(COOLProtocol::getTokenKeywordFromMessage(message, "mumble", map, mumble));
-    LOK_ASSERT_EQUAL(2, mumble);
 
     LOK_ASSERT_EQUAL(static_cast<std::size_t>(1), Util::trimmed("A").size());
     LOK_ASSERT_EQUAL(std::string("A"), Util::trimmed("A"));
@@ -421,6 +417,9 @@ void WhiteBoxTests::testMessageAbbreviation()
     LOK_ASSERT_EQUAL(std::string(), Util::getDelimitedInitialSubstring("abc", -1, '\n'));
     LOK_ASSERT_EQUAL(std::string("ab"), Util::getDelimitedInitialSubstring("abc", 2, '\n'));
 
+    // The end arg of getAbbreviatedMessage is the length of the first argument, not
+    // the point at which it should be abbreviated. Abbreviation appends ... to the
+    // result
     LOK_ASSERT_EQUAL(std::string(), COOLProtocol::getAbbreviatedMessage(nullptr, 5));
     LOK_ASSERT_EQUAL(std::string(), COOLProtocol::getAbbreviatedMessage(nullptr, -1));
     LOK_ASSERT_EQUAL(std::string(), COOLProtocol::getAbbreviatedMessage("abc", 0));
@@ -437,6 +436,15 @@ void WhiteBoxTests::testMessageAbbreviation()
     abbr = "1234567890123...";
     LOK_ASSERT_EQUAL(abbr, COOLProtocol::getAbbreviatedMessage(s.data(), s.size()));
     LOK_ASSERT_EQUAL(abbr, COOLProtocol::getAbbreviatedMessage(s));
+
+    std::string long_utf8_str_a(COOLProtocol::maxNonAbbreviatedMsgLen - 3, 'a');
+    LOK_ASSERT_EQUAL(long_utf8_str_a + std::string("mü..."),
+                     COOLProtocol::getAbbreviatedMessage(long_utf8_str_a + "müsli"));
+
+    // don't allow the ü sequence to be broken
+    std::string long_utf8_str_b(COOLProtocol::maxNonAbbreviatedMsgLen - 2, 'a');
+    LOK_ASSERT_EQUAL(long_utf8_str_b + std::string("mü..."),
+                     COOLProtocol::getAbbreviatedMessage(long_utf8_str_b + "müsli"));
 }
 
 void WhiteBoxTests::testReplace()
@@ -449,6 +457,14 @@ void WhiteBoxTests::testReplace()
     LOK_ASSERT_EQUAL(std::string("tete one two flee"), Util::replace("tettet one two flee", "tet", "te"));
     LOK_ASSERT_EQUAL(std::string("t one two flee"), Util::replace("test one two flee", "tes", ""));
     LOK_ASSERT_EQUAL(std::string("test one two flee"), Util::replace("test one two flee", "", "X"));
+}
+
+void WhiteBoxTests::testReplaceAllOf()
+{
+    constexpr auto testname = __func__;
+
+    LOK_ASSERT_EQUAL(std::string("humvee"), Util::replaceAllOf("humans","san", "eve"));
+    LOK_ASSERT_EQUAL(std::string("simple.odt"), Util::replaceAllOf("s#&-le.odt", "#&-", "imp"));
 }
 
 void WhiteBoxTests::testRegexListMatcher()
@@ -529,101 +545,10 @@ void WhiteBoxTests::testRegexListMatcher_Init()
     LOK_ASSERT(matcher.match("192.168.."));
 }
 
-/// A stub DocumentManagerInterface implementation for unit test purposes.
-class DummyDocument : public DocumentManagerInterface
-{
-    std::shared_ptr<TileQueue> _tileQueue;
-    std::mutex _mutex;
-    std::mutex _documentMutex;
-public:
-    DummyDocument()
-        : _tileQueue(new TileQueue())
-    {
-    }
-
-    bool onLoad(const std::string& /*sessionId*/,
-                const std::string& /*uriAnonym*/,
-                const std::string& /*renderOpts*/) override
-    {
-        return false;
-    }
-
-    void onUnload(const ChildSession& /*session*/) override
-    {
-    }
-
-    std::shared_ptr<lok::Office> getLOKit() override
-    {
-        return nullptr;
-    }
-
-    std::shared_ptr<lok::Document> getLOKitDocument() override
-    {
-        return nullptr;
-    }
-
-    bool notifyAll(const std::string&) override
-    {
-        return true;
-    }
-
-    void notifyViewInfo() override
-    {
-    }
-
-    void updateEditorSpeeds(int, int) override
-    {
-    }
-
-    int getEditorId() const override
-    {
-        return -1;
-    }
-
-    std::map<int, UserInfo> getViewInfo() override
-    {
-        return {};
-    }
-
-    std::string getObfuscatedFileId() override
-    {
-        return std::string();
-    }
-
-    std::shared_ptr<TileQueue>& getTileQueue() override
-    {
-        return _tileQueue;
-    }
-
-    bool sendFrame(const char* /*buffer*/, int /*length*/, WSOpCode /*opCode*/) override
-    {
-        return true;
-    }
-
-    void alertAllUsers(const std::string& /*cmd*/, const std::string& /*kind*/) override
-    {
-    }
-
-    unsigned getMobileAppDocId() const override
-    {
-        return 0;
-    }
-
-    void trimIfInactive() override
-    {
-    }
-};
-
-void WhiteBoxTests::testEmptyCellCursor()
-{
-    DummyDocument document;
-    CallbackDescriptor callbackDescriptor{&document, 0};
-    // This failed as stoi raised an std::invalid_argument exception.
-    documentViewCallback(LOK_CALLBACK_CELL_CURSOR, "EMPTY", &callbackDescriptor);
-}
-
 void WhiteBoxTests::testTileDesc()
 {
+    constexpr auto testname = __func__;
+
     // simulate a previous overflow
     errno = ERANGE;
     TileDesc desc = TileDesc::parse(
@@ -632,6 +557,31 @@ void WhiteBoxTests::testTileDesc()
     TileCombined combined = TileCombined::parse(
         "tilecombine nviewid=0 part=5 width=256 height=256 tileposx=0,3072,6144,9216,12288,15360,18432,21504,0,3072,6144,9216,12288,15360,18432,21504,0,3072,6144,9216,12288,15360,18432,21504,0,3072,6144,9216,12288,15360,18432,21504,0,3072,6144,9216,12288,15360,18432,21504,0,3072,6144,9216,12288,15360,18432,21504,0,3072,6144,9216,12288,15360,18432,21504 tileposy=0,0,0,0,0,0,0,0,3072,3072,3072,3072,3072,3072,3072,3072,6144,6144,6144,6144,6144,6144,6144,6144,9216,9216,9216,9216,9216,9216,9216,9216,12288,12288,12288,12288,12288,12288,12288,12288,15360,15360,15360,15360,15360,15360,15360,15360,18432,18432,18432,18432,18432,18432,18432,18432 oldwid=2,3,4,5,6,7,8,8,9,10,11,12,13,14,15,16,17,18,19,20,21,0,0,0,24,25,26,27,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 tilewidth=3072 tileheight=3072");
     (void)combined; // exception in parse if we have problems.
+
+    // Test parsing removing un-used pieces
+    std::string base = "tilecombine nviewid=0 part=0 width=256 height=256 tileposx=0,3840 tileposy=0,0 ";
+    struct {
+        std::string inp;
+        std::string outp;
+    } tests[] = {
+        { "imgsize=0,0 tilewidth=3840 tileheight=3840 ver=-1,-1",
+          "tilewidth=3840 tileheight=3840 ver=-1,-1" },
+        { "imgsize=1,0 tilewidth=3840 tileheight=3840 ver=-1,-1",
+          "imgsize=1,0 tilewidth=3840 tileheight=3840 ver=-1,-1" },
+        { "wid=0,0 tilewidth=3840 tileheight=3840 ver=-1,-1",
+          "tilewidth=3840 tileheight=3840 ver=-1,-1" },
+        { "tilewidth=3840 tileheight=3840 ver=-1,-1 wid=0,1",
+          "tilewidth=3840 tileheight=3840 ver=-1,-1 wid=0,1" },
+        { "oldwid=0,0 tilewidth=3840 tileheight=3840 ver=-1,-1",
+          "tilewidth=3840 tileheight=3840 ver=-1,-1" },
+        { "tilewidth=3840 tileheight=3840 ver=-1,-1 oldwid=0,1",
+          "tilewidth=3840 tileheight=3840 ver=-1,-1 oldwid=0,1" },
+    };
+    for (auto &s : tests)
+    {
+        combined = TileCombined::parse(base + s.inp);
+        LOK_ASSERT_EQUAL(combined.serialize("tilecombine"), base + s.outp);
+    }
 }
 
 void WhiteBoxTests::testTileData()
@@ -677,6 +627,18 @@ void WhiteBoxTests::testTileData()
     out.clear();
     LOK_ASSERT_EQUAL(data.appendChangesSince(out, 43), true);
     LOK_ASSERT_EQUAL(std::string("baabaz"), Util::toString(out));
+
+    // append an empty delta
+    data.appendBlob(52, "D", 1);
+    LOK_ASSERT_EQUAL(data.size(), size_t(9));
+    LOK_ASSERT_EQUAL(data._wids.size(), size_t(4));
+    LOK_ASSERT_EQUAL(data._wids.back(), unsigned(52));
+
+    // the next empty delta should pack into the last one
+    data.appendBlob(54, "D", 1);
+    LOK_ASSERT_EQUAL(data.size(), size_t(9));
+    LOK_ASSERT_EQUAL(data._wids.size(), size_t(4));
+    LOK_ASSERT_EQUAL(data._wids.back(), unsigned(54));
 }
 
 void WhiteBoxTests::testRectanglesIntersect()
@@ -757,55 +719,57 @@ void WhiteBoxTests::testAnonymization()
                                        "secret.odt?access_token=Hn0zttjbwkvGWb5BHbDa5ArgTykJAyBl&"
                                        "access_token_ttl=0&permission=edit";
 
-    std::uint64_t nAnonymizationSalt = 1111111111182589933;
+    std::uint64_t anonymizationSalt = 1111111111182589933;
+    Anonymizer::initialize(true, anonymizationSalt);
 
-    LOK_ASSERT_EQUAL(std::string("#0#5e45aef91248a8aa#"),
-                         Util::anonymizeUrl(name, nAnonymizationSalt));
+    LOK_ASSERT_EQUAL(std::string("#0#5e45aef91248a8aa#"), Anonymizer::anonymizeUrl(name));
     LOK_ASSERT_EQUAL(std::string("#1#8f8d95bd2a202d00#.odt"),
-                         Util::anonymizeUrl(filenameTestx, nAnonymizationSalt));
+                     Anonymizer::anonymizeUrl(filenameTestx));
     LOK_ASSERT_EQUAL(std::string("/path/to/#2#5c872b2d82ecc8a0#.ext"),
-                         Util::anonymizeUrl(path, nAnonymizationSalt));
+                     Anonymizer::anonymizeUrl(path));
     LOK_ASSERT_EQUAL(
         std::string("http://localhost/owncloud/index.php/apps/richdocuments/wopi/files/"
                     "#3#22c6f0caad277666#?access_token=Hn0zttjbwkvGWb5BHbDa5ArgTykJAyBl&access_"
                     "token_ttl=0&permission=edit"),
-        Util::anonymizeUrl(plainUrl, nAnonymizationSalt));
+        Anonymizer::anonymizeUrl(plainUrl));
     LOK_ASSERT_EQUAL(
         std::string("http://localhost/owncloud/index.php/apps/richdocuments/wopi/files/"
                     "736_ocgdpzbkm39u/"
                     "#4#294f0dfb18f6a80b#.odt?access_token=Hn0zttjbwkvGWb5BHbDa5ArgTykJAyBl&access_"
                     "token_ttl=0&permission=edit"),
-        Util::anonymizeUrl(fileUrl, nAnonymizationSalt));
+        Anonymizer::anonymizeUrl(fileUrl));
 
-    nAnonymizationSalt = 0;
+    anonymizationSalt = 0;
+    Anonymizer::initialize(true, anonymizationSalt);
 
-    LOK_ASSERT_EQUAL(std::string("#0#5e45aef91248a8aa#"), Util::anonymizeUrl(name, nAnonymizationSalt));
-    Util::mapAnonymized(name, name);
-    LOK_ASSERT_EQUAL(name, Util::anonymizeUrl(name, nAnonymizationSalt));
+    LOK_ASSERT_EQUAL(std::string("#0#42027f9b6df09510#"), Anonymizer::anonymizeUrl(name));
+    Anonymizer::mapAnonymized(name, name);
+    LOK_ASSERT_EQUAL(name, Anonymizer::anonymizeUrl(name));
 
-    LOK_ASSERT_EQUAL(std::string("#2#5c872b2d82ecc8a0#.ext"),
-                         Util::anonymizeUrl(filename, nAnonymizationSalt));
-    Util::mapAnonymized("filename", "filename"); // Identity map of the filename without extension.
-    LOK_ASSERT_EQUAL(filename, Util::anonymizeUrl(filename, nAnonymizationSalt));
+    LOK_ASSERT_EQUAL(std::string("#1#366ab9ebe19ea09e#.ext"), Anonymizer::anonymizeUrl(filename));
+    Anonymizer::mapAnonymized("filename",
+                              "filename"); // Identity map of the filename without extension.
+    LOK_ASSERT_EQUAL(filename, Anonymizer::anonymizeUrl(filename));
 
-    LOK_ASSERT_EQUAL(std::string("#1#8f8d95bd2a202d00#.odt"),
-                         Util::anonymizeUrl(filenameTestx, nAnonymizationSalt));
-    Util::mapAnonymized("testx (6)",
-                        "testx (6)"); // Identity map of the filename without extension.
-    LOK_ASSERT_EQUAL(filenameTestx, Util::anonymizeUrl(filenameTestx, nAnonymizationSalt));
+    LOK_ASSERT_EQUAL(std::string("#2#eac31ed57854de54#.odt"),
+                     Anonymizer::anonymizeUrl(filenameTestx));
+    Anonymizer::mapAnonymized("testx (6)",
+                              "testx (6)"); // Identity map of the filename without extension.
+    LOK_ASSERT_EQUAL(filenameTestx, Anonymizer::anonymizeUrl(filenameTestx));
 
-    LOK_ASSERT_EQUAL(path, Util::anonymizeUrl(path, nAnonymizationSalt));
+    LOK_ASSERT_EQUAL(path, Anonymizer::anonymizeUrl(path));
 
-    const std::string urlAnonymized = Util::replace(plainUrl, "736_ocgdpzbkm39u", "#3#22c6f0caad277666#");
-    LOK_ASSERT_EQUAL(urlAnonymized, Util::anonymizeUrl(plainUrl, nAnonymizationSalt));
-    Util::mapAnonymized("736_ocgdpzbkm39u", "736_ocgdpzbkm39u");
-    LOK_ASSERT_EQUAL(plainUrl, Util::anonymizeUrl(plainUrl, nAnonymizationSalt));
+    const std::string urlAnonymized =
+        Util::replace(plainUrl, "736_ocgdpzbkm39u", "#3#f64fbe55134cd5f0#");
+    LOK_ASSERT_EQUAL(urlAnonymized, Anonymizer::anonymizeUrl(plainUrl));
+    Anonymizer::mapAnonymized("736_ocgdpzbkm39u", "736_ocgdpzbkm39u");
+    LOK_ASSERT_EQUAL(plainUrl, Anonymizer::anonymizeUrl(plainUrl));
 
-    const std::string urlAnonymized2 = Util::replace(fileUrl, "secret", "#4#294f0dfb18f6a80b#");
-    LOK_ASSERT_EQUAL(urlAnonymized2, Util::anonymizeUrl(fileUrl, nAnonymizationSalt));
-    Util::mapAnonymized("secret", "736_ocgdpzbkm39u");
+    const std::string urlAnonymized2 = Util::replace(fileUrl, "secret", "#4#dcac6c9cae1b3b95#");
+    LOK_ASSERT_EQUAL(urlAnonymized2, Anonymizer::anonymizeUrl(fileUrl));
+    Anonymizer::mapAnonymized("secret", "736_ocgdpzbkm39u");
     const std::string urlAnonymized3 = Util::replace(fileUrl, "secret", "736_ocgdpzbkm39u");
-    LOK_ASSERT_EQUAL(urlAnonymized3, Util::anonymizeUrl(fileUrl, nAnonymizationSalt));
+    LOK_ASSERT_EQUAL(urlAnonymized3, Anonymizer::anonymizeUrl(fileUrl));
 }
 
 void WhiteBoxTests::testIso8601Time()
@@ -999,71 +963,6 @@ void WhiteBoxTests::testBufferClass()
     LOK_ASSERT_EQUAL(true, buf.empty());
 }
 
-
-void WhiteBoxTests::testHexify()
-{
-    constexpr auto testname = __func__;
-
-    const std::string s1 = "some ascii text with !@#$%^&*()_+/-\\|";
-    const auto hex = Util::dataToHexString(s1, 0, s1.size());
-    std::string decoded;
-    LOK_ASSERT(Util::dataFromHexString(hex, decoded));
-    LOK_ASSERT_EQUAL(s1, decoded);
-
-    for (std::size_t randStrLen = 1; randStrLen < 129; ++randStrLen)
-    {
-        const auto s2 = Util::rng::getBytes(randStrLen);
-        LOK_ASSERT_EQUAL(randStrLen, s2.size());
-        const auto hex2 = Util::dataToHexString(s2, 0, s2.size());
-        LOK_ASSERT_EQUAL(randStrLen * 2, hex2.size());
-        std::vector<char> decoded2;
-        LOK_ASSERT(Util::dataFromHexString(hex2, decoded2));
-        LOK_ASSERT_EQUAL(randStrLen, decoded2.size());
-        LOK_ASSERT_EQUAL(Util::toString(s2), Util::toString(decoded2));
-    }
-}
-
-void WhiteBoxTests::testUIDefaults()
-{
-    constexpr auto testname = __func__;
-
-    std::string uiMode;
-    std::string uiTheme;
-
-    LOK_ASSERT_EQUAL(std::string("{\"uiMode\":\"classic\"}"),
-                     FileServerRequestHandler::uiDefaultsToJSON("UIMode=classic;huh=bleh;", uiMode, uiTheme));
-    LOK_ASSERT_EQUAL(std::string("classic"), uiMode);
-
-    LOK_ASSERT_EQUAL(std::string("{\"spreadsheet\":{\"ShowSidebar\":false},\"text\":{\"ShowRuler\":true}}"),
-                     FileServerRequestHandler::uiDefaultsToJSON("TextRuler=true;SpreadsheetSidebar=false", uiMode, uiTheme));
-    LOK_ASSERT_EQUAL(std::string(""), uiMode);
-
-    LOK_ASSERT_EQUAL(std::string("{\"presentation\":{\"ShowStatusbar\":false},\"spreadsheet\":{\"ShowSidebar\":false},\"text\":{\"ShowRuler\":true},\"uiMode\":\"notebookbar\"}"),
-                     FileServerRequestHandler::uiDefaultsToJSON(";;UIMode=notebookbar;;PresentationStatusbar=false;;TextRuler=true;;bah=ugh;;SpreadsheetSidebar=false", uiMode, uiTheme));
-
-    LOK_ASSERT_EQUAL(std::string("{\"drawing\":{\"ShowStatusbar\":true},\"presentation\":{\"ShowStatusbar\":false},\"spreadsheet\":{\"ShowSidebar\":false},\"text\":{\"ShowRuler\":true},\"uiMode\":\"notebookbar\"}"),
-                     FileServerRequestHandler::uiDefaultsToJSON(";;UIMode=notebookbar;;PresentationStatusbar=false;;TextRuler=true;;bah=ugh;;SpreadsheetSidebar=false;;DrawingStatusbar=true", uiMode, uiTheme));
-
-    LOK_ASSERT_EQUAL(std::string("notebookbar"), uiMode);
-}
-
-void WhiteBoxTests::testCSSVars()
-{
-    constexpr auto testname = __func__;
-
-    LOK_ASSERT_EQUAL(std::string("<style>:root {--co-somestyle-text:#123456;--co-somestyle-size:15px;}</style>"),
-                     FileServerRequestHandler::cssVarsToStyle("--co-somestyle-text=#123456;--co-somestyle-size=15px;"));
-
-    LOK_ASSERT_EQUAL(std::string("<style>:root {--co-somestyle-text:#123456;--co-somestyle-size:15px;}</style>"),
-                     FileServerRequestHandler::cssVarsToStyle(";;--co-somestyle-text=#123456;;--co-somestyle-size=15px;;;"));
-
-    LOK_ASSERT_EQUAL(std::string("<style>:root {--co-somestyle-text:#123456;--co-somestyle-size:15px;}</style>"),
-                     FileServerRequestHandler::cssVarsToStyle("--co-somestyle-text=#123456;;--co-somestyle-size=15px;--co-sometext#324;;"));
-
-    LOK_ASSERT_EQUAL(std::string("<style>:root {--co-somestyle-text:#123456;}</style>"),
-                     FileServerRequestHandler::cssVarsToStyle("--co-somestyle-text=#123456;;--some-val=3453--some-other-val=4536;;"));
-}
-
 void WhiteBoxTests::testStat()
 {
     constexpr auto testname = __func__;
@@ -1127,14 +1026,6 @@ void WhiteBoxTests::testStringCompare()
     LOK_ASSERT(!Util::iequal("abc", "abcd"));
 
     LOK_ASSERT(!Util::iequal("abc", 3, "abcd", 4));
-
-    LOK_ASSERT(!Util::startsWith("abc", "abcd"));
-    LOK_ASSERT(Util::startsWith("abcd", "abc"));
-    LOK_ASSERT(Util::startsWith("abcd", "abcd"));
-
-    LOK_ASSERT(!Util::endsWith("abc", "abcd"));
-    LOK_ASSERT(Util::endsWith("abcd", "bcd"));
-    LOK_ASSERT(Util::endsWith("abcd", "abcd"));
 }
 
 void WhiteBoxTests::testParseUri()
@@ -1208,72 +1099,72 @@ void WhiteBoxTests::testParseUriUrl()
     std::string scheme = "***";
     std::string host = "***";
     std::string port = "***";
-    std::string url = "***";
+    std::string pathAndQuery = "***";
 
-    LOK_ASSERT(!net::parseUri(std::string(), scheme, host, port, url));
+    LOK_ASSERT(!net::parseUri(std::string(), scheme, host, port, pathAndQuery));
     LOK_ASSERT(scheme.empty());
     LOK_ASSERT(host.empty());
     LOK_ASSERT(port.empty());
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("localhost", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("localhost", scheme, host, port, pathAndQuery));
     LOK_ASSERT(scheme.empty());
     LOK_ASSERT_EQUAL(std::string("localhost"), host);
     LOK_ASSERT(port.empty());
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("127.0.0.1", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("127.0.0.1", scheme, host, port, pathAndQuery));
     LOK_ASSERT(scheme.empty());
     LOK_ASSERT_EQUAL(std::string("127.0.0.1"), host);
     LOK_ASSERT(port.empty());
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("domain.com", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("domain.com", scheme, host, port, pathAndQuery));
     LOK_ASSERT(scheme.empty());
     LOK_ASSERT_EQUAL(std::string("domain.com"), host);
     LOK_ASSERT(port.empty());
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("127.0.0.1:9999", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("127.0.0.1:9999", scheme, host, port, pathAndQuery));
     LOK_ASSERT(scheme.empty());
     LOK_ASSERT_EQUAL(std::string("127.0.0.1"), host);
     LOK_ASSERT_EQUAL(std::string("9999"), port);
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("domain.com:88", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("domain.com:88", scheme, host, port, pathAndQuery));
     LOK_ASSERT(scheme.empty());
     LOK_ASSERT_EQUAL(std::string("domain.com"), host);
     LOK_ASSERT_EQUAL(std::string("88"), port);
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("http://domain.com", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("http://domain.com", scheme, host, port, pathAndQuery));
     LOK_ASSERT_EQUAL(std::string("http://"), scheme);
     LOK_ASSERT_EQUAL(std::string("domain.com"), host);
     LOK_ASSERT(port.empty());
-    LOK_ASSERT(url.empty());
+    LOK_ASSERT(pathAndQuery.empty());
 
-    LOK_ASSERT(net::parseUri("https://domain.com:88", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("https://domain.com:88", scheme, host, port, pathAndQuery));
     LOK_ASSERT_EQUAL(std::string("https://"), scheme);
     LOK_ASSERT_EQUAL(std::string("domain.com"), host);
     LOK_ASSERT_EQUAL(std::string("88"), port);
 
-    LOK_ASSERT(net::parseUri("http://domain.com/path/to/file", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("http://domain.com/path/to/file", scheme, host, port, pathAndQuery));
     LOK_ASSERT_EQUAL(std::string("http://"), scheme);
     LOK_ASSERT_EQUAL(std::string("domain.com"), host);
     LOK_ASSERT(port.empty());
-    LOK_ASSERT_EQUAL(std::string("/path/to/file"), url);
+    LOK_ASSERT_EQUAL(std::string("/path/to/file"), pathAndQuery);
 
-    LOK_ASSERT(net::parseUri("https://domain.com:88/path/to/file", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("https://domain.com:88/path/to/file", scheme, host, port, pathAndQuery));
     LOK_ASSERT_EQUAL(std::string("https://"), scheme);
     LOK_ASSERT_EQUAL(std::string("domain.com"), host);
     LOK_ASSERT_EQUAL(std::string("88"), port);
-    LOK_ASSERT_EQUAL(std::string("/path/to/file"), url);
+    LOK_ASSERT_EQUAL(std::string("/path/to/file"), pathAndQuery);
 
-    LOK_ASSERT(net::parseUri("wss://127.0.0.1:9999/", scheme, host, port, url));
+    LOK_ASSERT(net::parseUri("wss://127.0.0.1:9999/", scheme, host, port, pathAndQuery));
     LOK_ASSERT_EQUAL(std::string("wss://"), scheme);
     LOK_ASSERT_EQUAL(std::string("127.0.0.1"), host);
     LOK_ASSERT_EQUAL(std::string("9999"), port);
-    LOK_ASSERT_EQUAL(std::string("/"), url);
+    LOK_ASSERT_EQUAL(std::string("/"), pathAndQuery);
 }
 
 void WhiteBoxTests::testParseUrl()
@@ -1338,18 +1229,6 @@ void WhiteBoxTests::testSafeAtoi()
     }
 }
 
-void WhiteBoxTests::testBytesToHex()
-{
-    constexpr auto testname = __func__;
-
-    {
-        const std::string d("Some text");
-        const std::string hex = Util::bytesToHexString(d);
-        const std::string s = Util::hexStringToBytes(hex);
-        LOK_ASSERT_EQUAL(d, s);
-    }
-}
-
 void WhiteBoxTests::testJsonUtilEscapeJSONValue()
 {
     constexpr auto testname = __func__;
@@ -1359,16 +1238,65 @@ void WhiteBoxTests::testJsonUtilEscapeJSONValue()
     LOK_ASSERT_EQUAL(JsonUtil::escapeJSONValue(in), expected);
 }
 
-void WhiteBoxTests::testUtf8()
+void WhiteBoxTests::testFindInVector()
 {
-#if ENABLE_DEBUG
     constexpr auto testname = __func__;
-    LOK_ASSERT(Util::isValidUtf8("foo"));
-    LOK_ASSERT(Util::isValidUtf8("©")); // 2 char
-    LOK_ASSERT(Util::isValidUtf8("→ ")); // 3 char
-    LOK_ASSERT(Util::isValidUtf8("🏃 is not 🏊."));
-    LOK_ASSERT(!Util::isValidUtf8("\xff\x03"));
+    std::string s("fooBarfooBaz");
+    std::vector<char> v(s.begin(), s.end());
+
+    // Normal case, we find the first "foo".
+    std::size_t ret = Util::findInVector(v, "foo");
+    std::size_t expected = 0;
+    LOK_ASSERT_EQUAL(expected, ret);
+
+    // Offset, so we find the second "foo".
+    ret = Util::findInVector(v, "foo", 1);
+    expected = 6;
+    LOK_ASSERT_EQUAL(expected, ret);
+
+    // Negative testing.
+    ret = Util::findInVector(v, "blah");
+    expected = std::string::npos;
+    LOK_ASSERT_EQUAL(expected, ret);
+}
+
+#if 0
+size_t WhiteBoxTests::waitForThreads(size_t count)
+{
+    auto start = std::chrono::steady_clock::now();
+    while (Util::getCurrentThreadCount() != count)
+    {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start).count() >= 250)
+        {
+            std::cerr << "Failed to get correct thread count " << count <<
+                " instead we have " << Util::getCurrentThreadCount() << "\n";
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return Util::getCurrentThreadCount();
+}
 #endif
+
+void WhiteBoxTests::testThreadPool()
+{
+    constexpr auto testname = __func__;
+//    const size_t existingUnrelatedThreads = Util::getCurrentThreadCount();
+    // coverity[tainted_data_argument : FALSE] - we trust this variable in tests
+    setenv("MAX_CONCURRENCY","8",1);
+    ThreadPool pool;
+    LOK_ASSERT_EQUAL(int(8), pool._maxConcurrency);
+    LOK_ASSERT_EQUAL(size_t(7), pool._threads.size());
+//    LOK_ASSERT_EQUAL(size_t(7 + existingUnrelatedThreads), waitForThreads(8 + existingUnrelatedThreads));
+
+    pool.stop();
+    LOK_ASSERT_EQUAL(size_t(0), pool._threads.size());
+//    LOK_ASSERT_EQUAL(size_t(existingUnrelatedThreads), waitForThreads(existingUnrelatedThreads));
+
+    pool.start();
+    LOK_ASSERT_EQUAL(size_t(7), pool._threads.size());
+//    LOK_ASSERT_EQUAL(size_t(7 + existingUnrelatedThreads), waitForThreads(8 + existingUnrelatedThreads));
 }
 
 CPPUNIT_TEST_SUITE_REGISTRATION(WhiteBoxTests);

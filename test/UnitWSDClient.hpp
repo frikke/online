@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,7 +13,7 @@
 #include "lokassert.hpp"
 #include "testlog.hpp"
 #include "Unit.hpp"
-#include "Util.hpp"
+#include <common/Uri.hpp>
 
 #include <Poco/URI.h>
 
@@ -78,12 +82,12 @@ protected:
         socket.reset();
     }
 
-    void initWebsocket(const std::string& wopiName)
+    std::string initWebsocket(const std::string& wopiName)
     {
-        Poco::URI wopiURL(helpers::getTestServerURI() + wopiName + "&testname=" + getTestname());
+        const Poco::URI wopiURL(helpers::getTestServerURI() + wopiName +
+                                "&testname=" + getTestname());
 
-        _wopiSrc.clear();
-        Poco::URI::encode(wopiURL.toString(), ":/?", _wopiSrc);
+        _wopiSrc = Uri::encode(wopiURL.toString());
 
         // This is just a client connection that is used from the tests.
         LOG_TST("Connecting test client to COOL (#" << (_wsList.size() + 1)
@@ -91,10 +95,32 @@ protected:
 
         // Insert at the front.
         const auto& _ws = _wsList.emplace(
-            _wsList.begin(), Util::make_unique<UnitWebSocket>(
+            _wsList.begin(), std::make_unique<UnitWebSocket>(
                                  socketPoll(), "/cool/" + _wopiSrc + "/ws", getTestname()));
 
         assert((*_ws).get());
+
+        return _wopiSrc;
+    }
+
+    std::string addWebSocket(const std::string& wopiName)
+    {
+        const Poco::URI wopiURL(helpers::getTestServerURI() + wopiName +
+                                "&testname=" + getTestname());
+
+        std::string wopiSrc = Uri::encode(wopiURL.toString());
+
+        // This is just a client connection that is used from the tests.
+        LOG_TST("Connecting test client to COOL (#" << (_wsList.size() + 1)
+                                                    << " connection): /cool/" << wopiSrc << "/ws");
+
+        // Insert at the back.
+        const auto& _ws = _wsList.emplace(
+            _wsList.end(), std::make_unique<UnitWebSocket>(socketPoll(), "/cool/" + wopiSrc + "/ws",
+                                                           getTestname()));
+        assert((*_ws).get());
+
+        return wopiSrc;
     }
 
     void addWebSocket()
@@ -105,7 +131,7 @@ protected:
 
         // Insert at the back.
         const auto& _ws = _wsList.emplace(
-            _wsList.end(), Util::make_unique<UnitWebSocket>(
+            _wsList.end(), std::make_unique<UnitWebSocket>(
                                socketPoll(), "/cool/" + _wopiSrc + "/ws", getTestname()));
 
         assert((*_ws).get());
@@ -135,7 +161,7 @@ protected:
 
         LOG_TST("Connecting to local document [" << docFilename << "] with URL: " << documentURL);
         _wsList.emplace_back(
-            Util::make_unique<UnitWebSocket>(socketPoll(), documentURL, getTestname()));
+            std::make_unique<UnitWebSocket>(socketPoll(), documentURL, getTestname()));
 
         return documentURL;
     }

@@ -35,12 +35,12 @@ L.LatLng.prototype = {
 		        L.Util.formatNum(this.lng, precision) + ')';
 	},
 
-	distanceTo: function (other) {
-		return L.CRS.Earth.distance(this, L.latLng(other));
+	distanceTo: function () {
+		return 0;
 	},
 
 	wrap: function () {
-		return L.CRS.Earth.wrapLatLng(this);
+		return null;
 	},
 };
 

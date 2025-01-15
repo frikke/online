@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -56,6 +60,7 @@ using Poco::TemporaryFile;
 using Poco::URI;
 using Poco::Util::Application;
 
+bool EnableExperimental = false;
 static bool closeExpected = false;
 static std::mutex coutMutex;
 
@@ -155,7 +160,7 @@ protected:
         SharedPtr<InvalidCertificateHandler> invalidCertHandler = new AcceptCertificateHandler(false);
         Context::Params sslParams;
         Context::Ptr sslContext = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, sslParams);
-        SSLManager::instance().initializeClient(nullptr, invalidCertHandler, sslContext);
+        SSLManager::instance().initializeClient(nullptr, std::move(invalidCertHandler), std::move(sslContext));
 
         HTTPSClientSession cs(_uri.getHost(), _uri.getPort());
 #else
@@ -240,6 +245,7 @@ namespace Util
     }
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 POCO_APP_MAIN(Connect)
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

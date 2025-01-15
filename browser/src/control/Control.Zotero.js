@@ -1,6 +1,16 @@
 /* -*- js-indent-level: 8; fill-column: 100 -*- */
 /*
- * L.Control.Zotero
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
+ * L.Control.Zotero - bibliography dialogs implementation
  */
 
 /* global _ Promise app Set */
@@ -130,10 +140,7 @@ L.Control.Zotero = L.Control.extend({
 	},
 
 	refreshUI: function () {
-		if (this.map.uiManager.notebookbar)
-			this.map.uiManager.refreshNotebookbar();
-		else
-			this.map.uiManager.refreshMenubar();
+		this.map.uiManager.refreshUI();
 	},
 
 	updateUserID: function () {
@@ -634,11 +641,13 @@ L.Control.Zotero = L.Control.extend({
 
 			var creatorArray = [];
 			for (var creator = 0; items[iterator].data.creators && creator < items[iterator].data.creators.length; ++creator) {
-				creatorArray.push(items[iterator].data.creators[creator].firstName + ' ' + items[iterator].data.creators[creator].lastName);
+				creatorArray.push(items[iterator].data.creators[creator].name ?
+					items[iterator].data.creators[creator].name:
+					items[iterator].data.creators[creator].firstName + ' ' + items[iterator].data.creators[creator].lastName);
 			}
 			var creatorString = creatorArray.join(', ');
 			this.createEntry(index++,
-				[items[iterator].data.title, creatorString, items[iterator].data.date],
+				[items[iterator].csljson.title, creatorString, items[iterator].data.date ? items[iterator].data.date : items[iterator].data.dateDecided],
 				{type: 'item', itemType: items[iterator].data.itemType, item: items[iterator]},
 				true
 			);
@@ -647,8 +656,8 @@ L.Control.Zotero = L.Control.extend({
 
 	fillStyles: function (styles) {
 		var styleToSelect = this.settings.style;
-		if (this.settings.style === '' && window.isLocalStorageAllowed)
-			styleToSelect = localStorage.getItem('Zotero_LastUsedStyle');
+		if (this.settings.style === '')
+			styleToSelect = window.prefs.get('Zotero_LastUsedStyle', '');
 
 		for (var iterator = 0; iterator < styles.length; ++iterator) {
 			this.createEntry(iterator, [styles[iterator].title],
@@ -747,7 +756,7 @@ L.Control.Zotero = L.Control.extend({
 
 				if (window.mode.isMobile()) window.mobileDialogId = dialogUpdateEvent.data.id;
 				that.map.fire('jsdialogupdate', dialogUpdateEvent);
-				var styleToBeSelected = (that.settings.style && that.settings.style !== '') ? that.settings : {name: localStorage.getItem('Zotero_LastUsedStyle')};
+				var styleToBeSelected = (that.settings.style && that.settings.style !== '') ? that.settings : {name: window.prefs.get('Zotero_LastUsedStyle', '')};
 				if (styleToBeSelected !== '')
 					that.checkStyleTypeAndEnableOK(styleToBeSelected);
 			}, function () {
@@ -898,8 +907,7 @@ L.Control.Zotero = L.Control.extend({
 
 		this.setFetchedCitationFormat();
 
-		if (window.isLocalStorageAllowed)
-			localStorage.setItem('Zotero_LastUsedStyle', this.settings.style);
+		window.prefs.set('Zotero_LastUsedStyle', this.settings.style);
 	},
 
 	getStyleXml: function() {
@@ -958,8 +966,7 @@ L.Control.Zotero = L.Control.extend({
 		this.setCustomProperty('ZOTERO_PREF_', valueString);
 		this.setFetchedCitationFormat();
 
-		if (window.isLocalStorageAllowed)
-			localStorage.setItem('Zotero_LastUsedStyle', this.settings.style);
+		window.prefs.set('Zotero_LastUsedStyle', this.settings.style);
 	},
 
 	markBibliographyStyleHasBeenSet: function(unset) {
@@ -1052,7 +1059,7 @@ L.Control.Zotero = L.Control.extend({
 		var targetEntry = this._findEntryWithUrl(searchArray, row);
 
 		if (entry && targetEntry) {
-			if (targetEntry.children.length === 1
+			if (targetEntry.children && targetEntry.children.length === 1
 				&& targetEntry.children[0].text === '<dummy>') {
 				targetEntry.children = [];
 				targetEntry.ondemand = undefined;
@@ -1121,14 +1128,16 @@ L.Control.Zotero = L.Control.extend({
 			}
 		}
 		if (element === 'edit' && data.id === 'zoterosearch') {
-			document.getElementById('zoterolist').filterEntries(data.value);
+			const query = data.querySelector('input').value;
+			if (query)
+				document.getElementById('zoterolist').filterEntries(query);
 			return;
 		}
 		if (data.id == 'ok') {
 			// set selected style, style format and field
 			if (!this.selected || this.selected.type === 'style') {
 				var citationFormat = this.selected ? this.selected.citationFormat : this.settings.citationFormat;
-				var parameters = this.selected ? this.selected : {name: localStorage.getItem('Zotero_LastUsedStyle'), type: 'style'};
+				var parameters = this.selected ? this.selected : {name: window.prefs.get('Zotero_LastUsedStyle', ''), type: 'style'};
 				var selectedFieldType = this.selectedFieldType;
 				this.closeZoteroDialog();
 				this.map.uiManager.showConfirmModal('zoterofieldtypewarn', _('Citation warning'),

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -43,17 +47,17 @@ public:
         std::string redirectUri2 = "/wopi/files/2/contents";
         Poco::RegularExpression regContentsRedirected(redirectUri2);
 
-        LOG_INF("FakeWOPIHost: Request URI [" << uriReq.toString() << "]:\n");
+        LOG_TST("FakeWOPIHost: Request URI [" << uriReq.toString() << "]:\n");
 
         // CheckFileInfo - returns redirect response
         if (request.getMethod() == "GET" && regInfo.match(uriReq.getPath()))
         {
-            LOG_INF("FakeWOPIHost: Handling CheckFileInfo (1/2)");
+            LOG_TST("FakeWOPIHost: Handling CheckFileInfo (1/2)");
 
             assertCheckFileInfoRequest(request);
 
-            LOK_ASSERT_MESSAGE("Expected to be in Phase::Load", _phase == Phase::Load);
-            _phase = Phase::Redirected;
+            LOK_ASSERT_STATE(_phase, Phase::Load);
+            TRANSITION_STATE(_phase, Phase::Redirected);
 
             http::Response httpResponse(http::StatusCode::Found);
             httpResponse.set("Location", helpers::getTestServerURI() + redirectUri + '?' + params);
@@ -64,7 +68,7 @@ public:
         // CheckFileInfo - for redirected URI
         else if (request.getMethod() == "GET" && regRedirected.match(uriReq.getPath()) && !regContents.match(uriReq.getPath()))
         {
-            LOG_INF("FakeWOPIHost: Handling CheckFileInfo: (2/2)");
+            LOG_TST("FakeWOPIHost: Handling CheckFileInfo: (2/2)");
 
             assertCheckFileInfoRequest(request);
 
@@ -95,7 +99,7 @@ public:
 
             assertGetFileRequest(request);
 
-            LOK_ASSERT_MESSAGE("Expected to be in Phase::GetFile", _phase == Phase::GetFile);
+            LOK_ASSERT_STATE(_phase, Phase::GetFile);
             TRANSITION_STATE(_phase, Phase::Redirected2);
 
             http::Response httpResponse(http::StatusCode::Found);
@@ -111,7 +115,7 @@ public:
 
             assertGetFileRequest(request);
 
-            LOK_ASSERT_MESSAGE("Expected to be in Phase::Redirected2", _phase == Phase::Redirected2);
+            LOK_ASSERT_STATE(_phase, Phase::Redirected2);
             TRANSITION_STATE(_phase, Phase::Done);
 
             http::Response httpResponse(http::StatusCode::OK);
@@ -171,23 +175,23 @@ public:
         Poco::RegularExpression regInfo("/wopi/files/[0-9]+");
         static unsigned redirectionCount = 0;
 
-        LOG_INF("FakeWOPIHost: Request URI [" << uriReq.toString() << "]:\n");
+        LOG_TST("FakeWOPIHost: Request URI [" << uriReq.toString() << "]:\n");
 
         // CheckFileInfo - always returns redirect response
         if (request.getMethod() == "GET" && regInfo.match(uriReq.getPath()))
         {
-            LOG_INF("FakeWOPIHost: Handling CheckFileInfo");
+            LOG_TST("FakeWOPIHost: Handling CheckFileInfo");
 
             assertCheckFileInfoRequest(request);
 
             std::string sExpectedMessage = "It is expected to stop requesting after " +
-                                           std::to_string(RedirectionLimit) + " redirections";
-            LOK_ASSERT_MESSAGE(sExpectedMessage, redirectionCount <= RedirectionLimit);
+                                           std::to_string(HTTP_REDIRECTION_LIMIT) + " redirections";
+            LOK_ASSERT_MESSAGE(sExpectedMessage, redirectionCount <= HTTP_REDIRECTION_LIMIT);
 
             LOK_ASSERT_MESSAGE("Expected to be in Phase::Load or Phase::Redirected",
                                _phase == Phase::Load || _phase == Phase::Redirected);
 
-            if (redirectionCount == RedirectionLimit)
+            if (redirectionCount == HTTP_REDIRECTION_LIMIT)
             {
                 exitTest(TestResult::Ok);
                 return true;
@@ -196,9 +200,9 @@ public:
             TRANSITION_STATE(_phase, Phase::Redirected);
 
             http::Response httpResponse(http::StatusCode::Found);
-            const std::string location = helpers::getTestServerURI() + "/wopi/files/" +
+            std::string location = helpers::getTestServerURI() + "/wopi/files/" +
                                          std::to_string(redirectionCount) + '?' + params;
-            httpResponse.set("Location", location);
+            httpResponse.set("Location", std::move(location));
             socket->sendAndShutdown(httpResponse);
 
             redirectionCount++;

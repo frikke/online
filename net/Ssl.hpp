@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,12 +13,9 @@
 
 #include <common/Util.hpp>
 
-#include <atomic>
 #include <cassert>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <vector>
 
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -29,9 +30,8 @@ namespace ssl
 /// The certificate verification requirements.
 enum class CertificateVerification
 {
-    Disabled, //< No verification is performed or results ignored.
-    IfProvided, //< Verified if an optional certificate is provided.
-    Required //< Certificate must be provided and will be verified.
+    Disabled, ///< No verification is performed or results ignored.
+    Required ///< Certificate must be provided and will be verified.
 };
 } // namespace ssl
 
@@ -81,8 +81,8 @@ public:
     {
         assert(!isServerContextInitialized() &&
                "Cannot initialize the server context more than once");
-        ServerInstance.reset(
-            new SslContext(certFilePath, keyFilePath, caFilePath, cipherList, verification));
+        ServerInstance = std::make_unique<SslContext>(certFilePath, keyFilePath, caFilePath,
+                                                      cipherList, verification);
     }
 
     static void uninitializeServerContext() { ServerInstance.reset(); }
@@ -105,8 +105,14 @@ public:
     {
         assert(!isClientContextInitialized() &&
                "Cannot initialize the client context more than once");
-        ClientInstance.reset(
-            new SslContext(certFilePath, keyFilePath, caFilePath, cipherList, verification));
+        ClientInstance = std::make_unique<SslContext>(certFilePath, keyFilePath, caFilePath,
+                                                      cipherList, verification);
+    }
+
+    static ssl::CertificateVerification getClientVerification()
+    {
+        assert(isClientContextInitialized() && "client context must be initialized");
+        return ClientInstance->verification();
     }
 
     static void uninitializeClientContext() { ClientInstance.reset(); }

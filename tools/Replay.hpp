@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,6 +12,7 @@
 #pragma once
 
 #include <math.h>
+#include <iomanip>
 #include <chrono>
 #include <cstring>
 #include <unordered_map>
@@ -21,6 +26,19 @@
 
 #include <TraceFile.hpp>
 #include <wsd/TileDesc.hpp>
+
+#include <iostream>
+#include <fstream>
+#include <ctime>
+#include <Util.hpp>
+#include <common/Log.hpp>
+
+struct PerfMetricInfo
+{
+    std::string phase;
+    std::string metric;
+    size_t data;
+};
 
 // store buckets of latency
 struct Histogram {
@@ -66,16 +84,47 @@ struct Histogram {
             if (_buckets[last] > 0)
                 break;
 
-        std::cout << legend << " " << _items << " items, max #: " << max << " too long: " << _tooLong << "\n";
+        std::cout << legend << ' ' << _items << " items, max #: " << max
+                  << " too long: " << _tooLong << '\n';
 
         const double chrsPerFreq = 60.0 / max;
         for (size_t i = firstBucket; i <= last; ++i)
         {
             int chrs = ::ceil(chrsPerFreq * _buckets[i]);
             int ms = i < 10 ? (incLowMs * (i+1)) : (maxLowMs + (i+1-10) * incHighMs);
-            std::cout << "< " << std::setw(4) << ms << " ms |" << std::string(chrs, '-') << "| " << _buckets[i] << "\n";
+            std::cout << "< " << std::setw(4) << ms << " ms |" << std::string(chrs, '-') << "| "
+                      << _buckets[i] << '\n';
         }
     }
+
+    std::vector<PerfMetricInfo> getLatencyStats(std::string typeOfLatency, const std::string& testPhase)
+    {
+        size_t totalTiles = _items;
+        size_t subTenCount = _buckets[0];
+        size_t subOneHundredCount = 0;
+        size_t overOneHundredCount = _tooLong;
+
+        for(size_t i = 1 ; i < _buckets.size(); i++)
+        {
+            if(i < 10)
+            {
+                subOneHundredCount += _buckets[i];
+            }
+            else
+            {
+                overOneHundredCount += _buckets[i];
+            }
+        }
+
+        std::vector<PerfMetricInfo> latencyStatsList;
+        latencyStatsList.push_back(PerfMetricInfo {testPhase, typeOfLatency + " Total tiles", totalTiles});
+        latencyStatsList.push_back(PerfMetricInfo {testPhase, typeOfLatency + " Sub_10ms", subTenCount});
+        latencyStatsList.push_back(PerfMetricInfo {testPhase, typeOfLatency + " Sub_100ms", subOneHundredCount});
+        latencyStatsList.push_back(PerfMetricInfo {testPhase, typeOfLatency + " Over_100ms", overOneHundredCount});
+
+        return latencyStatsList;
+    }
+
 };
 
 struct Stats {
@@ -86,14 +135,24 @@ struct Stats {
         _tileCount(0),
         _connections(0)
     {
+        _startUpMemoryUsage = getMemoryUsage();
+        _timer.reset(new Util::SysStopwatch());
+        _peakMemoryUsage = 0;
     }
     std::chrono::steady_clock::time_point _start;
+    std::unique_ptr<Util::SysStopwatch> _timer;
     size_t _bytesSent;
     size_t _bytesRecvd;
     size_t _tileCount;
     size_t _connections;
     Histogram _pingLatency;
     Histogram _tileLatency;
+
+    size_t _peakMemoryUsage;
+    size_t _startUpMemoryUsage;
+
+
+    std::string _testType;
 
     // message size breakdown
     struct MessageStat {
@@ -102,6 +161,31 @@ struct Stats {
     };
     std::unordered_map<std::string, MessageStat> _recvd;
     std::unordered_map<std::string, MessageStat> _sent;
+
+    std::vector<PerfMetricInfo> _perfStatsList;
+
+    size_t getMemoryUsage()
+    {
+        std::ifstream smapsFile("/proc/" + std::to_string(getpid()) + "/smaps");
+
+        std::string line;
+        size_t totalDirtyPss = 0;
+
+        while (std::getline(smapsFile, line))
+        {
+            if (line.find("Private_Dirty:") == 0)
+            {
+                std::stringstream ss(line);
+                std::string key;
+                size_t value;
+                // coverity[tainted_data_argument : FALSE] - we trust the kernel-provided data
+                ss >> key >> value;
+                totalDirtyPss += value;
+            }
+        }
+
+        return totalDirtyPss;
+    }
 
     void accumulate(std::unordered_map<std::string, MessageStat> &map,
                     const std::string token, size_t size)
@@ -147,8 +231,7 @@ struct Stats {
         std::cout << "size\tcount\tcommand\n";
         for (const auto& it : sortKeys)
         {
-            std::cout << map[it].size << "\t"
-                      << map[it].count << "\t" << it << "\n";
+            std::cout << map[it].size << '\t' << map[it].count << '\t' << it << '\n';
             if (map[it].size < (total / 100))
                 break;
         }
@@ -158,6 +241,8 @@ struct Stats {
     {
         const auto now = std::chrono::steady_clock::now();
         const size_t runMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - _start).count();
+
+        std::cout << "Peak memory usage: " << _peakMemoryUsage << "kB";
         std::cout << "Stress run took " << runMs << " ms\n";
         std::cout << "  tiles: " << _tileCount << " => TPS: " << ((_tileCount * 1000.0)/runMs) << "\n";
         _pingLatency.dump("ping latency:");
@@ -169,12 +254,119 @@ struct Stats {
             " server sent " << Util::getHumanizedBytes(_bytesRecvd) <<
             " (" << recvKbps << " kB/s) to " << _connections << " connections.\n";
 
+
+       endPhase(Log::Phase::Edit);
+       dumpPerfStatsToCSV(_perfStatsList);
+
         std::cout << "we sent:\n";
         dumpMap(_sent);
 
         std::cout << "server sent us:\n";
         dumpMap(_recvd);
     }
+
+
+    void endPhase(Log::Phase phase)
+    {
+        std::string phaseAsString = Log::toStringShort(phase);
+
+        const auto now = std::chrono::steady_clock::now();
+        const size_t runMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - _start).count();
+        _start = std::chrono::steady_clock::now();
+
+        size_t cpuTime = _timer->elapsedTime().count();
+        _timer.reset(new Util::SysStopwatch);
+
+        _perfStatsList.push_back(getStressStats(runMs, phaseAsString));
+        _perfStatsList.push_back(getCPUUSageStats(cpuTime, phaseAsString));
+
+        if(phase == Log::Phase::Edit)
+        {
+            std::vector<PerfMetricInfo> statsList;
+
+            _perfStatsList.push_back(getPeakMemoryUsageStats(_peakMemoryUsage, phaseAsString));
+
+            statsList = getNetworkStats(_bytesRecvd / 1000, _bytesSent / 1000, phaseAsString);
+            for(size_t i = 0; i < statsList.size(); i++)
+            {
+                _perfStatsList.push_back(statsList[i]);
+            }
+
+            statsList = _pingLatency.getLatencyStats("PL", phaseAsString);
+            for(size_t i = 0; i < statsList.size(); i++)
+            {
+                _perfStatsList.push_back(statsList[i]);
+            }
+
+            statsList = _tileLatency.getLatencyStats("TL", phaseAsString);
+            for(size_t i = 0; i < statsList.size(); i++)
+            {
+                _perfStatsList.push_back(statsList[i]);
+            }
+        }
+    }
+
+    PerfMetricInfo getStressStats(size_t runMs, const std::string& testPhase)
+    {
+        PerfMetricInfo stressStats = {testPhase, "Stress run (ms)", runMs};
+        return  stressStats;
+    }
+
+    PerfMetricInfo getCPUUSageStats(size_t cpuUsage, const std::string testPhase)
+    {
+        PerfMetricInfo cpuStats = {testPhase, "CPU Usage (us)", cpuUsage};
+        return cpuStats;
+    }
+
+    std::vector<PerfMetricInfo> getNetworkStats(size_t recievedKb, size_t sentKb, const std::string& testPhase)
+    {
+        std::vector<PerfMetricInfo> networkStatsList;
+
+        networkStatsList.push_back(PerfMetricInfo{testPhase, "Bytes recieved (kB)", recievedKb});
+        networkStatsList.push_back(PerfMetricInfo{testPhase, "Bytes sent (kB)", sentKb});
+
+        return networkStatsList;
+    }
+
+    PerfMetricInfo getPeakMemoryUsageStats(size_t peakMemory, const std::string& testPhase)
+    {
+        PerfMetricInfo peakMemoryStats = {testPhase, "Peak memory usage (kB)", peakMemory};
+        return peakMemoryStats;
+    }
+
+    void dumpPerfStatsToCSV(std::vector<PerfMetricInfo> perfData)
+    {
+        std::ofstream file("PerformanceMetricsSummary.csv", std::ios::out | std::ios::app);
+
+        if(file.tellp() == 0)
+        {
+            file << "Commit Hash" << ',' << "Date" << ',' << "Test" << ',' << "Phase" << ','
+                 << "Metric" << ',' << "Value";
+            file << '\n';
+        }
+
+        std::string commitHash = Util::getCoolVersionHash();
+
+        time_t now = time(0);
+        struct tm datetime;
+        localtime_r(&now, &datetime);
+
+        char formattedDate[50];
+        strftime(formattedDate, 50, "%d/%m/%y", &datetime);
+
+        for(size_t i = 0; i < perfData.size(); i++)
+        {
+            file << commitHash << ',' << formattedDate << ',' << _testType << ','
+                 << perfData[i].phase << ',' << perfData[i].metric << ',' << perfData[i].data;
+            file << '\n';
+        }
+    }
+
+    void setTypeOfTest(const std::string& testType)
+    {
+        _testType = testType;
+    }
+
 };
 
 // Avoid a MessageHandler for now.
@@ -194,31 +386,31 @@ class StressSocketHandler : public WebSocketHandler
     std::chrono::steady_clock::time_point _lastTile;
 
 public:
-    StressSocketHandler(SocketPoll &poll, /* bad style */
-                        const std::shared_ptr<Stats> stats,
-                        const std::string &uri, const std::string &trace,
-                        const int delayMs = 0) :
-        WebSocketHandler(true, true),
-        _poll(poll),
-        _reader(trace),
-        _connecting(true),
-        _uri(uri),
-        _trace(trace),
-        _stats(stats)
+    StressSocketHandler(SocketPoll& poll, /* bad style */
+                        const std::shared_ptr<Stats>& stats, const std::string& uri,
+                        const std::string& trace, const int delayMs = 0)
+        : WebSocketHandler(true, true)
+        , _poll(poll)
+        , _reader(trace)
+        , _connecting(true)
+        , _uri(uri)
+        , _trace(trace)
+        , _stats(stats)
     {
+        assert(_stats && "stats must be provided");
+
         static std::atomic<int> number;
-        _logPre = "[" + std::to_string(++number) + "] ";
-        std::cerr << "Attempt connect to " << uri << " for trace " << _trace << "\n";
+        _logPre = '[' + std::to_string(++number) + "] ";
+        std::cerr << "Attempt connect to " << uri << " for trace " << _trace << '\n';
         getNextRecord();
         _start = std::chrono::steady_clock::now() + std::chrono::milliseconds(delayMs);
-        _nextPing = _start + std::chrono::milliseconds((long)(std::rand() * 1000.0) / RAND_MAX);
+        _nextPing = _start + std::chrono::milliseconds(Util::rng::getNext() % 1000);
         _lastTile = _start;
     }
 
     void gotPing(WSOpCode /* code */, int pingTimeUs) override
     {
-        if (_stats)
-            _stats->_pingLatency.addTime(pingTimeUs/1000);
+        _stats->_pingLatency.addTime(pingTimeUs/1000);
     }
 
     int getPollEvents(std::chrono::steady_clock::time_point now,
@@ -226,8 +418,8 @@ public:
     {
         if (_connecting)
         {
-            std::cerr << _logPre << "Waiting for outbound connection to " << _uri <<
-                " to complete for trace " << _trace << "\n";
+            std::cerr << _logPre << "Waiting for outbound connection to " << _uri
+                      << " to complete for trace " << _trace << '\n';
             return POLLOUT;
         }
 
@@ -322,7 +514,11 @@ public:
         std::string out = msg;
 
         if (tokens.equals(0, "tileprocessed"))
-            out = ""; // we do this accurately below
+            out.clear(); // we do this accurately below
+        else if (tokens.equals(0, "requestloksession") || (tokens.equals(0, "canceltiles")))
+            out.clear(); // These commands have been removed.
+        else if (tokens.equals(0, "uno .uno:Save"))
+            out = "save dontTerminateEdit=0 dontSaveIfUnmodified=1"; // .uno:Save will crash in debug
 
         else if (tokens.equals(0, "load")) {
             std::string url = tokens[1];
@@ -331,10 +527,19 @@ public:
             // load url=file%3A%2F%2F%2Ftmp%2Fhello-world.odt deviceFormFactor=desktop
             out = "load url=" + _uri; // already encoded
             for (size_t i = 2; i < tokens.size(); ++i)
-                out += " " + tokens[i];
-            std::cerr << _logPre << "msg " << out << "\n";
+                out += ' ' + tokens[i];
+            std::cerr << _logPre << "msg " << out << '\n';
         }
 
+        size_t currentMemoryUsage = _stats->getMemoryUsage();
+        if (currentMemoryUsage > _stats->_startUpMemoryUsage)
+        {
+            size_t postDocumentLoadingMemory = currentMemoryUsage - _stats->_startUpMemoryUsage;
+            if (postDocumentLoadingMemory > _stats->_peakMemoryUsage)
+            {
+                _stats->_peakMemoryUsage = postDocumentLoadingMemory;
+            }
+        }
         // FIXME: translate mouse events relative to view-port etc.
         return out;
     }
@@ -346,25 +551,24 @@ public:
 
         const std::string firstLine = COOLProtocol::getFirstLine(data.data(), data.size());
         StringVector tokens = StringVector::tokenize(firstLine);
-        std::cerr << _logPre << "Got msg: " << firstLine << "\n";
+        std::cerr << _logPre << "Got msg: " << firstLine << '\n';
 
         _stats->accumulateRecv(tokens[0], data.size());
 
         if (tokens.equals(0, "tile:")) {
             // accumulate latencies
-            if (_stats) {
-                _stats->_tileLatency.addTime(std::chrono::duration_cast<std::chrono::milliseconds>(now - _lastTile).count());
-                _stats->_tileCount++;
-            }
+            _stats->_tileLatency.addTime(std::chrono::duration_cast<std::chrono::milliseconds>(now - _lastTile).count());
+            _stats->_tileCount++;
             _lastTile = now;
 
             // eg. tileprocessed tile=0:9216:0:3072:3072:0
             TileDesc desc = TileDesc::parse(tokens);
 
             sendMessage("tileprocessed tile=" + desc.generateID());
-            std::cerr << _logPre << "Sent tileprocessed tile= " + desc.generateID() << "\n";
-        } if (tokens.equals(0, "error:")) {
-
+            std::cerr << _logPre << "Sent tileprocessed tile= " + desc.generateID() << '\n';
+        }
+        else if (tokens.equals(0, "error:"))
+        {
             bool reconnect = false;
             if (firstLine == "error: cmd=load kind=docunloading")
             {
@@ -393,7 +597,7 @@ public:
                 return;
             }
             else
-                Util::forcedExit(EX_SOFTWARE);
+                Util::forcedExit(70);
         }
 
         // FIXME: implement code to send new view-ports based
@@ -409,8 +613,10 @@ public:
 
     static void addPollFor(SocketPoll &poll, const std::string &server,
                            const std::string &filePath, const std::string &tracePath,
-                           const std::shared_ptr<Stats> &optStats = nullptr)
+                           const std::shared_ptr<Stats> &optStats)
     {
+        assert(optStats && "optStats must be provided");
+
         std::string file, wrap;
         std::string fileabs = Poco::Path(filePath).makeAbsolute().toString();
         Poco::URI::encode("file://" + fileabs, ":/?", file);
@@ -420,21 +626,7 @@ public:
         auto handler = std::make_shared<StressSocketHandler>(poll, optStats, file, tracePath);
         poll.insertNewWebSocketSync(Poco::URI(uri), handler);
 
-        if (optStats)
-            optStats->addConnection();
-    }
-
-    /// Attach to @server, load @filePath and replace @tracePath
-    static void replaySync(const std::string &server,
-                           const std::string &filePath,
-                           const std::string &tracePath)
-    {
-        TerminatingPoll poll("replay");
-
-        addPollFor(poll, server, filePath, tracePath);
-        do {
-            poll.poll(TerminatingPoll::DefaultPollTimeoutMicroS);
-        } while (poll.continuePolling() && poll.getSocketCount() > 0);
+        optStats->addConnection();
     }
 };
 

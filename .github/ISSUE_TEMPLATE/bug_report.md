@@ -7,35 +7,35 @@ assignees: ''
 
 ---
 
-**Describe the bug**
+### Describe the Bug
 A clear and concise description of what the bug is.
 
-**To Reproduce**
-Steps to reproduce the behavior:
+### Steps to Reproduce
 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
 4. See error
 
-**Expected behavior**
+### Expected Behavior
 A clear and concise description of what you expected to happen.
 
-**Actual behavior**
+### Actual Behavior
 A clear and concise description of what actually happens.
 
-**Screenshots**
+### Screenshots
 If applicable, add screenshots to help explain your problem.
 
-**Desktop (please complete the following information)**
- - OS: [e.g. iOS]
- - Browser: [e.g. chrome, safari]
- - Version: [e.g. 22]
+### Desktop
+(Please complete the following information)
+ - **Collabora version:** [e.g. 23.05.5.3]
+ - **OS and version:** [e.g. Windows 11]
+ - **Browser and version:** [e.g. Chrome 114.0]
 
-**Smartphone (please complete the following information)**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser: [e.g. stock browser, safari]
- - Version: [e.g. 22]
+### Smartphone
+(Please complete the following information)
+ - **Device:** [e.g. iPhone 14]
+ - **OS:** [e.g. iOS 16.5]
+ - **Browser and version:** [e.g. Safari 16.4]
 
-**Additional context**
+### Additional Context
 Add any other context about the problem here.

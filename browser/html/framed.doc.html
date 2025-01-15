@@ -15,6 +15,10 @@
     <title>Online Editor</title>
 
     <style>
+      :root {
+          font-family: "sans-serif";
+      }
+
       .alert {
         font-size: large;
         padding: 20px;
@@ -22,6 +26,53 @@
         color: white;
         margin-bottom: 15px;
       }
+
+      .framed {
+          padding: 15px;
+          border: 1px black dashed;
+          border-radius: 6px;
+      }
+
+      .vbox {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5em;
+      }
+
+      .hbox {
+          display: flex;
+          flex-direction: row;
+          gap: 0.5em;
+      }
+
+      .grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-gap: 0.5em;
+          gap: 0.5em;
+      }
+
+      .spaced {
+          gap: 15px;
+          grid-gap: 15px;
+      }
+      h3 {
+          margin: 0.2em 0px;
+      }
+      pre {
+          margin: 0px;
+      }
+
+      #messages {
+          height: 5vh;
+          overflow: scroll;
+      }
+
+      #messages > p {
+              margin: 0;
+              font-family: monospace;
+      }
+
     </style>
 
     <script>
@@ -63,6 +114,12 @@
             });
       }
 
+      function insertGraphic(text) {
+        post({'MessageId': 'Action_InsertGraphic',
+              'Values': {'filename': 'date.png', 'url': 'https://sdk.collaboraonline.com/_static/collabora.svg'}
+            });
+      }
+
       function capitalize() {
         post({'MessageId': 'CallPythonScript',
               'SendTime': Date.now(),
@@ -84,9 +141,39 @@
             });
       }
 
+      function closeSession() {
+        post({'MessageId': 'Close_Session',
+              'Values': null
+            });
+      }
+
+      function fullscreenDocument() {
+        post({'MessageId': 'Action_Fullscreen',
+              'Values': null
+            });
+      }
+
+      function startPresentation() {
+        post({'MessageId': 'Action_FullscreenPresentation',
+              'Values': null
+            });
+      }
+
       function exportAsHtml() {
         post({'MessageId': 'Action_Export',
               'Values': { 'Format': 'html', }
+            });
+      }
+
+      function exportAsPdfWithNotify() {
+        post({'MessageId': 'Action_Export',
+              'Values': { 'Format': 'pdf', Notify: true }
+            });
+      }
+
+      function getExportFormats() {
+        post({'MessageId': 'Get_Export_Formats',
+              'Values': null
             });
       }
 
@@ -114,10 +201,51 @@
             });
       }
 
+      function ShowSave(show) {
+          if (show) {
+              show_commands('save');
+              show_commands('file-save');
+          } else {
+              hide_commands('save');
+              hide_commands('file-save');
+          }
+      }
+
+      function HintOnscreenKeyboard(hint) {
+        post({'MessageId': hint ? 'Hint_OnscreenKeyboard' : 'Hint_NoOnscreenKeyboard',
+              'Values': null
+            });
+      }
+
       function ShowMenubar(visible) {
         var messageId = visible ? 'Show_Menubar' : 'Hide_Menubar';
-        post({'MessageId': 'Host_PostmessageReady'});
         post({'MessageId': messageId});
+      }
+
+      function ShowRuler(visible) {
+          var messageId = visible ? 'Show_Ruler' : 'Hide_Ruler';
+          post({'MessageId': messageId});
+      }
+
+      function ShowSidebar(visible) {
+          let messageId = visible ? 'Show_Sidebar' : 'Hide_Sidebar';
+          post({'MessageId': messageId});
+      }
+
+      function ShowNavigator(visible) {
+          if (visible) {
+              post({
+                  'MessageId': 'Show_Navigator',
+                  'Values': { 'id': 'Navigator' }
+              });
+          } else {
+              post({'MessageId': 'Hide_Sidebar'});
+          }
+      }
+
+      function ShowStatusBar(visible) {
+          var messageId = visible ? 'Show_StatusBar' : 'Hide_StatusBar';
+          post({'MessageId': messageId});
       }
 
       function ShowInsertButton() {
@@ -128,15 +256,56 @@
 
       function ShowNotebookbar(notebookbar) {
         var value = notebookbar ? 'notebookbar' : 'classic';
-        post({'MessageId': 'Host_PostmessageReady'});
         post({'MessageId': 'Action_ChangeUIMode',
               'Values': {'Mode': value}});
+      }
+
+      function CollapseNotebookbar(collapse) {
+        post({'MessageId': collapse ? 'Collapse_Notebookbar' : 'Extend_Notebookbar',
+              'Values': null
+            });
+      }
+
+      // Wrap the message execution to catch exceptions
+      function executeMessage() {
+          try {
+              Execute(
+                  document.getElementById('execute-message').value,
+                  JSON.parse(document.getElementById('execute-param').value)
+              );
+          } catch(e) {
+              console.error("Execute message error:", e);
+          }
+      }
+
+      function Execute(messageId, values) {
+        post({'MessageId': messageId, 'Values': values});
       }
 
       function reset_access_token(accesstoken) {
         post({'MessageId': 'Reset_Access_Token',
               'Values': { 'token': accesstoken, }
             });
+      }
+
+      function GetUserState() {
+        post({'MessageId': 'Get_User_State',
+              'Values': null
+            });
+      }
+
+      function DisplayUserState(msg) {
+          var display = document.getElementById("DisplayUserState");
+          display.querySelector("#UserState_State").textContent = msg.Values.State;
+          display.querySelector("#UserState_Elapsed").textContent = msg.Values.Elapsed;
+      }
+
+      function ClearMessages() {
+        let messageOut = document.getElementById("messages");
+        let child;
+        while (child = messageOut.firstChild) {
+          child.remove();
+        }
       }
 
       // This function is invoked when the iframe posts a message back.
@@ -147,6 +316,12 @@
         if (!msg) {
           return;
         }
+
+        let messageOut = document.getElementById("messages");
+        let line = document.createElement("p");
+        line.textContent = JSON.stringify(msg);
+        messageOut.append(line);
+
         if (msg.MessageId == 'App_LoadingStatus') {
           if (msg.Values) {
             if (msg.Values.Status == 'Document_Loaded') {
@@ -162,6 +337,8 @@
               document.getElementById("ModifiedStatus").innerHTML = "Saved";
             }
           }
+        } else if (msg.MessageId == 'Get_User_State_Resp') {
+          DisplayUserState(msg);
         } else if (msg.MessageId == 'Action_Save_Resp') {
           if (msg.Values) {
             if (msg.Values.success == true) {
@@ -172,9 +349,9 @@
           }
         } else if (msg.MessageId === 'UI_Mention') {
           var dummyUserDatabase = [ {
-                                      username:'Abigail', 
+                                      username:'Abigail',
                                       profile: 'Abigail profile link'
-                                    }, 
+                                    },
                                     {
                                       username: 'Alexandra',
                                       profile: 'Alexandra profile link'
@@ -242,7 +419,7 @@
                                     {
                                       username: 'xyz abc',
                                       profile: 'xyz abc profile link'
-                                    } ]; 
+                                    } ];
           if (msg.Values) {
             var type = msg.Values.type;
             var text = msg.Values.text;
@@ -251,8 +428,8 @@
             dummyUserDatabase.forEach(element => {
               if (element.username.includes(text))
                 users.push(element);
-            });      
-            
+            });
+
             if (type === 'autocomplete')
             {
               setTimeout(post, 0,
@@ -265,12 +442,59 @@
                 });
             }
           }
+        } else if (msg.MessageId == 'Get_Export_Formats_Resp') {
+          if (msg.Values) {
+            alert(JSON.stringify(msg.Values));
+          } else {
+            alert('Response is empty');
+          }
         }
       }
 
       // 'main' code of this <script> block, run when page is being
       // rendered. Install the message listener.
       window.addEventListener("message", receiveMessage, false);
+
+      var frameUrl = new URL(window.location);
+      frameUrl.pathname = frameUrl.pathname.substr(0, window.location.pathname.lastIndexOf('/') + 1) + 'cool.html';
+      frameUrl.searchParams.append('NotWOPIButIframe', 'true');
+
+      function startCool(url, file_path) {
+          var coolUrl = new URL(url);
+          if (file_path) {
+              coolUrl.searchParams.set('file_path', file_path);
+          }
+          var iframe = document.getElementById('frame');
+          iframe.src = coolUrl.href;
+          link.href = coolUrl.href;
+      }
+
+      // Select the app with extension.
+      function selectApp(ext) {
+          let filename;
+          switch (ext) {
+          case 'fodt':
+              filename = 'writer-edit.fodt';
+              break;
+          case 'ods':
+              filename = 'calc-edit.ods';
+              break;
+          case 'fodp':
+              filename = 'impress-edit.fodp';
+              break;
+          case 'odg':
+              filename = 'draw-edit.odg';
+              break;
+          default:
+              console.error('Invalid app ', ext);
+              return;
+          }
+          let params = frameUrl.searchParams;
+          let file_path = params.get('file_path');
+          let index = file_path.lastIndexOf('/');
+          file_path = file_path.substr(0, index + 1) + filename;
+          startCool(frameUrl, file_path);
+      }
 
     </script>
 
@@ -292,75 +516,185 @@
       </p>
     </div>
 
-    <h3>PostMessage test harness</h3>
+    <div id="post-message-test-harness" class="vbox">
+      <h2>PostMessage test harness</h2>
 
-    <h4>Run python scripts</h4>
-    <form id="insert-text-form">
-      <label for="fname"><b>InsertText.py</b>: inserts text into the document</label><br>
-      <textarea name="source" value="" rows="5" cols="50">Type your text and press Insert text</textarea><br>
-      <button onclick="insertText(document.forms['insert-text-form'].elements['source'].value); return false;">Insert text</button>
-    </form>
-    <br>
-    <form id="insert-text-form">
-      <label for="fname"><b>Capitalize.py</b>: capitalize selected text in the document</label><br>
-      <button onclick="capitalize(); return false;">Capitalize selected text</button></br></br>
-    </form>
+      <div class="grid spaced">
+        <div class="vbox framed">
+          <h3>Run python scripts</h3>
+          <form id="insert-text-form" class="vbox">
+            <label for="fname"><b>InsertText.py</b>: inserts text into the document</label>
+            <textarea name="source" value="" rows="5" cols="50">Type your text and press Insert text</textarea>
+            <div>
+              <button onclick="insertText(document.forms['insert-text-form'].elements['source'].value); return false;">Insert text</button>
+            </div>
+          </form>
 
-    <h4>Various other messages to post</h4>
-    <form>
-      <button onclick="save(); return false;">Save</button>
-      <button onclick="closeDocument(); return false;">Close</button></br></br>
-      <button onclick="exportAsHtml(); return false;">Export as HTML</button></br></br>
-      <button onclick="hide_commands('save'); return false;">Hide Save Commands</button>
-      <button onclick="show_commands('save'); return false;">Show Save Commands</button></br>
-      <button onclick="hide_commands('print'); return false;">Hide Print Commands</button>
-      <button onclick="show_commands('print'); return false;">Show Print Commands</button></br></br>
-      <button onclick="disable_default_uiaction('UI_Save', true); return false;">Disable default save action</button></br>
-      <button onclick="disable_default_uiaction('UI_Save', false); return false;">Enable default save action</button></br></br>
-      <label for="new-access-token"><b>New Access-Token</b>: </label><br>
-      <textarea name="new-access-token" id="new-access-token" value="" rows="1" cols="30">123456789AA</textarea><br>
-      <button onclick="reset_access_token(document.getElementById('new-access-token').value); return false;">Reset Access-Token</button>
-    </form>
+          <form id="insert-text-form" class="vbox">
+            <label for="fname"><b>Capitalize.py</b>: capitalize selected text in the document</label>
+            <div>
+              <button onclick="capitalize(); return false;">Capitalize selected text</button>
+            </div>
+          </form>
+        </div>
 
-    <h3>Modified Status: <span id="ModifiedStatus">Saved</span></h3>
+        <div class="vbox framed">
+          <h3>Various other messages to post</h3>
 
-    <h3>UI modification</h3>
-    <form id="menubar-toggle">
-      <button onclick="ShowMenubar(false); return false;">Hide Menubar</button>
-      <button onclick="ShowMenubar(true); return false;">Show Menubar</button>
-      <button onclick="ShowInsertButton(); return false;" title="via Insert_Button">Insert custom button</button>
-      <p>
-      <button onclick="ShowNotebookbar(false); return false;">Compact Toolbar</button>
-      <button onclick="ShowNotebookbar(true); return false;">Tabbed Toolbar</button>
-    </form>
+          <div class="grid">
+            <button onclick="save(); return false;">Save</button>
+            <div></div>
+            <button onclick="closeDocument(); return false;">Close</button>
+            <button onclick="closeSession(); return false;">Close Session</button>
 
-    <h3>Send UNO Commands</h3>
-    <form id="menubar-toggle">
-      <button onclick="sendBoldUNOCommand(); return false;">Send Bold UNO Command (and example without args)</button>
-      <button onclick="sendInsertBookMarkUNOCommand(); return false;">Send InsertBookmark UNO Command (an example with args)</button>
-    </form>
+            <button onclick="fullscreenDocument(); return false;">Fullscreen</button>
+            <button onclick="startPresentation(); return false;">Start presentation</button>
+
+            <button onclick="exportAsHtml(); return false;">Export as HTML</button>
+            <button onclick="exportAsPdfWithNotify(); return false;">Export as PDF with Notify set</button>
+            <button onclick="getExportFormats(); return false;">Get export formats</button>
+            <div></div>
+
+            <button onclick="ShowSave(false); return false;">Hide Save Commands</button>
+            <button onclick="ShowSave(true); return false;">Show Save Commands</button>
+
+            <button onclick="hide_commands('print'); return false;">Hide Print Commands</button>
+            <button onclick="show_commands('print'); return false;">Show Print Commands</button>
+
+            <button onclick="disable_default_uiaction('UI_Save', true); return false;">Disable default save action</button>
+            <button onclick="disable_default_uiaction('UI_Save', false); return false;">Enable default save action</button>
+
+            <button onclick="HintOnscreenKeyboard(true); return false;">Hint that there is an onscreen keyboard</button>
+            <button onclick="HintOnscreenKeyboard(false); return false;">Hint that there is not an onscreen keyboard</button>
+          </div>
+        </div>
+
+        <form class="vbox framed">
+          <h3>New Access-Token</h3>
+          <textarea name="new-access-token" id="new-access-token" value="" rows="1" cols="30">123456789AA</textarea>
+          <div>
+            <button onclick="reset_access_token(document.getElementById('new-access-token').value); return false;">Reset Access-Token</button>
+          </div>
+
+          <h3>User State</h3>
+          <div class="hbox">
+            <button onclick="GetUserState(); return false;">Get User State</button>
+            <div id="DisplayUserState">
+              <p>State: <span id="UserState_State">unknown</span>
+          Elapsed: <span id="UserState_Elapsed">0</span> sec.</p>
+            </div>
+          </div>
+        </form>
+
+        <div class="vbox framed">
+          <h3>Send a message</h3>
+
+          <form>
+            <div class="hbox">
+              <div>
+                <label for="execute-message"><b>Message</b>: </label><br>
+                <input type="text" name="execute-message" id="execute-message" />
+              </div>
+              <div>
+                <label for="execute-param"><b>Values</b>: </label>
+                <p>This is the JSON format 'Values'.</p>
+                <textarea name="execute-param" id="execute-param">{}</textarea>
+              </div>
+            </div>
+            <button onclick="executeMessage(); return false;">Execute</button>
+          </form>
+        </div>
+    </div>
+
+    <div class="framed hbox">
+      <div class="vbox">
+        <h3>Messages from editor <button onclick="ClearMessages();">Clear</button></h3>
+
+        <div id="messages"></div>
+      </div>
+    </div>
+
+    <div class="vbox">
+      <h3>Modified Status: <span id="ModifiedStatus">Saved</span></h3>
+    </div>
+
+    <div class="grid spaced">
+      <div class="framed">
+        <h3>UI modification</h3>
+        <div class="hbox">
+          <div class="vbox">
+            <button onclick="ShowMenubar(false); return false;">Hide Menubar</button>
+            <button onclick="ShowMenubar(true); return false;">Show Menubar</button>
+          </div>
+          <div class="vbox">
+            <button onclick="ShowInsertButton(); return false;" title="via Insert_Button">Insert custom button</button>
+            <button onclick="insertGraphic(); return false;">Sent InsertGraphic post message</button>
+          </div>
+          <div class="vbox">
+            <button onclick="ShowNotebookbar(false); return false;">Compact Toolbar</button>
+            <button onclick="ShowNotebookbar(true); return false;">Tabbed Toolbar</button>
+          </div>
+          <div class="vbox">
+            <button onclick="CollapseNotebookbar(true); return false;">Collapse Tabbed Toolbar</button>
+            <button onclick="CollapseNotebookbar(false); return false;">Extend Tabbed Toolbar</button>
+          </div>
+          <div class="vbox">
+            <button onclick="ShowStatusBar(false); return false;">Hide Status Bar</button>
+            <button onclick="ShowStatusBar(true); return false;">Show Status Bar</button>
+          </div>
+          <div class="vbox">
+            <button onclick="ShowRuler(false); return false;">Hide Ruler</button>
+            <button onclick="ShowRuler(true); return false;">Show Ruler</button>
+          </div>
+          <div class="vbox">
+            <button onclick="ShowSidebar(false); return false;">Hide Sidebar</button>
+            <button onclick="ShowSidebar(true); return false;">Show Sidebar</button>
+          </div>
+          <div class="vbox">
+            <button onclick="ShowNavigator(false); return false;">Hide Navigator</button>
+            <button onclick="ShowNavigator(true); return false;">Show Navigator</button>
+          </div>
+        </div>
+      </div>
+      <div class="vbox framed">
+        <h3>Send UNO Commands</h3>
+        <div class="hbox">
+          <button onclick="sendBoldUNOCommand(); return false;">Send Bold UNO Command (an example without args)</button>
+          <button onclick="sendInsertBookMarkUNOCommand(); return false;">Send InsertBookmark UNO Command (an example with args)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="vbox">
+      <h3>Document type</h3>
+    </div>
+
+    <div class="vbox framed">
+      <div class="hbox">
+        <button onclick="selectApp('fodt');">Writer</button>
+        <button onclick="selectApp('ods');">Calc</button>
+        <button onclick="selectApp('fodp');">Impress</button>
+        <button onclick="selectApp('odg');">Draw</button>
+      </div>
+    </div>
 
     <h3>Document frame</h3>
     <h4>If the frame fails to load click <a id="link">here and accept security bits</a></h4>
     <h4>If the frame still fails to load ensure you have <code>localhost:*</code> included in your <code>net.frame_ancestors</code> in coolwsd.xml</h4>
-    <iframe id="frame" height="1000" width="1000"></iframe>
 
+    <div class="vbox">
+    <iframe id="frame" height="1000" allow="fullscreen"></iframe>
+    </div>
     <script>
       if (document.location.protocol == 'file:' || window.location.search == '') {
         document.getElementById("usage").style.display = "block";
         alert('Incorrect usage, please follow the instructions at the top of this page.');
       }
 
-      var query = '?';
-      if (window.location.search !== '')
-        query = window.location.search + '&';
-      query += 'NotWOPIButIframe=true';
+      var url = new URL(window.location);
+      var params = url.searchParams;
 
-      var path = window.location.pathname.substr(0, window.location.pathname.lastIndexOf('/') + 1) + 'cool.html';
-      var uriBase = window.location.protocol + '//' + window.location.host + path + query;
-      var iframe = document.getElementById("frame");
-      iframe.src = uriBase;
-      link.href = uriBase;
+      startCool(frameUrl, params.get("file_path"));
     </script>
   </body>
 </html>

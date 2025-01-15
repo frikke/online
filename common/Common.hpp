@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -32,10 +36,13 @@ constexpr int COMMAND_TIMEOUT_SECS = 5 * TRACE_MULTIPLIER;
 constexpr int COMMAND_TIMEOUT_MS = COMMAND_TIMEOUT_SECS * 1000;
 constexpr int CHILD_TIMEOUT_MS = COMMAND_TIMEOUT_MS;
 constexpr int CHILD_REBALANCE_INTERVAL_MS = CHILD_TIMEOUT_MS / 10;
+constexpr int CHILD_SPAWN_TIMEOUT_MS = CHILD_TIMEOUT_MS * 4;
 constexpr int POLL_TIMEOUT_MICRO_S = (COMMAND_TIMEOUT_MS / 5) * 1000;
+constexpr int POLL_FORKIT_TIMEOUT_SECS = 5;
 constexpr int WS_SEND_TIMEOUT_MS = 1000 * TRACE_MULTIPLIER;
+constexpr int CLIPBOARD_EXPIRY_MINUTES = 10;
 
-constexpr int TILE_ROUNDTRIP_TIMEOUT_MS = COMMAND_TIMEOUT_MS;
+constexpr int TILE_ROUNDTRIP_TIMEOUT_MS = 10 * TRACE_MULTIPLIER * 1000;
 
 /// Pipe and Socket read buffer size.
 /// Should be large enough for ethernet packets
@@ -45,6 +52,9 @@ constexpr long READ_BUFFER_SIZE = 64 * 1024;
 /// Message larger than this will be dropped as invalid
 /// or as intentionally flooding the server.
 constexpr int MAX_MESSAGE_SIZE = 2 * 1024 * READ_BUFFER_SIZE;
+
+/// Limits number of HTTP redirections to prevent endless redirection loops.
+static constexpr int HTTP_REDIRECTION_LIMIT = 21;
 
 constexpr const char JAILED_DOCUMENT_ROOT[] = "/tmp/user/docs/";
 constexpr const char CHILD_URI[] = "/coolws/child?";
@@ -71,15 +81,6 @@ constexpr const char UPLOADING_SUFFIX[] = "ing";
 /// name prefixed. And of course these threads are unrelated to the classes in
 /// the code: they are logical execution unit names.
 #define SHARED_DOC_THREADNAME_SUFFIX "broker_"
-
-/// The HTTP request User-Agent. Used only in Requests.
-#define HTTP_AGENT_STRING "COOLWSD HTTP Agent " COOLWSD_VERSION
-
-/// The WOPI User-Agent. Depricated: use HTTP_AGENT_STRING.
-#define WOPI_AGENT_STRING HTTP_AGENT_STRING
-
-/// The HTTP response Server. Used only in Responses.
-#define HTTP_SERVER_STRING "COOLWSD HTTP Server " COOLWSD_VERSION
 
 /// The client port number, both coolwsd and the kits have this.
 extern int ClientPortNumber;

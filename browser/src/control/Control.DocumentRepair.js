@@ -1,5 +1,14 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.DocumentRepair.
  */
 /* global _ */
@@ -94,7 +103,7 @@ L.Control.DocumentRepair = L.Control.extend({
 		return this;
 	},
 
-	createAction: function (type, index, comment, viewId, dateTime) {
+	createAction: function (type, index, comment, viewId, dateTime, action) {
 		this.actions.push({ 'text': comment, 'columns': [
 			type,
 			comment,
@@ -104,17 +113,17 @@ L.Control.DocumentRepair = L.Control.extend({
 			function (item) {
 				return { text: item };
 			}
-		), 'row': index});
+		), 'row': index, 'action': action});
 	},
 
-	fillAction: function (actions, type) {
+	fillAction: function (actions, type, action) {
 		for (var iterator = 0; iterator < actions.length; ++iterator) {
 			// No user name if the user in question is already disconnected.
 			var userName = actions[iterator].userName ? actions[iterator].userName : '';
 			if (parseInt(actions[iterator].viewId) === this._map._docLayer._viewId) {
 				userName = _('You');
 			}
-			this.createAction(type, actions[iterator].index, actions[iterator].comment, userName, actions[iterator].dateTime);
+			this.createAction(type, actions[iterator].index, actions[iterator].comment, userName, this.transformTimestamp(actions[iterator].dateTime), action);
 		}
 	},
 
@@ -157,8 +166,8 @@ L.Control.DocumentRepair = L.Control.extend({
 	},
 
 	fillActions: function (data) {
-		this.fillAction(data.Redo.actions, _('Redo'));
-		this.fillAction(data.Undo.actions, _('Undo'));
+		this.fillAction(data.Redo.actions, _('Redo'), 'Redo');
+		this.fillAction(data.Undo.actions, _('Undo'), 'Undo');
 	},
 
 	_onAction: function(element, action, data, index) {
@@ -166,7 +175,7 @@ L.Control.DocumentRepair = L.Control.extend({
 		if (element === 'treeview') {
 			var entry = data.entries[parseInt(index)];
 			this.selected = {
-				action: entry.columns[0].text,
+				action: entry.action,
 				index: parseInt(entry.row),
 			};
 			return;
@@ -197,6 +206,14 @@ L.Control.DocumentRepair = L.Control.extend({
 			value: index + 1
 		};
 		this._map.sendUnoCommand('.uno:' + action, command, true);
+	},
+
+	// Transform timestamp from ISO8601 to human readable format with Local time
+	transformTimestamp: function (timestamp) {
+		var d = new Date(timestamp.split(',')[0] + 'Z');
+		var dateOptions = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+		var formattedDateTime = d.toLocaleString(String.locale, dateOptions);
+		return formattedDateTime;
 	}
 });
 

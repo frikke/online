@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -38,17 +42,28 @@ public:
             {
                 LOG_TRC("Merging CSP directive [" << token << ']');
                 const auto parts = Util::split(token);
-                appendDirective(parts.first, parts.second);
+                appendDirective(std::string(parts.first), std::string(parts.second));
             }
         }
+    }
+
+    /// Append the given URL to a directive.
+    /// @value must be space-delimited and cannot have semicolon.
+    void appendDirectiveUrl(std::string directive, const std::string& url)
+    {
+        appendDirective(std::move(directive), Util::trimURI(url));
     }
 
     /// Append the given value to a directive.
     /// @value must be space-delimited and cannot have semicolon.
     void appendDirective(std::string directive, std::string value)
     {
-        LOG_ASSERT_MSG(value.find_first_of(';') == std::string::npos,
-                       "Unexpected semicolon in CSP policy directive");
+        if (value.find_first_of(';') != std::string::npos)
+        {
+            LOG_WRN("Unexpected semicolon in CSP source [" << value << "] for policy directive ["
+                    << directive << "] - ignoring it.");
+            return;
+        }
 
         Util::trim(directive);
         Util::trim(value);

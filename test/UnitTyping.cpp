@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,18 +13,18 @@
 
 #include <config.h>
 
-#include <random>
-#include <iostream>
-
+#include <COOLWSD.hpp>
 #include <Exceptions.hpp>
 #include <Log.hpp>
 #include <Unit.hpp>
 #include <UnitHTTP.hpp>
+#include <WebSocketSession.hpp>
 #include <helpers.hpp>
-#include <COOLWSD.hpp>
-
 #include <wsd/TileDesc.hpp>
-#include <net/WebSocketSession.hpp>
+#include <kit/KitQueue.hpp>
+
+#include <random>
+#include <iostream>
 
 using namespace ::helpers;
 
@@ -126,15 +130,15 @@ public:
         return TestResult::Ok;
     }
 
-    TestResult testMessageQueueMerging()
+    TestResult testKitQueueMerging()
     {
-        MessageQueue queue;
+        TilePrioritizer dummy;
+        KitQueue queue(dummy);
 
         queue.put("child-foo textinput id=0 text=a");
         queue.put("child-foo textinput id=0 text=b");
 
-        MessageQueue::Payload v;
-        v = queue.get();
+        auto v = queue.get();
 
         if (!queue.isEmpty())
         {
@@ -198,7 +202,7 @@ public:
         v = queue.get();
         if (!queue.isEmpty())
         {
-            LOG_ERR("MessageQueue contains more than was put into it");
+            LOG_ERR("KitQueue contains more than was put into it");
             return TestResult::Failed;
         }
 
@@ -401,7 +405,7 @@ public:
         if (res != TestResult::Ok)
             return res;
 
-        res = testMessageQueueMerging();
+        res = testKitQueueMerging();
         if (res != TestResult::Ok)
             return res;
 

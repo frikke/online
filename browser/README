@@ -7,6 +7,9 @@ This is the client part of Collabora Online.  For the server part, see the
 Build dependencies
 ------------------
 
+NodeJS is required. On Debian distros it can be installed through:
+apt install nodejs npm
+
 npm is provided by the nodejs package.
 
 npm should be at least 2.14, if not 3.x. Use `npm -v` to find the current version.
@@ -19,6 +22,21 @@ you have write access. If you want that, you need to have an ~/.npmrc with the
 line e.g.
 
     prefix=/opt/npm
+
+You may need to install prettier:
+npm install --save-dev --save-exact prettier
+
+Python3 and polib are needed by some translation and other scripts.
+In addition lxml is needed.
+
+If you have a venv setup, you can install polib in it using pip3:
+apt install python3-pip
+pip3 install polib
+pip3 install lxml
+
+Alternatively, you can install it to the system:
+apt install python3-polib
+apt install python3-lxml
 
 All of the dependency tree is locked in the repository, so there is no need to fetch
 data from npm registry at all. An npm install will use the tarballs in node_shrinkwrap/
@@ -136,14 +154,11 @@ API & events
 ------------
 
 #######################################################################
-# See /browser/reference.html for a better formatted documentation. #
-# See /wsd/reference.md for the HTTP API documentation.               #
+# The documentation below may be obsolete.                            #
+# See https://sdk.collaboraonline.com/ for the latest API reference.  #
 #######################################################################
 
 Search:
-    - API:
-        map.search(text, [backward])
-        map.highlightAll(text)
     - events:
         map.on('search', function (e) {}) (currently only fired when no search result is found) where:
             + e.originalPhrase = the phrase that has been searched for
@@ -163,8 +178,8 @@ Edit, view, readOnly:
     - API:
         map.setPermission('edit' | 'view' | 'readonly')
     - events:
-        map.on('updatepermission', function (e) {}) where:
-            + e.perm == 'edit' | 'view' | 'readonly'
+        app.events.on('updatepermission', function (e) {}) where:
+            + e.detail.perm == 'edit' | 'view' | 'readonly'
 
 Buttons like Bold, Italic, Strike through etc.
     - API:
@@ -217,10 +232,11 @@ Parts (like slides in presentation, or sheets in spreadsheets):
             + [e.part] - if the preview is for a part
             + e.docType
 
-Statusindicator (when the document is loading):
+progress (when the document is loading):
     - events
-        map.on('statusindicator', function (e) {}) where:
+        map.on('progress', function (e) {}) where:
             + e.statusType = 'start' | 'setvalue' | 'finish' | 'coolloaded' | 'alltilesloaded'
+	    + e.type == 'bg' for a background operation
             + e.value == a value from 0 to 100 indicating the status
               if the statusType is 'setvalue
             + 'coolloaded' is fired when the JS code is initialized and the document
@@ -331,14 +347,6 @@ Print:
         map.on('print', function (e) {}) where
             + e.url = file download url
 
-Contributing
-------------
-
-Code conventions:
-
-    * files should have unix line terminators (LF)
-    * tools to convert files: dos2unix or fromdos
-
 Implementation details
 ----------------------
 
@@ -387,10 +395,10 @@ x				menu-nb-hamburger > ul (calculated from jquery.smartmenus.js)
 -------------------------------------------
 		on the top
 -------------------------------------------
-1105			dialogs
+1105			dialogs, tooltips
 1001			mobile-edit-button
 1500			mobile-wizard (with class=menuwizard)
 1501			toolbar-hamburger (with class=menuwizard-opened)
-2000			vex-overlay // JSDialog overlay?
-2001			vex dialog (vex-content) // JSDialog content?
+2000			JSDialog overlay
+2001			JSDialog modal
 -------------------------------------------

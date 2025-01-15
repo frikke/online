@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,9 +11,17 @@
 
 #include <config.h>
 
+#include <common/Anonymizer.hpp>
+#include <common/ConfigUtil.hpp>
+#include <common/Crypto.hpp>
+#include <common/Util.hpp>
+
 #include <iostream>
 #include <iomanip>
+#include <pwd.h>
 #include <sstream>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sysexits.h>
 #include <termios.h>
 #include <unistd.h>
@@ -17,6 +29,7 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 
+#include <Poco/Crypto/RSAKey.h>
 #include <Poco/Exception.h>
 #include <Poco/File.h>
 #include <Poco/Util/Application.h>
@@ -24,9 +37,6 @@
 #include <Poco/Util/Option.h>
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/XMLConfiguration.h>
-
-#include <Util.hpp>
-#include <Crypto.hpp>
 
 using Poco::Util::Application;
 using Poco::Util::HelpFormatter;
@@ -37,6 +47,8 @@ using Poco::Util::XMLConfiguration;
 #define MIN_PWD_SALT_LENGTH 20
 #define MIN_PWD_ITERATIONS 1000
 #define MIN_PWD_HASH_LENGTH 20
+
+bool EnableExperimental = false;
 
 class CoolConfig final: public XMLConfiguration
 {
@@ -51,6 +63,8 @@ private:
     unsigned _pwdSaltLength = 128;
     unsigned _pwdIterations = 10000;
     unsigned _pwdHashLength = 128;
+    std::string _adminUser = "";
+    std::string _adminPwd = "";
 public:
 
     void setPwdSaltLength(unsigned pwdSaltLength) { _pwdSaltLength = pwdSaltLength; }
@@ -59,6 +73,10 @@ public:
     unsigned getPwdIterations() const { return _pwdIterations; }
     void setPwdHashLength(unsigned pwdHashLength) { _pwdHashLength = pwdHashLength; }
     unsigned getPwdHashLength() const { return _pwdHashLength; }
+    const std::string& getAdminUser() const { return _adminUser; }
+    void setAdminUser(const std::string& user) { _adminUser = user; }
+    const std::string& getAdminPwd() const { return _adminPwd; }
+    void setAdminPwd(const std::string& pwd) { _adminPwd = pwd; }
 };
 
 // Config tool to change coolwsd configuration (coolwsd.xml)
@@ -121,11 +139,13 @@ void Config::displayHelp()
               << "Commands: " << std::endl
               << "    migrateconfig [--old-config-file=<path>] [--config-file=<path>] [--write]" << std::endl
               << "    anonymize [string-1]...[string-n]" << std::endl
-              << "    set-admin-password" << std::endl
-#if ENABLE_SUPPORT_KEY
-              << "    set-support-key" << std::endl
-#endif
-              << "    set <key> <value>" << std::endl
+              << "    set-admin-password" << std::endl;
+    if constexpr (ConfigUtil::isSupportKeyEnabled())
+    {
+        std::cout << "    set-support-key" << std::endl;
+    }
+    std::cout << "    set <key> <value>" << std::endl
+              << "    generate-proof-key" << std::endl
               << "    update-system-template" << std::endl << std::endl;
 }
 
@@ -157,13 +177,22 @@ void Config::defineOptions(OptionSet& optionSet)
                         .required(false)
                         .repeatable(false)
                         .argument("number"));
-
-#if ENABLE_SUPPORT_KEY
-    optionSet.addOption(Option("support-key", "", "Specify the support key [set-support-key].")
+    optionSet.addOption(Option("user", "", "Admin user name [set-admin-password].")
                         .required(false)
                         .repeatable(false)
-                        .argument("key"));
-#endif
+                        .argument("name"));
+    optionSet.addOption(Option("password", "", "Admin user password [set-admin-password].")
+                        .required(false)
+                        .repeatable(false)
+                        .argument("password"));
+
+    if constexpr (ConfigUtil::isSupportKeyEnabled())
+    {
+        optionSet.addOption(Option("support-key", "", "Specify the support key [set-support-key].")
+                            .required(false)
+                            .repeatable(false)
+                            .argument("key"));
+    }
 
     optionSet.addOption(Option("anonymization-salt", "", "Anonymize strings with the given 64-bit salt instead of the one in the config file.")
                         .required(false)
@@ -221,6 +250,14 @@ void Config::handleOption(const std::string& optionName, const std::string& opti
         }
         _adminConfig.setPwdHashLength(len);
     }
+    else if (optionName == "user")
+    {
+        _adminConfig.setAdminUser(optionValue);
+    }
+    else if (optionName == "password")
+    {
+        _adminConfig.setAdminPwd(optionValue);
+    }
     else if (optionName == "support-key")
     {
         SupportKeyString = optionValue;
@@ -238,6 +275,7 @@ void Config::handleOption(const std::string& optionName, const std::string& opti
     }
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 int Config::main(const std::vector<std::string>& args)
 {
     if (args.empty())
@@ -253,45 +291,50 @@ int Config::main(const std::vector<std::string>& args)
 
     if (args[0] == "set-admin-password")
     {
-#if HAVE_PKCS5_PBKDF2_HMAC
         std::vector<unsigned char> pwdhash(_adminConfig.getPwdHashLength());
         std::vector<unsigned char> salt(_adminConfig.getPwdSaltLength());
         RAND_bytes(salt.data(), _adminConfig.getPwdSaltLength());
         std::stringstream stream;
 
         // Ask for admin username
-        std::string adminUser;
-        std::cout << "Enter admin username [admin]: ";
-        std::getline(std::cin, adminUser);
-        if (adminUser.empty())
-        {
-            adminUser = "admin";
+        if (_adminConfig.getAdminUser().empty()) {
+            std::string adminUser;
+            std::cout << "Enter admin username [admin]: ";
+            std::getline(std::cin, adminUser);
+            if (adminUser.empty())
+            {
+                adminUser = "admin";
+            }
+            _adminConfig.setAdminUser(adminUser);
         }
 
         // Ask for user password
-        termios oldTermios;
-        tcgetattr(STDIN_FILENO, &oldTermios);
-        termios newTermios = oldTermios;
-        // Disable user input mirroring on console for password input
-        newTermios.c_lflag &= ~ECHO;
-        tcsetattr(STDIN_FILENO, TCSANOW, &newTermios);
-        std::string adminPwd;
-        std::cout << "Enter admin password: ";
-        std::getline(std::cin, adminPwd);
-        std::string reAdminPwd;
-        std::cout << std::endl << "Confirm admin password: ";
-        std::getline(std::cin, reAdminPwd);
-        std::cout << std::endl;
-        // Set the termios to old state
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios);
-        if (adminPwd != reAdminPwd)
-        {
-            std::cout << "Password mismatch." << std::endl;
-            return EX_DATAERR;
+        if (_adminConfig.getAdminPwd().empty()) {
+            termios oldTermios;
+            tcgetattr(STDIN_FILENO, &oldTermios);
+            termios newTermios = oldTermios;
+            // Disable user input mirroring on console for password input
+            newTermios.c_lflag &= ~ECHO;
+            tcsetattr(STDIN_FILENO, TCSANOW, &newTermios);
+            std::string adminPwd;
+            std::cout << "Enter admin password: ";
+            std::getline(std::cin, adminPwd);
+            std::string reAdminPwd;
+            std::cout << std::endl << "Confirm admin password: ";
+            std::getline(std::cin, reAdminPwd);
+            std::cout << std::endl;
+            // Set the termios to old state
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios);
+            if (adminPwd != reAdminPwd)
+            {
+                std::cout << "Password mismatch." << std::endl;
+                return EX_DATAERR;
+            }
+            _adminConfig.setAdminPwd(adminPwd);
         }
 
         // Do the magic !
-        PKCS5_PBKDF2_HMAC(adminPwd.c_str(), -1,
+        PKCS5_PBKDF2_HMAC(_adminConfig.getAdminPwd().c_str(), -1,
                           salt.data(), _adminConfig.getPwdSaltLength(),
                           _adminConfig.getPwdIterations(),
                           EVP_sha512(),
@@ -314,19 +357,14 @@ int Config::main(const std::vector<std::string>& args)
         std::stringstream pwdConfigValue("pbkdf2.sha512.", std::ios_base::in | std::ios_base::out | std::ios_base::ate);
         pwdConfigValue << std::to_string(_adminConfig.getPwdIterations()) << '.';
         pwdConfigValue << saltHash << '.' << passwordHash;
-        _coolConfig.setString("admin_console.username", adminUser);
+        _coolConfig.setString("admin_console.username", _adminConfig.getAdminUser());
         _coolConfig.setString("admin_console.secure_password[@desc]",
                               "Salt and password hash combination generated using PBKDF2 with SHA512 digest.");
         _coolConfig.setString("admin_console.secure_password", pwdConfigValue.str());
 
         changed = true;
-#else
-        std::cerr << "This application was compiled with old OpenSSL. Operation not supported. You can use plain text password in /etc/coolwsd/coolwsd.xml." << std::endl;
-        return EX_UNAVAILABLE;
-#endif
     }
-#if ENABLE_SUPPORT_KEY
-    else if (args[0] == "set-support-key")
+    else if (ConfigUtil::isSupportKeyEnabled() && args[0] == "set-support-key")
     {
         std::string supportKeyString;
         if (SupportKeyStringProvided)
@@ -361,7 +399,6 @@ int Config::main(const std::vector<std::string>& args)
             changed = true;
         }
     }
-#endif
     else if (args[0] == "set")
     {
         if (args.size() == 3)
@@ -407,9 +444,11 @@ int Config::main(const std::vector<std::string>& args)
             std::cout << "Anonymization Salt: [" << AnonymizationSalt << "]." << std::endl;
         }
 
+        Anonymizer::initialize(true, AnonymizationSalt);
+
         for (std::size_t i = 1; i < args.size(); ++i)
         {
-            std::cout << '[' << args[i] << "]: " << Util::anonymizeUrl(args[i], AnonymizationSalt) << std::endl;
+            std::cout << '[' << args[i] << "]: " << Anonymizer::anonymizeUrl(args[i]) << std::endl;
         }
     }
     else if (args[0] == "migrateconfig")
@@ -440,6 +479,49 @@ int Config::main(const std::vector<std::string>& args)
                 std::cout << "Migration of old configuration failed." << std::endl;
         }
     }
+    else if (args[0] == "generate-proof-key")
+    {
+        std::string proofKeyPath =
+#if ENABLE_DEBUG
+            DEBUG_ABSSRCDIR
+#else
+            COOLWSD_CONFIGDIR
+#endif
+            "/proof_key";
+
+#if !ENABLE_DEBUG
+        struct passwd* pwd;
+        pwd = getpwnam(COOL_USER_ID);
+        if (pwd == NULL)
+        {
+            std::cerr << "User '" COOL_USER_ID
+                         "' does not exist. Please reinstall coolwsd package, or in case of manual "
+                         "installation from source, create the '" COOL_USER_ID "' user manually."
+                      << std::endl;
+            return EX_NOUSER;
+        }
+#endif
+
+        Poco::File proofKeyFile(proofKeyPath);
+        if (!proofKeyFile.exists())
+        {
+            Poco::Crypto::RSAKey proofKey =
+                Poco::Crypto::RSAKey(Poco::Crypto::RSAKey::KeyLength::KL_2048,
+                                     Poco::Crypto::RSAKey::Exponent::EXP_LARGE);
+            proofKey.save(proofKeyPath + ".pub", proofKeyPath, "" /*no password*/);
+#if !ENABLE_DEBUG
+            if (chmod(proofKeyPath.c_str(), S_IRUSR | S_IWUSR) != 0)
+                std::cerr << "Changing mode of " + proofKeyPath + " failed: " << strerror(errno) << std::endl;
+            if (chown(proofKeyPath.c_str(), pwd->pw_uid, -1) != 0)
+                std::cerr << "Changing owner of " + proofKeyPath + " failed: " << strerror(errno) << std::endl;
+#endif
+        }
+        else
+        {
+            std::cerr << proofKeyPath << " exists already. New proof key was not generated."
+                      << std::endl;
+        }
+    }
     else
     {
         std::cerr << "No such command, \"" << args[0]  << '"' << std::endl;
@@ -456,6 +538,7 @@ int Config::main(const std::vector<std::string>& args)
     return retval;
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 POCO_APP_MAIN(Config);
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

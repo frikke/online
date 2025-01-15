@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -52,6 +56,7 @@
 #include <cassert>
 #include <chrono>
 #include <iomanip>
+#include <fstream>
 
 #include "Log.hpp"
 #include "TraceEvent.hpp"
@@ -177,15 +182,16 @@ inline bool impl_encodeSubBufferToPNG(unsigned char* pixmap, size_t startX, size
         return false;
     }
 
-#if MOBILEAPP
-    png_set_compression_level(png_ptr, Z_BEST_SPEED);
-#else
-    // Level 4 gives virtually identical compression
-    // ratio to level 6, but is between 5-10% faster.
-    // Level 3 runs almost twice as fast, but the
-    // output is typically 2-3x larger.
-    png_set_compression_level(png_ptr, 4);
-#endif
+    if constexpr (Util::isMobileApp())
+        png_set_compression_level(png_ptr, Z_BEST_SPEED);
+    else
+    {
+        // Level 4 gives virtually identical compression
+        // ratio to level 6, but is between 5-10% faster.
+        // Level 3 runs almost twice as fast, but the
+        // output is typically 2-3x larger.
+        png_set_compression_level(png_ptr, 4);
+    }
 
     png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
@@ -238,10 +244,10 @@ inline bool encodeSubBufferToPNG(unsigned char* pixmap, size_t startX, size_t st
             = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
         static std::chrono::milliseconds totalDuration;
-        static int nCalls = 0;
+        static int calls = 0;
 
         totalDuration += duration;
-        ++nCalls;
+        ++calls;
 
         static uint64_t totalPixelBytes = 0;
         static uint64_t totalOutputBytes = 0;
@@ -250,9 +256,9 @@ inline bool encodeSubBufferToPNG(unsigned char* pixmap, size_t startX, size_t st
         totalOutputBytes += output.size();
 
         LOG_TRC("PNG compression took "
-                << duration << " (" << output.size() << " bytes from " << (width * height * 4) << "). Average after " << nCalls
-                << " calls: " << (totalDuration.count() / static_cast<double>(nCalls)) << "ms, "
-                << (totalOutputBytes / static_cast<double>(nCalls)) << " bytes, "
+                << duration << " (" << output.size() << " bytes from " << (width * height * 4) << "). Average after " << calls
+                << " calls: " << (totalDuration.count() / static_cast<double>(calls)) << "ms, "
+                << (totalOutputBytes / static_cast<double>(calls)) << " bytes, "
                 << std::setprecision(2) << (100. * totalOutputBytes / totalPixelBytes) << "% compression.");
     }
 
@@ -335,6 +341,25 @@ std::vector<png_bytep> decodePNG(std::stringstream& stream, png_uint_32& height,
     png_destroy_read_struct(&ptrPNG, &ptrInfo, &ptrEnd);
 
     return rows;
+}
+
+inline std::vector<char> loadPng(const char *relpath,
+                                 uint32_t& height,
+                                 uint32_t& width,
+                                 uint32_t& rowBytes)
+{
+    std::ifstream file(relpath);
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+    png_uint_32 h, w, rb;
+    std::vector<png_bytep> rows = decodePNG(buffer, h, w, rb);
+    height = h; width = w; rowBytes = rb;
+    std::vector<char> output;
+    for (png_uint_32 y = 0; y < height; ++y)
+        for (png_uint_32 i = 0; i < width * 4; ++i)
+            output.push_back(rows[y][i]);
+    return output;
 }
 
 }

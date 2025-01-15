@@ -1,13 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
 #pragma once
-
-#include <config.h>
 
 #include <cassert>
 #include <cerrno>
@@ -17,16 +19,14 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
-#include <atomic>
-#include <functional>
-#include <memory>
+#include <limits>
 #include <mutex>
 #include <set>
 #include <sstream>
 #include <string>
 #include <map>
+#include <string_view>
 #include <utility>
-#include <inttypes.h>
 #include <cctype>
 
 #include <memory.h>
@@ -41,6 +41,8 @@
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
 
 #include <StringVector.hpp>
+
+#define STRINGIFY(X) #X
 
 #if CODE_COVERAGE
 extern "C"
@@ -72,25 +74,33 @@ inline std::ostream& operator<<(std::ostream& os, const std::chrono::microsecond
     return os;
 }
 
+template <typename S, typename U, typename V>
+inline S& operator<<(S& stream, const std::pair<U, V>& pair)
+{
+    stream << pair.first << ": " << pair.second;
+    return stream;
+}
+
 namespace Util
 {
     namespace rng
     {
+        /// Returns a global handle to /dev/urandom - do not close it.
+        int getURandom();
+
+        uint_fast64_t getSeed();
         void reseed();
         unsigned getNext();
 
         /// Generate an array of random characters.
-        std::vector<char> getBytes(const size_t length);
+        std::vector<char> getBytes(size_t length);
 
         /// Generate a string of random characters.
-        std::string getHexString(const size_t length);
-
-        /// Generate a hard random string of characters.
-        std::string getHardRandomHexString(const size_t length);
+        std::string getHexString(size_t length);
 
         /// Generates a random string suitable for
         /// file/directory names.
-        std::string getFilename(const size_t length);
+        std::string getFilename(size_t length);
     }
 
     /// A utility class to track relative time from some arbitrary
@@ -103,6 +113,10 @@ namespace Util
         {
         }
 
+        /// Returns the start-time.
+        std::chrono::steady_clock::time_point startTime() const { return _startTime; }
+
+        /// Resets the start-time to now.
         void restart() { _startTime = std::chrono::steady_clock::now(); }
 
         /// Returns the time that has elapsed since starting, in the units required.
@@ -115,25 +129,58 @@ namespace Util
         }
 
         /// Returns true iff at least the given amount of time has elapsed.
-        template <typename T> bool elapsed(T duration) const
+        template <typename T>
+        bool
+        elapsed(T duration,
+                std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) const
         {
-            return elapsed<std::chrono::nanoseconds>() >= duration;
+            return elapsed<std::chrono::nanoseconds>(now) >= duration;
         }
 
     private:
         std::chrono::steady_clock::time_point _startTime;
     };
 
-#if !MOBILEAPP
-    /// Get number of threads in this process or -1 on error
-    int getProcessThreadCount();
+    /// A utility class to time using system metrics
+    class SysStopwatch
+    {
+    public:
+        SysStopwatch();
+        void restart();
+        std::chrono::microseconds elapsedTime() const;
 
-    /// Spawn a process if stdInput is non-NULL it contains a writable descriptor
-    /// to send data to the child.
-    int spawnProcess(const std::string &cmd, const StringVector &args,
-                     const std::vector<int>* fdsToKeep = nullptr, int *stdInput = nullptr);
+    private:
+        static void readTime(uint64_t &cpu, uint64_t &sys);
+        uint64_t _startCPU;
+        uint64_t _startSys;
+    };
 
-#endif
+    class DirectoryCounter
+    {
+        void *_tasks;
+    public:
+        DirectoryCounter(const char *procPath);
+        ~DirectoryCounter();
+        /// Get number of items in this directory or -1 on error
+        int count();
+    };
+
+    /// Needs to open dirent before forking in Kit process
+    class ThreadCounter : public DirectoryCounter
+    {
+    public:
+        ThreadCounter() : DirectoryCounter("/proc/self/task") {}
+    };
+
+    /// Needs to open dirent before forking in Kit process
+    class FDCounter : public DirectoryCounter
+    {
+    public:
+        FDCounter() : DirectoryCounter("/proc/self/fd") {}
+    };
+
+    /// Spawn a process.
+    int spawnProcess(const std::string &cmd, const StringVector &args);
 
     /// Convert unsigned char data to hex.
     /// @buffer can be either std::vector<char> or std::string.
@@ -159,8 +206,7 @@ namespace Util
     }
 
     /// Hex to unsigned char
-    template <typename T>
-    bool dataFromHexString(const std::string& hexString, T& data)
+    template <typename T> bool dataFromHexString(const std::string_view hexString, T& data)
     {
         if (hexString.length() % 2 != 0)
         {
@@ -181,14 +227,77 @@ namespace Util
         return true;
     }
 
-    /// Encode an integral ID into a string, with padding support.
-    std::string encodeId(const std::uint64_t number, const int padding = 5);
-    /// Decode an integral ID from a string.
-    std::uint64_t decodeId(const std::string& str);
+    /// Exception safe scope count/guard
+    struct ReferenceHolder
+    {
+        int &_count;
+        ReferenceHolder(int &count) : _count(count) { _count++; }
+        ~ReferenceHolder() { _count--; }
+    };
+
+    /// Hex-encode an integral ID into a buffer, with padding support.
+    inline std::string_view encodeId(char* buffer, std::size_t size, const std::uint64_t number,
+                                     int width, char pad = '0')
+    {
+        // Skip leading (high-order) zeros, if any.
+        int highNibble = (2 * sizeof(number) - 1) * 4;
+        while ((number & (0xfUL << highNibble)) == 0)
+        {
+            highNibble -= 4;
+            if (highNibble <= 0)
+                break;
+        }
+
+        // Pad, if necessary.
+        highNibble = std::min<int>(size - 1, highNibble / 4) * 4;
+        width = std::min<int>(size, width);
+        int outIndex = 0;
+        const int hexBytes = (highNibble / 4) + 1;
+        for (; width > hexBytes; --width)
+        {
+            buffer[outIndex++] = pad;
+        }
+
+        // Hexify the remaining, if any.
+        constexpr const char* const Hex = "0123456789abcdef";
+        while (highNibble >= 0)
+        {
+            const auto byte = static_cast<unsigned char>((number >> highNibble) & 0xf);
+            buffer[outIndex++] = (Hex[byte >> 4] << 8) | Hex[byte & 0xf];
+            highNibble -= 4;
+        }
+
+        // Return a reference to the given buffer.
+        return std::string_view(buffer, outIndex);
+    }
+
+    /// Hex-encode an integral ID into a string, with padding support.
+    inline std::string encodeId(const std::uint64_t number, int width = 5, char pad = '0')
+    {
+        char buffer[32];
+        return std::string(encodeId(buffer, sizeof(buffer), number, width, pad));
+    }
+
+    /// Hex-encode an integral ID into a stream, with padding support.
+    inline std::ostringstream& encodeId(std::ostringstream& oss, const std::uint64_t number,
+                                        int width = 5, char pad = '0')
+    {
+        char buffer[32];
+        oss << encodeId(buffer, sizeof(buffer), number, width, pad);
+        return oss;
+    }
+
+    /// Decode the hex-string into an ID. The reverse of encodeId().
+    inline std::uint64_t decodeId(const std::string_view str)
+    {
+        std::uint64_t id = 0;
+        std::stringstream ss;
+        ss << std::hex << str;
+        ss >> id;
+        return id;
+    }
 
     bool windowingAvailable();
-
-#if !defined(BUILDING_TESTS) && !defined(KIT_IN_PROCESS) && !MOBILEAPP
 
     /// Send a message to all clients.
     void alertAllUsers(const std::string& msg);
@@ -199,51 +308,45 @@ namespace Util
     /// coolwsd for redistribution. (This function must be implemented separately in each program
     /// that uses it, it is not in Util.cpp.)
     void alertAllUsers(const std::string& cmd, const std::string& kind);
-#else
-
-    /// No-op implementation in the test programs
-    inline void alertAllUsers(const std::string&)
-    {
-    }
-
-    /// No-op implementation in the test programs
-    inline void alertAllUsers(const std::string&, const std::string&)
-    {
-    }
-#endif
 
     /// Assert that a lock is already taken.
-    template <typename T>
-    void assertIsLocked(const T& lock)
+    template <typename T> void assertIsLocked([[maybe_unused]] const T& lock)
     {
-#ifdef NDEBUG
-        (void) lock;
-#else
+#ifndef NDEBUG
         assert(lock.owns_lock());
 #endif
     }
 
-    inline void assertIsLocked(std::mutex& mtx)
+    inline void assertIsLocked([[maybe_unused]] std::mutex& mtx)
     {
-#ifdef NDEBUG
-        (void) mtx;
-#else
+#ifndef NDEBUG
         assert(!mtx.try_lock());
 #endif
     }
 
-#if !MOBILEAPP
     /// Print given number of bytes in human-understandable form (KB,MB, etc.)
-    std::string getHumanizedBytes(unsigned long nBytes);
+    std::string getHumanizedBytes(unsigned long bytes);
 
     /// Returns the total physical memory (in kB) available in the system
     size_t getTotalSystemMemoryKb();
 
+    /// Returns the numerical content of a file at @path
+    std::size_t getFromFile(const char *path);
+
+    /// Returns the cgroup's memory limit, or 0 if not available in bytes
+    std::size_t getCGroupMemLimit();
+
+    /// Returns the cgroup's soft memory limit, or 0 if not available in bytes
+    std::size_t getCGroupMemSoftLimit();
+
     /// Returns the process PSS in KB (works only when we have perms for /proc/pid/smaps).
-    size_t getMemoryUsagePSS(const pid_t pid);
+    size_t getMemoryUsagePSS(pid_t pid);
 
     /// Returns the process RSS in KB.
-    size_t getMemoryUsageRSS(const pid_t pid);
+    size_t getMemoryUsageRSS(pid_t pid);
+
+    /// Returns the number of current threads, or zero on error
+    size_t getCurrentThreadCount();
 
     /// Returns the RSS and PSS of the current process in KB.
     /// Example: "procmemstats: pid=123 rss=12400 pss=566"
@@ -253,16 +356,21 @@ namespace Util
     /// returns them as a pair in the same order
     std::pair<size_t, size_t> getPssAndDirtyFromSMaps(FILE* file);
 
-    size_t getCpuUsage(const pid_t pid);
+    /// Returns the total PSS usage of the process and all its children.
+    std::size_t getProcessTreePss(pid_t pid);
 
-    size_t getStatFromPid(const pid_t pid, int ind);
+    size_t getCpuUsage(pid_t pid);
+
+    size_t getStatFromPid(pid_t pid, int ind);
 
     /// Sets priorities for a given pid & the current thread
-    void setProcessAndThreadPriorities(const pid_t pid, int prio);
-#endif
+    void setProcessAndThreadPriorities(pid_t pid, int prio);
 
     /// Replace substring @a in string @s with string @b.
     std::string replace(std::string s, const std::string& a, const std::string& b);
+
+    /// Replace any characters in @a matching characters in @b with replacement chars in @c and return
+    std::string replaceAllOf(std::string_view str, std::string_view match, std::string_view repl);
 
     std::string formatLinesForLog(const std::string& s);
 
@@ -276,21 +384,23 @@ namespace Util
     long getThreadId();
 #endif
 
-    /// Get version information
+    void killThreadById(int tid, int signal);
+
+    /// Returns the COOL Version number string.
+    std::string getCoolVersion();
+
+    /// Returns the COOL Version Hash string.
+    std::string getCoolVersionHash();
+
+    /// Get version information, that is, both version and hash.
     void getVersionInfo(std::string& version, std::string& hash);
 
     ///< A random hex string that identifies the current process.
     const std::string& getProcessIdentifier();
 
-    std::string getVersionJSON(bool enableExperimental);
+    std::string getVersionJSON(bool enableExperimental, const std::string& timezone);
 
-    /// Return a string that is unique across processes and calls.
-    std::string UniqueId();
-
-    // Extract all json entries into a map.
-    std::map<std::string, std::string> JsonToMap(const std::string& jsonString);
-
-    inline unsigned short hexFromByte(unsigned char byte)
+    inline constexpr unsigned short hexFromByte(unsigned char byte)
     {
         constexpr auto hex = "0123456789ABCDEF";
         return (hex[byte >> 4] << 8) | hex[byte & 0xf];
@@ -316,9 +426,9 @@ namespace Util
         return bytesToHexString(reinterpret_cast<const uint8_t*>(data), size);
     }
 
-    inline std::string bytesToHexString(const std::string& s)
+    inline std::string bytesToHexString(const std::string_view str)
     {
-        return bytesToHexString(s.c_str(), s.size());
+        return bytesToHexString(str.data(), str.size());
     }
 
     inline int hexDigitFromChar(char c)
@@ -360,9 +470,9 @@ namespace Util
     }
 
     // for debugging validation only.
-    inline bool isValidUtf8(const std::string& s)
+    inline bool isValidUtf8(const std::string_view str)
     {
-        return Util::isValidUtf8((unsigned char *)s.c_str(), s.size()) > s.size();
+        return Util::isValidUtf8((unsigned char*)str.data(), str.size()) > str.size();
     }
 #endif
 
@@ -390,9 +500,9 @@ namespace Util
         return hexStringToBytes(reinterpret_cast<const uint8_t*>(data), size);
     }
 
-    inline std::string hexStringToBytes(const std::string& s)
+    inline std::string hexStringToBytes(const std::string_view str)
     {
-        return hexStringToBytes(s.c_str(), s.size());
+        return hexStringToBytes(str.data(), str.size());
     }
 
     /// Dump a line of data as hex.
@@ -495,45 +605,18 @@ namespace Util
         return oss.str();
     }
 
-    size_t findInVector(const std::vector<char>& tokens, const char *cstring);
+    size_t findInVector(const std::vector<char>& tokens, const char *cstring, std::size_t offset = 0);
 
-    /// Trim spaces from the left. Just spaces.
-    inline std::string& ltrim(std::string& s)
-    {
-        const size_t pos = s.find_first_not_of(' ');
-        if (pos != std::string::npos)
-        {
-            s = s.substr(pos);
-        }
-
-        return s;
-    }
-
-    /// Trim spaces from the left and copy. Just spaces.
-    inline std::string ltrimmed(const std::string& s)
-    {
-        const size_t pos = s.find_first_not_of(' ');
-        if (pos != std::string::npos)
-        {
-            return s.substr(pos);
-        }
-
-        return s;
-    }
-
-    inline std::string& trim(std::string& s, const char ch)
+    /// Trim trailing characters (on the right).
+    inline std::string_view rtrim(const std::string_view s, const char ch)
     {
         const size_t last = s.find_last_not_of(ch);
         if (last != std::string::npos)
         {
-            s = s.substr(0, last + 1);
-        }
-        else
-        {
-            s.clear();
+            return s.substr(0, last + 1);
         }
 
-        return s;
+        return std::string_view();
     }
 
     /// Trim spaces from both left and right. Just spaces.
@@ -594,30 +677,6 @@ namespace Util
     inline std::string trimmed(const char* s)
     {
         return trimmed(std::string(s));
-    }
-
-    /// Return true iff s starts with t.
-    inline bool startsWith(const std::string& s, const std::string& t)
-    {
-        return s.length() >= t.length() && memcmp(s.c_str(), t.c_str(), t.length()) == 0;
-    }
-
-    /// Return true iff s starts with t.
-    inline bool startsWith(const std::string& s, const char* t)
-    {
-        if (t != nullptr && !s.empty())
-        {
-            const size_t len = std::strlen(t);
-            return s.length() >= len && memcmp(s.c_str(), t, len) == 0;
-        }
-
-        return false;
-    }
-
-    /// Return true iff s ends with t.
-    inline bool endsWith(const std::string& s, const std::string& t)
-    {
-        return equal(t.rbegin(), t.rend(), s.rbegin());
     }
 
 #ifdef IOS
@@ -992,22 +1051,30 @@ int main(int argc, char**argv)
     }
 
     /// Split a string in two at the delimiter, removing it.
-    inline
-    std::pair<std::string, std::string> split(const char* s, const int length, const char delimiter = ' ', bool removeDelim = true)
+    inline std::pair<std::string_view, std::string_view>
+    split(const char* s, const int length, const char delimiter = ' ', bool removeDelim = true)
     {
         const size_t size = getDelimiterPosition(s, length, delimiter);
 
-        std::string after;
-        int after_pos = size + (removeDelim? 1: 0);
+        std::string_view after;
+        const int after_pos = size + (removeDelim ? 1 : 0);
         if (after_pos < length)
-            after = std::string(s + after_pos, length - after_pos);
+            after = std::string_view(s + after_pos, length - after_pos);
 
-        return std::make_pair(std::string(s, size), after);
+        return std::make_pair(std::string_view(s, size), after);
     }
 
     /// Split a string in two at the delimiter, removing it.
-    inline
-    std::pair<std::string, std::string> split(const std::string& s, const char delimiter = ' ', bool removeDelim = true)
+    inline std::pair<std::string, std::string>
+    split(const std::string&& str, const char delimiter = ' ', bool removeDelim = true)
+    {
+        const auto& pair = split(str.data(), str.size(), delimiter, removeDelim);
+        return std::make_pair(std::string(pair.first), std::string(pair.second));
+    }
+
+    /// Split a string in two at the delimiter, removing it.
+    inline std::pair<std::string_view, std::string_view>
+    split(const std::string& s, const char delimiter = ' ', bool removeDelim = true)
     {
         return split(s.c_str(), s.size(), delimiter, removeDelim);
     }
@@ -1063,37 +1130,12 @@ int main(int argc, char**argv)
     /// All components are optional, depending on what the URL represents (can be a unix path).
     std::tuple<std::string, std::string, std::string, std::string> splitUrl(const std::string& url);
 
-    /// Check for the URI scheme validity.
-    /// For now just a basic sanity check, can be extended if necessary.
-    bool isValidURIScheme(const std::string& scheme);
+    /// Remove all but scheme://hostname:port/ from a URI.
+    std::string trimURI(const std::string& uri);
 
-    /// Check for the URI host validity.
-    /// For now just a basic sanity check, can be extended if necessary.
-    bool isValidURIHost(const std::string& host);
-
-    /// Encode a URI with the JS-compatible reserved characters.
-    std::string encodeURIComponent(const std::string& uri,
-                                   const std::string& reserved = ",/?:@&=+$#");
-
-    /// Decode a URI encoded with encodeURIComponent.
-    std::string decodeURIComponent(const std::string& uri);
-
-    /// Anonymize a sensitive string to avoid leaking it.
-    /// Called on strings to be logged or exposed.
-    std::string anonymize(const std::string& text, const std::uint64_t nAnonymizationSalt);
-
-    /// Sets the anonymized version of a given plain-text string.
-    /// After this, 'anonymize(plain)' will return 'anonymized'.
-    void mapAnonymized(const std::string& plain, const std::string& anonymized);
-
-    /// Clears the shared state of mapAnonymized() / anonymize().
-    void clearAnonymized();
-
-    /// Anonymize the basename of filenames only, preserving the path and extension.
-    std::string anonymizeUrl(const std::string& url, const std::uint64_t nAnonymizationSalt);
-
-    /// Extract and return the filename given a url or path.
-    std::string getFilenameFromURL(const std::string& url);
+    /// Cleanup a filename replacing anything potentially problematic
+    /// either for a URL or for a file path
+    std::string cleanupFilename(const std::string &filename);
 
     /// Return true if the subject matches in given set. It uses regex
     /// Mainly used to match WOPI hosts patterns
@@ -1181,45 +1223,61 @@ int main(int argc, char**argv)
         std::set<std::string> _denied;
     };
 
-    /// A logical constant that is allowed to initialize
-    /// exactly once and checks usage before initialization.
-    template <typename T>
-    class RuntimeConstant
+    /// Simple backtrace capture
+    /// Use case, e.g. streaming up to 20 frames to log: `LOG_TRC( Util::Backtrace::get(20) );`
+    /// Enabled for !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
+    /// Using
+    /// - <https://www.man7.org/linux/man-pages/man3/backtrace.3.html>
+    /// - <https://gcc.gnu.org/onlinedocs/libstdc++/manual/ext_demangling.html>
+    class Backtrace
     {
-        T _value;
-        std::atomic<bool> _initialized;
+    public:
+        struct Symbol
+        {
+            std::string blob;
+            std::string mangled;
+            std::string offset;
+            std::string demangled;
+            std::string toString() const;
+            std::string toMangledString() const;
+            bool isDemangled() const { return !demangled.empty(); }
+        };
+
+    private:
+        int skipFrames;
+        /// Stack frames {address, symbol}
+        std::vector<std::pair<void*, Symbol>> _frames;
+
+        static bool separateRawSymbol(const std::string& raw, Symbol& s);
 
     public:
-        RuntimeConstant()
-            : _value()
-            , _initialized(false)
+        /// Produces a backtrace instance from current stack position
+        Backtrace(int maxFrames = 50, int skip = 1);
+
+        /// Produces a backtrace instance from current stack position
+        static Backtrace get(const int maxFrames = 50, const int skip = 2)
         {
+            Backtrace bt(maxFrames, skip);
+            return bt;
         }
 
-        /// Use a compile-time const instead.
-        RuntimeConstant(const T& value) = delete;
+        /// Sends captured backtrace to given ostream
+        std::ostream& send(std::ostream& os) const;
 
-        const T& get()
+        /// Produces a string representation, one line per frame
+        std::string toString() const;
+
+        /* constexpr */ size_t size() const { return _frames.size(); }
+        /* constexpr */ const Symbol& operator[](size_t idx) const
         {
-            if (_initialized)
-            {
-                return _value;
-            }
-
-            throw std::runtime_error("RuntimeConstant instance read before being initialized.");
-        }
-
-        void set(const T& value)
-        {
-            assert(!_initialized);
-
-            _initialized = true;
-            _value = value;
+            return _frames[idx].second;
         }
     };
 
     //// Return current time in HTTP format.
     std::string getHttpTimeNow();
+
+    std::string getTimeNow(const char* format);
 
     //// Return time in HTTP format.
     std::string getHttpTime(std::chrono::system_clock::time_point time);
@@ -1296,6 +1354,18 @@ int main(int argc, char**argv)
      */
     bool isFuzzing();
 
+    constexpr bool isMobileApp()
+    {
+#ifdef MOBILEAPP
+        return MOBILEAPP;
+#else
+        return false;
+#endif
+    }
+
+    void setKitInProcess(bool value);
+    bool isKitInProcess();
+
     /**
      * Splits string into vector<string>. Does not accept referenced variables for easy
      * usage like (splitString("test", ..)) or (splitString(getStringOnTheFly(), ..))
@@ -1323,16 +1393,14 @@ int main(int argc, char**argv)
      * Converts vector of strings to map. Strings should have formed like this: key + delimiter + value.
      * In case of a misformed string or zero length vector, passes that item and warns the developer.
      */
-    std::map<std::string, std::string> stringVectorToMap(std::vector<std::string> sVector, const char delimiter);
+    std::map<std::string, std::string> stringVectorToMap(const std::vector<std::string>& strvector, char delimiter);
 
-#if !MOBILEAPP
     // If OS is not mobile, it must be Linux.
     std::string getLinuxVersion();
-#endif
 
     /// Convert a string to 32-bit signed int.
     /// Returns the parsed value and a boolean indicating success or failure.
-    inline std::pair<std::int32_t, bool> i32FromString(const std::string& input)
+    inline std::pair<std::int32_t, bool> i32FromString(const std::string_view input)
     {
         const char* str = input.data();
         char* endptr = nullptr;
@@ -1343,7 +1411,7 @@ int main(int argc, char**argv)
 
     /// Convert a string to 32-bit signed int. On failure, returns the default
     /// value, and sets the bool to false (to signify that parsing had failed).
-    inline std::pair<std::int32_t, bool> i32FromString(const std::string& input,
+    inline std::pair<std::int32_t, bool> i32FromString(const std::string_view input,
                                                        const std::int32_t def)
     {
         const auto pair = i32FromString(input);
@@ -1352,7 +1420,7 @@ int main(int argc, char**argv)
 
     /// Convert a string to 64-bit unsigned int.
     /// Returns the parsed value and a boolean indicating success or failure.
-    inline std::pair<std::uint64_t, bool> u64FromString(const std::string& input)
+    inline std::pair<std::uint64_t, bool> u64FromString(const std::string_view input)
     {
         const char* str = input.data();
         char* endptr = nullptr;
@@ -1363,7 +1431,7 @@ int main(int argc, char**argv)
 
     /// Convert a string to 64-bit unsigned int. On failure, returns the default
     /// value, and sets the bool to false (to signify that parsing had failed).
-    inline std::pair<std::uint64_t, bool> u64FromString(const std::string& input,
+    inline std::pair<std::uint64_t, bool> u64FromString(const std::string_view input,
                                                         const std::uint64_t def)
     {
         const auto pair = u64FromString(input);
@@ -1388,21 +1456,15 @@ int main(int argc, char**argv)
     }
 
     /// Case insensitive comparison of two strings.
-    template <std::size_t N> inline bool iequal(const std::string& lhs, const char (&rhs)[N])
+    template <std::size_t N> inline bool iequal(const std::string_view lhs, const char (&rhs)[N])
     {
-        return iequal(lhs.c_str(), lhs.size(), rhs, N - 1); // Minus null termination.
+        return iequal(lhs.data(), lhs.size(), rhs, N - 1); // Minus null termination.
     }
 
     /// Case insensitive comparison of two strings.
-    inline bool iequal(const std::string& lhs, const std::string& rhs)
+    inline bool iequal(const std::string_view lhs, const std::string_view rhs)
     {
-        return iequal(lhs.c_str(), lhs.size(), rhs.c_str(), rhs.size());
-    }
-
-    /// Get system_clock now in milliseconds.
-    inline int64_t getNowInMS()
-    {
-        return std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+        return iequal(lhs.data(), lhs.size(), rhs.data(), rhs.size());
     }
 
     /// Convert a vector to a string. Useful for conversion in templates.
@@ -1428,15 +1490,25 @@ int main(int argc, char**argv)
         return std::string(s);
     }
 
-    /**
-     * Constructs an object of type T and wraps it in a std::unique_ptr.
-     *
-     * Can be replaced by std::make_unique when we allow C++14.
-     */
-    template<typename T, typename... Args>
-    typename std::unique_ptr<T> make_unique(Args&& ... args)
+    /// Concatenate the given elements in a container to each other using
+    /// the delimiter of choice.
+    template <typename T, typename U = const char*>
+    inline std::string join(const T& elements, const U& delimiter = ", ")
     {
-        return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+        std::ostringstream oss;
+        bool first = true;
+        for (const auto& elem : elements)
+        {
+            if (!first)
+            {
+                oss << delimiter;
+            }
+
+            oss << elem;
+            first = false;
+        }
+
+        return oss.str();
     }
 
     /// Dump an object that supports .dumpState into a string.
@@ -1446,6 +1518,25 @@ int main(int argc, char**argv)
         std::ostringstream oss;
         object.dumpState(oss, indent);
         return oss.str().substr(indent.size());
+    }
+
+    /// Stringify elements from a container of pairs with a delimiter to a stream.
+    template <typename S, typename T>
+    void joinPair(S& stream, const T& container, const char* delimiter = " / ")
+    {
+        unsigned i = 0;
+        for (const auto& pair : container)
+        {
+            stream << (i++ ? delimiter : "") << pair;
+        }
+    }
+
+    /// Stringify elements from a container of pairs with a delimiter to string.
+    template <typename T> std::string joinPair(const T& container, const char* delimiter = " / ")
+    {
+        std::ostringstream oss;
+        joinPair(oss, container, delimiter);
+        return oss.str();
     }
 
     /// Asserts in the debug builds, otherwise just logs.
@@ -1465,11 +1556,23 @@ int main(int argc, char**argv)
      */
     int safe_atoi(const char* p, int len);
 
+    /// Sleep based on count of seconds in env. var
+    void sleepFromEnvIfSet(const char *domain, const char *envVar);
+
     /// Close logs and forcefully exit with the given exit code.
     /// This calls std::_Exit, which terminates the program without cleaning up
     /// static instances (i.e. anything registered with `atexit' or `on_exit').
     // coverity[+kill]
     void forcedExit(int code) __attribute__ ((__noreturn__));
+
+    /// Returns the result of malloc_info, which is an XML string with all the arenas.
+    std::string getMallocInfo();
+
+    // std::size isn't available on our android baseline so use this
+    // solution as a workaround
+    template <typename T, size_t S> char (&n_array_size( T(&)[S] ))[S];
+
+#define N_ELEMENTS(arr)     (sizeof(Util::n_array_size(arr)))
 
 } // end namespace Util
 
@@ -1478,5 +1581,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::chrono::system_cloc
     os << Util::getIso8601FracformatTime(ts);
     return os;
 }
+
+inline std::ostream& operator<<(std::ostream& os, const Util::Backtrace& bt) { return bt.send(os); }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */
