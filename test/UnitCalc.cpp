@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,19 +11,19 @@
 
 #include <config.h>
 
-#include <memory>
-#include <ostream>
-#include <string>
+#include <Png.hpp>
+#include <Unit.hpp>
+#include <WebSocketSession.hpp>
+#include <helpers.hpp>
+#include <kit/Delta.hpp>
 
 #include <Poco/Exception.h>
 #include <Poco/URI.h>
 #include <test/lokassert.hpp>
 
-#include <Png.hpp>
-#include <Unit.hpp>
-#include <helpers.hpp>
-#include <kit/Delta.hpp>
-#include <net/WebSocketSession.hpp>
+#include <memory>
+#include <ostream>
+#include <string>
 
 namespace
 {

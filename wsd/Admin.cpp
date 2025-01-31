@@ -1,35 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <chrono>
 #include <config.h>
 
-#include <cassert>
+#include <chrono>
+#include <csignal>
+#include <iomanip>
+#include <sstream>
+#include <string>
 #include <sys/poll.h>
 #include <unistd.h>
 
-#include <Poco/Net/HTTPCookie.h>
 #include <Poco/Net/HTTPRequest.h>
-#include <Poco/Net/HTTPResponse.h>
 
 #include "Admin.hpp"
 #include "AdminModel.hpp"
 #include "Auth.hpp"
+#include "ConfigUtil.hpp"
 #include <Common.hpp>
-#include "FileServer.hpp"
+#include <COOLWSD.hpp>
 #include <Log.hpp>
 #include <Protocol.hpp>
-#include "Storage.hpp"
-#include "TileCache.hpp"
 #include <StringVector.hpp>
 #include <Unit.hpp>
 #include <Util.hpp>
 #include <common/JsonUtil.hpp>
-
+#include <common/Uri.hpp>
 
 #include <net/Socket.hpp>
 #if ENABLE_SSL
@@ -41,12 +45,10 @@
 
 using namespace COOLProtocol;
 
-using Poco::Net::HTTPResponse;
 using Poco::Util::Application;
 
 const int Admin::MinStatsIntervalMs = 50;
 const int Admin::DefStatsIntervalMs = 1000;
-const std::string levelList[] = {"none", "fatal", "critical", "error", "warning", "notice", "information", "debug", "trace"};
 
 /// Process incoming websocket messages
 void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
@@ -77,9 +79,18 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
         std::string jwtToken;
         COOLProtocol::getTokenString(tokens[1], "jwt", jwtToken);
 
+        bool decoded = true;
+        try
+        {
+            jwtToken = Uri::decode(jwtToken);
+        }
+        catch (const Poco::URISyntaxException&)
+        {
+            decoded = false;
+        }
         LOG_INF("Verifying JWT token: " << jwtToken);
         JWTAuth authAgent("admin", "admin", "admin");
-        if (authAgent.verify(jwtToken))
+        if (decoded && authAgent.verify(jwtToken))
         {
             LOG_TRC("JWT token is valid");
             _isAuthenticated = true;
@@ -110,7 +121,8 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
              tokens.equals(0, "mem_stats") ||
              tokens.equals(0, "cpu_stats") ||
              tokens.equals(0, "sent_activity") ||
-             tokens.equals(0, "recv_activity"))
+             tokens.equals(0, "recv_activity") ||
+             tokens.equals(0, "connection_activity"))
     {
         const std::string result = model.query(tokens[0]);
         if (!result.empty())
@@ -123,7 +135,13 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
     else if (tokens.equals(0, "version"))
     {
         // Send COOL version information
-        sendTextFrame("coolserver " + Util::getVersionJSON(EnableExperimental));
+        std::string timezoneName;
+        if (COOLWSD::IndirectionServerEnabled && COOLWSD::GeolocationSetup)
+            timezoneName =
+                ConfigUtil::getString("indirection_endpoint.geolocation_setup.timezone", "");
+
+        sendTextFrame("coolserver " + Util::getVersionJSON(EnableExperimental, timezoneName));
+
         // Send LOKit version information
         sendTextFrame("lokitversion " + COOLWSD::LOKitVersion);
     }
@@ -169,6 +187,12 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
             std::set<pid_t> pids = model.getDocumentPids();
             if (pids.find(pid) != pids.end())
             {
+                if (Admin::instance().logAdminAction())
+                {
+                    LOG_ANY("Admin request to kill document ["
+                            << COOLWSD::anonymizeUrl(model.getFilename(pid)) << "] with pid ["
+                            << pid << "] and source IPAddress [" << _clientIPAdress << ']');
+                }
                 SigUtil::killChild(pid, SIGKILL);
             }
             else
@@ -195,7 +219,9 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
             << "cpu_stats_size="  << model.query("cpu_stats_size") << ' '
             << "cpu_stats_interval=" << std::to_string(_admin->getCpuStatsInterval()) << ' '
             << "net_stats_size=" << model.query("net_stats_size") << ' '
-            << "net_stats_interval=" << std::to_string(_admin->getNetStatsInterval()) << ' ';
+            << "net_stats_interval=" << std::to_string(_admin->getNetStatsInterval()) << ' '
+            << "connection_stats_size=" << model.query("connection_stats_size") << ' '
+            << "global_host_tcp_connections=" << net::Defaults.maxExtConnections << ' ';
 
         const DocProcSettings& docProcSettings = _admin->getDefDocProcSettings();
         oss << "limit_virt_mem_mb=" << docProcSettings.getLimitVirtMemMb() << ' '
@@ -212,6 +238,11 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
     else if (tokens.equals(0, "shutdown"))
     {
         LOG_INF("Setting ShutdownRequestFlag: Shutdown requested by admin.");
+        if (Admin::instance().logAdminAction())
+        {
+            LOG_ANY("Shutdown requested by admin with source IPAddress [" << _clientIPAdress
+                                                                          << ']');
+        }
         SigUtil::requestShutdown();
         return;
     }
@@ -326,12 +357,12 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
         const std::string& docStatus = tokens[1];
         const std::string& dockey = tokens[2];
         const std::string& routeToken = tokens[3];
-        if (!dockey.empty() && !routeToken.empty())
+        const std::string& serverId = tokens[4];
+        if (!dockey.empty() && !routeToken.empty() && !serverId.empty())
         {
+            model.setMigratingInfo(dockey, routeToken, serverId);
             std::ostringstream oss;
             oss << "migrate: {";
-            model.setCurrentMigDoc(dockey);
-            model.setCurrentMigToken(routeToken);
             oss << "\"afterSave\"" << ":false,";
             if (docStatus == "unsaved" && !model.isDocSaved(dockey))
             {
@@ -343,8 +374,11 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
             {
                 oss << "\"saved\"" << ":true,";
             }
-            oss << "\"routeToken\"" << ':' << "\"" << routeToken << "\"" << '}';
+            oss << "\"routeToken\"" << ':' << '"' << routeToken << '"' << ',';
+            oss << "\"serverId\"" << ':' << '"' << serverId << '"' << '}';
             COOLWSD::alertUserInternal(dockey, oss.str());
+            if (SigUtil::getShutdownRequestFlag())
+                COOLWSD::setMigrationMsgReceived(dockey);
         }
         else
         {
@@ -355,6 +389,43 @@ void AdminSocketHandler::handleMessage(const std::vector<char> &payload)
     else if (tokens.equals(0, "wopiSrcMap"))
     {
         sendTextFrame(model.getWopiSrcMap());
+    }
+    else if(tokens.equals(0, "verifyauth"))
+    {
+        if (tokens.size() < 2)
+        {
+            LOG_DBG("Auth command without any token");
+            sendTextFrame("InvalidAuthToken");
+        }
+        std::string jwtToken, id;
+        COOLProtocol::getTokenString(tokens[1], "jwt", jwtToken);
+        COOLProtocol::getTokenString(tokens[2], "id", id);
+
+        try
+        {
+            jwtToken = Uri::decode(jwtToken);
+        }
+        catch (const Poco::URISyntaxException& exception)
+        {
+            LOG_DBG("Invalid URI syntax: " << exception.what());
+        }
+
+        LOG_INF("Verifying JWT token: " << jwtToken);
+        JWTAuth authAgent("admin", "admin", "admin");
+        if (authAgent.verify(jwtToken))
+        {
+            LOG_TRC("JWT token is valid");
+            sendTextFrame("ValidAuthToken " + id);
+        }
+        else
+        {
+            LOG_DBG("Invalid auth token");
+            sendTextFrame("InvalidAuthToken " + id);
+        }
+    }
+    else if(tokens.equals(0, "closemonitor"))
+    {
+       _admin->setCloseMonitorFlag();
     }
 }
 
@@ -367,6 +438,7 @@ AdminSocketHandler::AdminSocketHandler(Admin* adminManager,
 {
     // Different session id pool for admin sessions (?)
     _sessionId = Util::decodeId(COOLWSD::GetConnectionId());
+    _clientIPAdress = socket.lock()->clientAddress();
 }
 
 AdminSocketHandler::AdminSocketHandler(Admin* adminManager)
@@ -435,8 +507,7 @@ bool AdminSocketHandler::handleInitialRequest(
         return true;
     }
 
-    HTTPResponse response;
-    response.setStatusAndReason(HTTPResponse::HTTP_BAD_REQUEST);
+    http::Response response(http::StatusCode::BadRequest);
     response.setContentLength(0);
     LOG_INF_S("Admin::handleInitialRequest bad request");
     socket->send(response);
@@ -445,33 +516,84 @@ bool AdminSocketHandler::handleInitialRequest(
 }
 
 /// An admin command processor.
-Admin::Admin() :
-    SocketPoll("admin"),
-    _forKitPid(-1),
-    _lastTotalMemory(0),
-    _lastJiffies(0),
-    _lastSentCount(0),
-    _lastRecvCount(0),
-    _cpuStatsTaskIntervalMs(DefStatsIntervalMs),
-    _memStatsTaskIntervalMs(DefStatsIntervalMs * 2),
-    _netStatsTaskIntervalMs(DefStatsIntervalMs * 2),
-    _cleanupIntervalMs(DefStatsIntervalMs * 10)
+Admin::Admin()
+    : SocketPoll("admin")
+    , _totalSysMemKb(Util::getTotalSystemMemoryKb())
+    , _totalAvailMemKb(_totalSysMemKb)
+    , _forKitPid(-1)
+    , _lastTotalMemory(0)
+    , _lastJiffies(0)
+    , _lastSentCount(0)
+    , _lastRecvCount(0)
+    , _cpuStatsTaskIntervalMs(DefStatsIntervalMs)
+    , _memStatsTaskIntervalMs(DefStatsIntervalMs * 2)
+    , _netStatsTaskIntervalMs(DefStatsIntervalMs * 2)
+    , _cleanupIntervalMs(DefStatsIntervalMs * 10)
 {
-    LOG_INF("Admin ctor.");
+    LOG_INF("Admin ctor");
 
-    _totalSysMemKb = Util::getTotalSystemMemoryKb();
-    LOG_TRC("Total system memory:  " << _totalSysMemKb << " KB.");
+    LOG_TRC("Total system memory:  " << _totalSysMemKb << " KB");
 
-    const auto memLimit = COOLWSD::getConfigValue<double>("memproportion", 0.0);
-    _totalAvailMemKb = _totalSysMemKb;
-    if (memLimit != 0.0)
-        _totalAvailMemKb = _totalSysMemKb * memLimit / 100.;
+    // If there is a cgroup limit that is smaller still, apply it.
+    const std::size_t cgroupMemLimitKb = Util::getCGroupMemLimit() / 1024;
+    if (cgroupMemLimitKb > 0 && cgroupMemLimitKb < _totalAvailMemKb)
+    {
+        LOG_TRC("cgroup memory limit: " << cgroupMemLimitKb << " KB");
+        _totalAvailMemKb = cgroupMemLimitKb;
+    }
+    else
+        LOG_TRC("no cgroup memory limit");
 
-    LOG_TRC("Total available memory: " << _totalAvailMemKb << " KB (memproportion: " << memLimit << "%).");
+    // If there is a cgroup soft-limit that is smaller still, apply that.
+    const std::size_t cgroupMemSoftLimitKb = Util::getCGroupMemSoftLimit() / 1024;
+    if (cgroupMemSoftLimitKb > 0 && cgroupMemSoftLimitKb < _totalAvailMemKb)
+    {
+        LOG_TRC("cgroup memory soft limit: " << cgroupMemSoftLimitKb << " KB");
+        _totalAvailMemKb = cgroupMemSoftLimitKb;
+    }
+    else
+        LOG_TRC("no cgroup memory soft limit");
 
-    const size_t totalMem = getTotalMemoryUsage();
-    LOG_TRC("Total memory used: " << totalMem << " KB.");
-    _model.addMemStats(totalMem);
+    // Reserve some minimum memory (1 MB, arbitrarily)
+    // as headroom. Otherwise, coolwsd might fail to
+    // clean-up Kits when we run out, and by then we die.
+    // This should be enough to update DocBroker containers,
+    // take locks, print logs, etc. during cleaning up.
+    std::size_t minHeadroomKb = 1024;
+
+    // If we have a manual percentage cap, apply it.
+    const double memLimit = ConfigUtil::getConfigValue<double>("memproportion", 0.0);
+    if (memLimit > 0.0)
+    {
+        const double headroom = _totalAvailMemKb * (100. - memLimit) / 100.;
+        if (minHeadroomKb < headroom)
+            minHeadroomKb = static_cast<std::size_t>(headroom);
+    }
+
+    if (_totalAvailMemKb > minHeadroomKb)
+    {
+        _totalAvailMemKb -= minHeadroomKb;
+    }
+
+    const size_t totalUsedMemKb = getTotalMemoryUsage();
+    _model.addMemStats(totalUsedMemKb);
+
+    LOG_INF(
+        std::setprecision(2)
+        << "Total available memory: " << _totalAvailMemKb << " KB ("
+        << _totalAvailMemKb / (1024 * 1024.) << " GB), System memory: " << _totalSysMemKb << " KB ("
+        << _totalSysMemKb / (1024 * 1024.) << " GB), cgroup limit: " << cgroupMemLimitKb
+        << " KB, cgroup soft-limit: " << cgroupMemSoftLimitKb
+        << " KB, configured memproportion: " << memLimit << "%, actual percentage of system total: "
+        << (_totalSysMemKb ? (_totalAvailMemKb * 100. / _totalSysMemKb) : 100)
+        << "%, current usage: " << totalUsedMemKb << " KB ("
+        << (_totalAvailMemKb ? (totalUsedMemKb * 100. / _totalAvailMemKb) : 100) << "% of limit)");
+
+    if (_totalAvailMemKb < 1000 * 1024)
+        LOG_WRN("Low memory condition detected: only " << _totalAvailMemKb / 1024
+                                                       << " MB of RAM available");
+
+    LOG_INF("hardware threads: " << std::thread::hardware_concurrency());
 }
 
 Admin::~Admin()
@@ -488,7 +610,7 @@ void Admin::pollingThread()
     std::chrono::steady_clock::time_point lastNet = lastCPU;
     std::chrono::steady_clock::time_point lastCleanup = lastCPU;
 
-    while (!isStop() && !SigUtil::getTerminationFlag() && !SigUtil::getShutdownRequestFlag())
+    while (!isStop() && !SigUtil::getShutdownRequestFlag())
     {
         const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 
@@ -508,7 +630,10 @@ void Admin::pollingThread()
             std::chrono::duration_cast<std::chrono::milliseconds>(now - lastMem).count();
         if (memWait <= MinStatsIntervalMs / 2) // Close enough
         {
+            // disable watchdog to avoid Document::updateMemoryDirty noise
+            disableWatchdog();
             _model.UpdateMemoryDirty();
+            enableWatchdog();
 
             const size_t totalMem = getTotalMemoryUsage();
             _model.addMemStats(totalMem);
@@ -536,10 +661,11 @@ void Admin::pollingThread()
 
             _model.addSentStats(sentCount - _lastSentCount);
             _model.addRecvStats(recvCount - _lastRecvCount);
+            _model.addConnectionStats(StreamSocket::getExternalConnectionCount());
 
             if (_lastRecvCount != recvCount || _lastSentCount != sentCount)
             {
-                LOG_TRC("Total Data sent: " << sentCount << ", recv: " << recvCount);
+                LOGA_TRC(Admin, "Total Data sent: " << sentCount << ", recv: " << recvCount);
                 _lastRecvCount = recvCount;
                 _lastSentCount = sentCount;
             }
@@ -548,18 +674,22 @@ void Admin::pollingThread()
             lastNet = now;
         }
 
-        int cleanupWait = _cleanupIntervalMs;
+        std::chrono::milliseconds cleanupWait(_cleanupIntervalMs);
         if (_defDocProcSettings.getCleanupSettings().getEnable())
         {
-            cleanupWait
-                -= std::chrono::duration_cast<std::chrono::milliseconds>(now - lastCleanup).count();
-            if (cleanupWait <= MinStatsIntervalMs / 2) // Close enough
+            if (now > lastCleanup)
+            {
+                cleanupWait -=
+                    std::chrono::duration_cast<std::chrono::milliseconds>(now - lastCleanup);
+            }
+
+            if (cleanupWait <= std::chrono::milliseconds(MinStatsIntervalMs / 2)) // Close enough
             {
                 cleanupResourceConsumingDocs();
                 if (_defDocProcSettings.getCleanupSettings().getLostKitGracePeriod())
                     cleanupLostKits();
 
-                cleanupWait += _cleanupIntervalMs;
+                cleanupWait += std::chrono::milliseconds(_cleanupIntervalMs);
                 lastCleanup = now;
             }
         }
@@ -575,39 +705,102 @@ void Admin::pollingThread()
             }
         }
 
+        bool dumpMetrics = true;
+        if (_dumpMetrics.compare_exchange_strong(dumpMetrics, false))
+        {
+            std::ostringstream oss;
+            oss << "Admin Metrics:\n";
+            getMetrics(oss);
+            const std::string str = oss.str();
+            fprintf(stderr, "%s\n", str.c_str());
+            LOG_TRC(str);
+        }
+
         // Handle websockets & other work.
         const auto timeout = std::chrono::milliseconds(capAndRoundInterval(
-            std::min(std::min(std::min(cpuWait, memWait), netWait), cleanupWait)));
-        LOG_TRC("Admin poll for " << timeout);
+            std::min<int>(std::min(std::min(cpuWait, memWait), netWait), cleanupWait.count())));
+        LOGA_TRC(Admin, "Admin poll for " << timeout);
         poll(timeout); // continue with ms for admin, settings etc.
     }
+
+    if (!COOLWSD::IndirectionServerEnabled)
+        return;
+
+    // if don't have monitor connection to the controller we set the _migrateMsgReceived
+    // for each docbroker so that docbroker can cleanup the documents
+    bool controllerMonitorConnection = false;
+    for (const auto& pair : _monitorSockets)
+    {
+        if (pair.first.find("controller") != std::string::npos)
+        {
+            controllerMonitorConnection = true;
+            break;
+        }
+    }
+
+    if (!controllerMonitorConnection)
+    {
+        LOG_WRN("Monitor connection to the controller doesn't exist, skipping shutdown migration");
+        COOLWSD::setAllMigrationMsgReceived();
+        return;
+    }
+
+    _model.sendShutdownReceivedMsg();
+
+    static const std::chrono::microseconds closeMonitorMsgTimeout = std::chrono::seconds(
+        ConfigUtil::getConfigValue<int>("indirection_endpoint.migration_timeout_secs", 180));
+
+    std::chrono::time_point<std::chrono::steady_clock> closeMonitorMsgStartTime =
+        std::chrono::steady_clock::now();
+    while (!_closeMonitor)
+    {
+        LOG_DBG("Waiting for migration to complete before closing the monitor");
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsedMicroS =
+            std::chrono::duration_cast<std::chrono::microseconds>(now - closeMonitorMsgStartTime);
+        if (elapsedMicroS > closeMonitorMsgTimeout)
+        {
+            LOG_WRN("Timed out waiting for the migration server to respond within the configured "
+                    "timeout of "
+                    << closeMonitorMsgTimeout);
+            break;
+        }
+        poll(closeMonitorMsgTimeout - elapsedMicroS);
+    }
+
+    // if monitor closes early we set the _migrateMsgReceived for each docbroker
+    // so that docbroker can cleanup the documents
+    if (_closeMonitor)
+        COOLWSD::setAllMigrationMsgReceived();
 }
 
-void Admin::modificationAlert(const std::string& dockey, pid_t pid, bool value){
-    addCallback([=] { _model.modificationAlert(dockey, pid, value); });
+void Admin::modificationAlert(const std::string& docKey, pid_t pid, bool value){
+    addCallback([this, docKey, pid, value] { _model.modificationAlert(docKey, pid, value); });
 }
 
-void Admin::uploadedAlert(const std::string& dockey, pid_t pid, bool value)
+void Admin::uploadedAlert(const std::string& docKey, pid_t pid, bool value)
 {
-    addCallback([=] { _model.uploadedAlert(dockey, pid, value); });
+    addCallback([this, docKey, pid, value] { _model.uploadedAlert(docKey, pid, value); });
 }
 
 void Admin::addDoc(const std::string& docKey, pid_t pid, const std::string& filename,
                    const std::string& sessionId, const std::string& userName, const std::string& userId,
-                   const int smapsFD, const Poco::URI& wopiSrc, bool readOnly)
+                   const int smapsFD, const std::string& wopiSrc, bool readOnly)
 {
-    addCallback([=] { _model.addDocument(docKey, pid, filename, sessionId, userName, userId, smapsFD, wopiSrc, readOnly); });
+    addCallback([this, docKey, pid, filename, sessionId, userName, userId, smapsFD, wopiSrc, readOnly] {
+        _model.addDocument(docKey, pid, filename, sessionId, userName, userId, smapsFD, Poco::URI(wopiSrc), readOnly);
+    });
 }
 
 void Admin::rmDoc(const std::string& docKey, const std::string& sessionId)
 {
-    addCallback([=] { _model.removeDocument(docKey, sessionId); });
+    addCallback([this, docKey, sessionId] { _model.removeDocument(docKey, sessionId); });
 }
 
 void Admin::rmDoc(const std::string& docKey)
 {
     LOG_INF("Removing complete doc [" << docKey << "] from Admin.");
-    addCallback([=]{ _model.removeDocument(docKey); });
+    addCallback([this, docKey]{ _model.removeDocument(docKey); });
 }
 
 void Admin::rescheduleMemTimer(unsigned interval)
@@ -678,10 +871,9 @@ unsigned Admin::getNetStatsInterval()
 
 std::string Admin::getChannelLogLevels()
 {
-    unsigned int wsdLogLevel = Log::logger().get("wsd").getLevel();
-    std::string result = "wsd=" + levelList[wsdLogLevel];
+    std::string result = "wsd=" + Log::getLogLevelName("wsd");
 
-    result += " kit=" + (_forkitLogLevel.empty() != true ? _forkitLogLevel: levelList[wsdLogLevel]);
+    result += " kit=" + (_forkitLogLevel.empty() != true ? _forkitLogLevel: Log::getLogLevelName("wsd"));
 
     return result;
 }
@@ -690,20 +882,14 @@ void Admin::setChannelLogLevel(const std::string& channelName, std::string level
 {
     ASSERT_CORRECT_THREAD();
 
-    // Get the list of channels..
-    std::vector<std::string> nameList;
-    Log::logger().names(nameList);
-
-    if (std::find(std::begin(levelList), std::end(levelList), level) == std::end(levelList))
-        level = "debug";
-
     if (channelName == "wsd")
-        Log::logger().get("wsd").setLevel(level);
+        Log::setLogLevelByName("wsd", level);
+
     else if (channelName == "kit")
     {
         COOLWSD::setLogLevelsOfKits(level); // For current kits.
         COOLWSD::sendMessageToForKit("setloglevel " + level); // For forkit and future kits.
-        _forkitLogLevel = level; // We will remember this setting rather than asking forkit its loglevel.
+        _forkitLogLevel = std::move(level); // We will remember this setting rather than asking forkit its loglevel.
     }
 }
 
@@ -711,11 +897,12 @@ std::string Admin::getLogLines()
 {
     ASSERT_CORRECT_THREAD();
 
-    try {
-        int lineCount = 500;
-        std::string fName = COOLWSD::getPathFromConfig("logging.file.property[0]");
+    try
+    {
+        static const std::string fName = ConfigUtil::getPathFromConfig("logging.file.property[0]");
         std::ifstream infile(fName);
 
+        std::size_t lineCount = 500;
         std::string line;
         std::deque<std::string> lines;
 
@@ -723,7 +910,7 @@ std::string Admin::getLogLines()
         {
             std::istringstream iss(line);
             lines.push_back(line);
-            if (lines.size() > (size_t)lineCount)
+            if (lines.size() > lineCount)
             {
                 lines.pop_front();
             }
@@ -731,16 +918,21 @@ std::string Admin::getLogLines()
 
         infile.close();
 
-        if (lines.size() < (size_t)lineCount)
+        if (lines.size() < lineCount)
         {
-            lineCount = (int)lines.size();
+            lineCount = lines.size();
         }
 
-        line = ""; // Use the same variable to include result.
-        // Newest will be on top.
-        for (int i = lineCount - 1; i >= 0; i--)
+        line.clear(); // Use the same variable to include result.
+        if (lineCount > 0)
         {
-            line += "\n" + lines[i];
+            line.reserve(lineCount * 128); // Avoid repeated resizing.
+            // Newest will be on top.
+            for (int i = static_cast<int>(lineCount) - 1; i >= 0; i--)
+            {
+                line += '\n';
+                line += lines[i];
+            }
         }
 
         return line;
@@ -757,38 +949,50 @@ AdminModel& Admin::getModel()
 
 void Admin::updateLastActivityTime(const std::string& docKey)
 {
-    addCallback([=]{ _model.updateLastActivityTime(docKey); });
+    addCallback([this, docKey]{ _model.updateLastActivityTime(docKey); });
 }
 
 
 void Admin::addBytes(const std::string& docKey, uint64_t sent, uint64_t recv)
 {
-    addCallback([=] { _model.addBytes(docKey, sent, recv); });
+    addCallback([this, docKey, sent, recv] { _model.addBytes(docKey, sent, recv); });
 }
 
 void Admin::setViewLoadDuration(const std::string& docKey, const std::string& sessionId, std::chrono::milliseconds viewLoadDuration)
 {
-    addCallback([=]{ _model.setViewLoadDuration(docKey, sessionId, viewLoadDuration); });
+    addCallback([this, docKey, sessionId, viewLoadDuration]{ _model.setViewLoadDuration(docKey, sessionId, viewLoadDuration); });
 }
 
 void Admin::setDocWopiDownloadDuration(const std::string& docKey, std::chrono::milliseconds wopiDownloadDuration)
 {
-    addCallback([=]{ _model.setDocWopiDownloadDuration(docKey, wopiDownloadDuration); });
+    addCallback([this, docKey, wopiDownloadDuration]{ _model.setDocWopiDownloadDuration(docKey, wopiDownloadDuration); });
 }
 
 void Admin::setDocWopiUploadDuration(const std::string& docKey, const std::chrono::milliseconds uploadDuration)
 {
-    addCallback([=]{ _model.setDocWopiUploadDuration(docKey, uploadDuration); });
+    addCallback([this, docKey, uploadDuration]{ _model.setDocWopiUploadDuration(docKey, uploadDuration); });
 }
 
-void Admin::addSegFaultCount(unsigned segFaultCount)
+void Admin::addErrorExitCounters(unsigned segFaultCount, unsigned killedCount,
+                                 unsigned oomKilledCount)
 {
-    addCallback([=]{ _model.addSegFaultCount(segFaultCount); });
+    addCallback([this, segFaultCount, killedCount, oomKilledCount]
+                { _model.addErrorExitCounters(segFaultCount, killedCount, oomKilledCount); });
 }
 
 void Admin::addLostKitsTerminated(unsigned lostKitsTerminated)
 {
-    addCallback([=]{ _model.addLostKitsTerminated(lostKitsTerminated); });
+    addCallback([this, lostKitsTerminated]{ _model.addLostKitsTerminated(lostKitsTerminated); });
+}
+
+void Admin::routeTokenSanityCheck()
+{
+    addCallback([this] { _model.routeTokenSanityCheck(); });
+}
+
+void Admin::sendShutdownReceivedMsg()
+{
+    addCallback([this] { _model.sendShutdownReceivedMsg(); });
 }
 
 void Admin::notifyForkit()
@@ -811,15 +1015,15 @@ template <typename T> T clamp(const T& n, const T& lower, const T& upper)
 void Admin::triggerMemoryCleanup(const size_t totalMem)
 {
     // Trigger mem cleanup when we are consuming too much memory (as configured by sysadmin)
-    static const double memLimit = COOLWSD::getConfigValue<double>("memproportion", 0.0);
+    static const double memLimit = ConfigUtil::getConfigValue<double>("memproportion", 0.0);
     if (memLimit == 0.0 || _totalSysMemKb == 0)
     {
-        LOG_TRC("Total memory consumed: " << totalMem <<
+        LOGA_TRC(Admin, "Total memory consumed: " << totalMem <<
                 " KB. Not configured to do memory cleanup. Skipping memory cleanup.");
         return;
     }
 
-    LOG_TRC("Total memory consumed: " << totalMem << " KB. Configured COOL memory proportion: " <<
+    LOGA_TRC(Admin, "Total memory consumed: " << totalMem << " KB. Configured COOL memory proportion: " <<
             memLimit << "% (" << static_cast<size_t>(_totalSysMemKb * memLimit / 100.) << " KB).");
 
     const double memToFreePercentage = (totalMem / static_cast<double>(_totalSysMemKb)) - memLimit / 100.;
@@ -868,6 +1072,9 @@ void Admin::cleanupResourceConsumingDocs()
 
 void Admin::cleanupLostKits()
 {
+    if (Util::isKitInProcess())
+        return; // we might look lost ourselves.
+
     static std::map<pid_t, std::time_t> mapKitsLost;
     std::set<pid_t> internalKitPids;
     std::vector<int> kitPids;
@@ -954,7 +1161,7 @@ void MonitorSocketHandler::onDisconnect()
 {
     bool reconnect = false;
     // schedule monitor reconnect only if monitor uri exist in configuration
-    for (auto monitor : Admin::instance().getMonitorList())
+    for (const auto& monitor : Admin::instance().getMonitorList())
     {
         const std::string uriWithoutParam = _uri.substr(0, _uri.find('?'));
         if (Util::iequal(monitor.first, uriWithoutParam))
@@ -982,6 +1189,13 @@ void Admin::connectToMonitorSync(const std::string &uri)
     }
 
     LOG_TRC("Add monitor " << uri);
+    static const bool logMonitorConnect =
+        ConfigUtil::getConfigValue<bool>("admin_console.logging.monitor_connect", true);
+    if (logMonitorConnect)
+    {
+        LOG_ANY("Connected to remote monitor with uri [" << uriWithoutParam << ']');
+    }
+
     auto handler = std::make_shared<MonitorSocketHandler>(this, uri);
     _monitorSockets.insert({uriWithoutParam, handler});
     insertNewWebSocketSync(Poco::URI(uri), handler);
@@ -1004,6 +1218,7 @@ void Admin::getMetrics(std::ostringstream &metrics)
     size_t memUsed = getTotalMemoryUsage();
 
     metrics << "global_host_system_memory_bytes " << _totalSysMemKb * 1024 << std::endl;
+    metrics << "global_host_tcp_connections " << net::Defaults.maxExtConnections << std::endl;
     metrics << "global_memory_available_bytes " << memAvail * 1024 << std::endl;
     metrics << "global_memory_used_bytes " << memUsed * 1024 << std::endl;
     metrics << "global_memory_free_bytes " << (memAvail - memUsed) * 1024 << std::endl;
@@ -1012,14 +1227,26 @@ void Admin::getMetrics(std::ostringstream &metrics)
     _model.getMetrics(metrics);
 }
 
-void Admin::sendMetrics(const std::shared_ptr<StreamSocket>& socket, const std::shared_ptr<Poco::Net::HTTPResponse>& response)
+void Admin::sendMetrics(const std::shared_ptr<StreamSocket>& socket,
+                        const std::shared_ptr<http::Response>& response)
 {
     std::ostringstream oss;
-    response->add("Connection", "close");
-    response->write(oss);
     getMetrics(oss);
-    socket->send(oss.str());
+
+    response->header().setConnectionToken(http::Header::ConnectionToken::Close);
+    response->setBody(oss.str(), "text/plain");
+
+    socket->send(*response);
     socket->shutdown();
+
+    static bool skipAuthentication =
+        ConfigUtil::getConfigValue<bool>("security.enable_metrics_unauthenticated", false);
+    static bool showLog =
+        ConfigUtil::getConfigValue<bool>("admin_console.logging.metrics_fetch", true);
+    if (!skipAuthentication && showLog)
+    {
+        LOG_ANY("Metrics endpoint has been accessed by source IPAddress [" << socket->clientAddress() << ']');
+    }
 }
 
 void Admin::start()
@@ -1036,7 +1263,7 @@ std::vector<std::pair<std::string, int>> Admin::getMonitorList()
     {
         const std::string path = "monitors.monitor[" + std::to_string(i) + ']';
         const std::string uri = config.getString(path, "");
-        const auto retryInterval = COOLWSD::getConfigValue<int>(path + "[@retryInterval]", 20);
+        const auto retryInterval = ConfigUtil::getConfigValue<int>(path + "[@retryInterval]", 20);
         if (!config.has(path))
             break;
         if (!uri.empty())
@@ -1054,10 +1281,10 @@ std::vector<std::pair<std::string, int>> Admin::getMonitorList()
 void Admin::startMonitors()
 {
     bool haveMonitors = false;
-    for (auto monitor : getMonitorList())
+    for (const auto& monitor : getMonitorList())
     {
         addCallback(
-            [=]
+            [this, monitor]
             {
                 scheduleMonitorConnect(monitor.first + "?ServerId=" + Util::getProcessIdentifier(),
                                        std::chrono::steady_clock::now());
@@ -1078,13 +1305,13 @@ void Admin::updateMonitors(std::vector<std::pair<std::string,int>>& oldMonitors)
     }
 
     std::unordered_map<std::string, bool> currentMonitorMap;
-    for (auto monitor : getMonitorList())
+    for (const auto& monitor : getMonitorList())
     {
         currentMonitorMap[monitor.first] = true;
     }
 
     // shutdown monitors which doesnot not exist in currentMonitorMap
-    for (auto monitor : oldMonitors)
+    for (const auto& monitor : oldMonitors)
     {
         if (!currentMonitorMap[monitor.first])
         {

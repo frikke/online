@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -59,7 +63,7 @@ public:
     assertPutFileRequest(const Poco::Net::HTTPRequest& request) override
     {
         LOG_TST("PutFile");
-        LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitPutFile", _phase == Phase::WaitPutFile);
+        LOK_ASSERT_STATE(_phase, Phase::WaitPutFile);
 
         // Triggered while closing.
         LOK_ASSERT_EQUAL(std::string("false"), request.get("X-COOL-WOPI-IsAutosave"));
@@ -78,9 +82,8 @@ public:
     /// The document is loaded.
     bool onDocumentLoaded(const std::string& message) override
     {
-        LOG_TST("Doc (" << toString(_phase) << "): [" << message << ']');
-        LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitLoadStatus",
-                           _phase == Phase::WaitLoadStatus);
+        LOG_TST("Doc (" << name(_phase) << "): [" << message << ']');
+        LOK_ASSERT_STATE(_phase, Phase::WaitLoadStatus);
 
         // Modify and wait for the notification.
         TRANSITION_STATE(_phase, Phase::WaitModifiedStatus);
@@ -99,9 +102,8 @@ public:
         // Only the first time is handled here.
         if (_phase == Phase::WaitModifiedStatus)
         {
-            LOG_TST("Doc (" << toString(_phase) << "): [" << message << ']');
-            LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitModifiedStatus",
-                               _phase == Phase::WaitModifiedStatus);
+            LOG_TST("Doc (" << name(_phase) << "): [" << message << ']');
+            LOK_ASSERT_STATE(_phase, Phase::WaitModifiedStatus);
 
             // Save and immediately modify, then close the connection.
             WSD_CMD("save dontTerminateEdit=0 dontSaveIfUnmodified=0 "
@@ -154,7 +156,7 @@ class UnitSuperfluousSaves : public WopiTestServer
 
     /// The number of key input sent.
     std::size_t _saveCount;
-    int _uploadCount; //< The number of times we uploaded.
+    int _uploadCount; ///< The number of times we uploaded.
 
 public:
     UnitSuperfluousSaves()
@@ -185,7 +187,7 @@ public:
         else
         {
             LOK_ASSERT_EQUAL(std::string("false"), request.get("X-COOL-WOPI-IsModifiedByUser"));
-            LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitPutFile", _phase == Phase::Done);
+            LOK_ASSERT_STATE(_phase, Phase::Done);
             // LOK_ASSERT_EQUAL_MESSAGE("Expected to be in Phase::WaitPutFile", 2, _uploadCount);
         }
 
@@ -195,9 +197,8 @@ public:
     /// The document is loaded.
     bool onDocumentLoaded(const std::string& message) override
     {
-        LOG_TST("Doc (" << toString(_phase) << "): [" << message << ']');
-        LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitLoadStatus",
-                           _phase == Phase::WaitLoadStatus);
+        LOG_TST("Doc (" << name(_phase) << "): [" << message << ']');
+        LOK_ASSERT_STATE(_phase, Phase::WaitLoadStatus);
 
         // Modify and wait for the notification.
         TRANSITION_STATE(_phase, Phase::WaitModifiedStatus);
@@ -211,9 +212,8 @@ public:
     /// The document is modified. Save, modify, and close it.
     bool onDocumentModified(const std::string& message) override
     {
-        LOG_TST("Doc (" << toString(_phase) << "): [" << message << ']');
-        LOK_ASSERT_MESSAGE("Expected to be in Phase::WaitModifiedStatus",
-                           _phase == Phase::WaitModifiedStatus);
+        LOG_TST("Doc (" << name(_phase) << "): [" << message << ']');
+        LOK_ASSERT_STATE(_phase, Phase::WaitModifiedStatus);
 
         _stopwatch.restart();
 

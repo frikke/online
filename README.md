@@ -7,7 +7,7 @@
 [![Master: Pull request policy](https://img.shields.io/badge/Master-protected%2C%20PRs%20need%20approval-red?logoColor=lightred&logo=git "Collabora Team is preparing for the next release, therefore 'master' branch is protected now, PRs need 1 review before merging. Thanks for your support and contributions! :)")](https://github.com/CollaboraOnline/online/blob/master/CONTRIBUTING.md#contributing-to-source-code)
 
 
-[![irc](https://img.shields.io/badge/IRC-%23cool--dev%20on%20libera-orange.svg)](https://web.libera.chat/?channels=cool-dev)
+[![Matrix](https://img.shields.io/badge/Matrix-%23cool--dev-turquoise.svg)](https://matrix.to/#/#cool-dev:matrix.org)
 [![Telegram](https://img.shields.io/badge/Telegram-Collabora%20Online-green.svg)](https://t.me/CollaboraOnline)
 [![Forum](https://img.shields.io/badge/Forum-Discourse-blue.svg)](https://forum.collaboraonline.com/)
 [![Website](https://img.shields.io/badge/Website-collaboraonline.github.io-blueviolet.svg)](https://collaboraonline.github.io/)
@@ -22,10 +22,13 @@
 
 ## Get in touch 💬
 
-* [📋 Forum](forum.collaboraonline.com/)
+* [📋 Forum](https://forum.collaboraonline.com/)
 * [👥 Facebook](https://www.facebook.com/collaboraoffice/)
-* [🐣 Twitter](https://twitter.com/CollaboraOffice)
+* [🅾 Instagram](https://www.instagram.com/collaboraoffice/)
+* [🐣 𝕏(Twitter)](https://twitter.com/CollaboraOffice)
+* [🦋 Bluesky](https://bsky.app/profile/collaboraonline.com)
 * [🐘 Mastodon](https://mastodon.social/@CollaboraOffice)
+* [💼 LinkedIn](https://www.linkedin.com/products/collaboraproductivity-collabora-online/)
 
 ## Key features
 * View and edit text documents, spreadsheets, presentations & more
@@ -35,18 +38,17 @@
 
 ## Website
 
-For many more details, build instructions, downloads and more please visit https://collaboraonline.github.io/
+For many more details, build instructions, downloads and more please visit https://collaboraonline.github.io/ and also you can check out the [SDK Documentation](https://sdk.collaboraonline.com/contents.html).
 
 ## Developer assistance
-Please ask your questions on any of the bridged IRC/Matrix/Telegram rooms
-* IRC: `#cool-dev` on `irc.libera.chat` 
-* Matrix: [#cool-dev:libera.chat](https://app.element.io/#/room/#cool-dev:libera.chat)
+Please ask your questions on any of the bridged Matrix/Telegram rooms
+* Matrix: [#cool-dev:matrix.org](https://matrix.to/#/#cool-dev:matrix.org)
 * Telegram: [CollaboraOnline](https://t.me/CollaboraOnline)
 
 Join the conversation on our Discourse server at https://forum.collaboraonline.com/
 
 Watch the tinderbox status (if it's green) at
-https://cpci.cbg.collabora.co.uk:8080/job/Tinderbox%20for%20online%20master%20against%20co-22.05/
+https://cpci.cbg.collabora.co.uk:8080/job/Tinderbox%20for%20online%20master%20against%20co-24.04/
 
 ## Development bits
 
@@ -67,26 +69,49 @@ This project has several components:
 ## Further recommended reading with build details
 
 Please consult the README files in the component's directory for more details:
-- **[wsd/README](wsd)**
-- **[browser/README](browser)**
+- **[wsd/README.md](wsd/README.md)**
+- **[browser/README](browser/README)**
 
 ## iOS and Android apps
 
-See the corresponding READMEs:
-* **[ios/README](ios)**
-* **[android/README](android)**
+### Building
+
+See the corresponding web pages:
+* **[Build for iOS](https://collaboraonline.github.io/post/build-code-ios/)**
+* **[Build for Android](https://collaboraonline.github.io/post/build-code-android/)**
+
+### Releases and pre-releases
+
+Releases and pre-release builds are made from the
+`distro/collabora/co-24.04-mobile` branch. Releases for Android and iOS are
+generally built from the same commit, and are tagged as a release on GitHub.
+
+Android snapshots are automatically built once a week, but may be built more
+frequently if there's something new to test. iOS testflight builds are
+exclusively built when there is something new to test. Pre-release builds are
+not tagged in GitHub.
+
+### Getting changes into 24.04-mobile
+
+You should still develop against `master`, even if you're working on
+mobile-only features. Changes made in `master` will be moved into the
+`distro/collabora/co-24.04` branch according to the release schedule. Changes
+from the `distro/collabora/co-24.04` branch are then regularly cherry-picked
+into the `distro/collabora/co-24.04-mobile` branch.
+
+If you have a change which you want to get into mobile snapshots or releases
+more quickly, you should still develop it against `master`. When it's merged
+into `master`, you should make a backport pull request against
+`distro/collabora/co-24.04-mobile`. Please don't make pull requests directly
+against `distro/collabora/co-24.04-mobile` (i.e. without the change first being
+merged into `master`).
 
 ## GitPod
 
-Head over to https://collaboraonline.github.io/post/build-code/ select gitpod from the dropdown and follow the steps.
+Head over to https://collaboraonline.github.io/post/build-code/#build-code-on-gitpod and follow the steps.
 
-Interesting things to keep in mind:
-- Make sure your browser is not blocking windows/tabs from opening from the gitpod workspace URL (maybe add `*.gitpod.io` to your browser's whitelist)
-  - The GitPod tasks will run automatically and further instructions will be printed out right in the terminal
-  - VNC tab will open automatically if not just click in the left icon `Remote explorer` and click `6080`. You will see a tab completly black, that's normal.
-  - As mentioned in those instructions if you are not using the VS Code desktop and if you are only relying on your browser please:
-    - Do not try to click the URL from the make run out put instead copy that URL and execute `firefox [paste URL here]`
-    - Head over to the tab where the VNC is opened (black page), you will see Firefox opening there, maximize and have fun.
-    - You can also run cypress tests via GitPod but you will need to use Firefox, for that just prepend `CYPRESS_BROWSER="firefox"` to the desired command. Example: `CYPRESS_BROWSER="firefox" make check` for every test or `CYPRESS_BROWSER="firefox" make check-desktop spec=impress/scrolling_spec.js` for one specific test on desktop
+## Integrating
+
+To [integrate](https://sdk.collaboraonline.com/docs/why_integrate.html) Collabora Online into your own solution, you can see our [step-by-step tutorial](https://sdk.collaboraonline.com/docs/Step_by_step_tutorial.html), view the [available integrations](https://sdk.collaboraonline.com/docs/available_integrations.html), understand the [post message API](https://sdk.collaboraonline.com/docs/postmessage_api.html) used to customize and interact with Collabora Online, and a lot more.
 
 ## Enjoy!

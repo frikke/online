@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,13 +13,15 @@
 
 #pragma once
 
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <mutex>
 
-#include <stdlib.h>
 #include <Log.hpp>
+#include <Common.hpp>
+#include <Protocol.hpp>
 #include <Exceptions.hpp>
 
 struct ClipboardData
@@ -24,6 +30,36 @@ struct ClipboardData
     std::vector<std::string> _content;
     ClipboardData()
     {
+    }
+
+    /// Determines if inStream is a list of mimetype-length-bytes tuples, as expected.
+    static bool isOwnFormat(std::istream& inStream)
+    {
+        if (inStream.eof())
+        {
+            return false;
+        }
+
+        std::string mime, hexLen;
+        std::getline(inStream, mime, '\n');
+        if (mime.empty())
+        {
+            return false;
+        }
+
+        std::getline(inStream, hexLen, '\n');
+        if (hexLen.empty())
+        {
+            return false;
+        }
+
+        uint64_t len = strtoll(hexLen.c_str(), nullptr, 16);
+        if (len == 0)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     void read(std::istream& inStream)
@@ -37,14 +73,14 @@ struct ClipboardData
             {
                 uint64_t len = strtoll( hexLen.c_str(), nullptr, 16 );
                 std::string content(len, ' ');
-                inStream.read(&content[0], len);
+                inStream.read(content.data(), len);
                 if (inStream.fail())
                     throw ParseError("error during reading the stream");
                 std::getline(inStream, newline, '\n');
                 if (mime.length() > 0)
                 {
-                    _mimeTypes.push_back(mime);
-                    _content.push_back(content);
+                    _mimeTypes.push_back(std::move(mime));
+                    _content.push_back(std::move(content));
                 }
             }
         }
@@ -86,11 +122,32 @@ class ClipboardCache
     struct Entry {
         std::chrono::steady_clock::time_point _inserted;
         std::shared_ptr<std::string> _rawData; // big.
+
+        bool hasExpired(const std::chrono::steady_clock::time_point &now)
+        {
+            return (now - _inserted) >= std::chrono::minutes(CLIPBOARD_EXPIRY_MINUTES);
+        }
     };
     // clipboard key -> data
     std::unordered_map<std::string, Entry> _cache;
 public:
     ClipboardCache() = default;
+
+    void dumpState(std::ostream& os) const
+    {
+        os << "Saved clipboards: " << _cache.size() << '\n';
+        auto now = std::chrono::steady_clock::now();
+        for (auto &it : _cache)
+        {
+            std::string rawString = *it.second._rawData;
+            if (rawString.size() > 256)
+                rawString.resize(256);
+
+            os << "\t" << std::chrono::duration_cast<std::chrono::seconds>(
+                now - it.second._inserted).count() << " seconds\n";
+            Util::dumpHex(os, rawString, "", "\t");
+        }
+    }
 
     void insertClipboard(const std::string key[2],
                          const char *data, std::size_t size)
@@ -105,8 +162,7 @@ public:
         ent._rawData = std::make_shared<std::string>(data, size);
         LOG_TRC("Insert cached clipboard: " << key[0] << " and " << key[1]);
         std::lock_guard<std::mutex> lock(_mutex);
-        _cache[key[0]] = ent;
-        _cache[key[1]] = ent;
+        _cache[key[0]] = _cache[key[1]] = std::move(ent);
     }
 
     std::shared_ptr<std::string> getClipboard(const std::string &key)
@@ -115,7 +171,18 @@ public:
 
         std::lock_guard<std::mutex> lock(_mutex);
         const auto it = _cache.find(key);
-        return (it != _cache.end()) ? it->second._rawData : nullptr;
+        if (it == _cache.end())
+        {
+            LOG_TRC("Clipboard key [" << key << "] is not present");
+            return nullptr;
+        }
+        else if (it->second.hasExpired(std::chrono::steady_clock::now()))
+        {
+            LOG_TRC("Clipboard item with key [" << key << "] is expired");
+            return nullptr;
+        }
+
+        return it->second._rawData;
     }
 
     void checkexpiry()
@@ -125,7 +192,7 @@ public:
         LOG_TRC("check expiry of cached clipboards");
         for (auto it = _cache.begin(); it != _cache.end();)
         {
-            if (std::chrono::duration_cast<std::chrono::minutes>(now - it->second._inserted).count() >= 10)
+            if (it->second.hasExpired(now))
             {
                 LOG_TRC("expiring expiry of cached clipboard: " + it->first);
                 it = _cache.erase(it);

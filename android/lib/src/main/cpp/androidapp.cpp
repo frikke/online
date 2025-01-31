@@ -6,6 +6,7 @@
  */
 
 #include <config.h>
+
 #include <jni.h>
 #include <android/log.h>
 
@@ -35,6 +36,7 @@ static int fakeClientFd;
 static int closeNotificationPipeForForwardingThread[2] = {-1, -1};
 static JavaVM* javaVM = nullptr;
 static bool lokInitialized = false;
+static std::mutex coolwsdRunningMutex;
 
 // Remember the reference to the LOActivity
 jclass g_loActivityClz = nullptr;
@@ -54,9 +56,9 @@ JNI_OnLoad(JavaVM* vm, void*) {
     // Uncomment the following to see the logs from the core too
     //setenv("SAL_LOG", "+WARN+INFO", 0);
 #if ENABLE_DEBUG
-    Log::initialize("Mobile", "debug", false, false, {});
+    Log::initialize("Mobile", "debug", false, false, {}, false, {});
 #else
-    Log::initialize("Mobile", "information", false, false, {});
+    Log::initialize("Mobile", "information", false, false, {}, false, {});
 #endif
     return JNI_VERSION_1_6;
 }
@@ -126,25 +128,17 @@ static void send2JS(const JNIThreadContext &jctx, const std::vector<char>& buffe
     else
     {
         const unsigned char *ubufp = (const unsigned char *)buffer.data();
-        std::vector<char> data;
-        data.push_back('\'');
-        for (int i = 0; i < buffer.size(); i++)
-        {
-            if (ubufp[i] < ' ' || ubufp[i] == '\'' || ubufp[i] == '\\')
-            {
-                data.push_back('\\');
-                data.push_back('x');
-                data.push_back("0123456789abcdef"[(ubufp[i] >> 4) & 0x0F]);
-                data.push_back("0123456789abcdef"[ubufp[i] & 0x0F]);
-            }
-            else
-            {
-                data.push_back(ubufp[i]);
-            }
-        }
-        data.push_back('\'');
+        std::stringstream ss;
+        ss << "b64d('";
 
-        js = std::string(data.data(), data.size());
+        Poco::Base64Encoder encoder(ss);
+        encoder.rdbuf()->setLineLength(0); // unlimited
+        encoder << std::string(buffer.data(), buffer.size());
+        encoder.close();
+
+        ss << "')";
+
+        js = ss.str();
     }
 
     std::string subjs = js.substr(0, std::min(std::string::size_type(SHOW_JS_MAXLEN), js.length()));
@@ -155,7 +149,7 @@ static void send2JS(const JNIThreadContext &jctx, const std::vector<char>& buffe
 
     JNIEnv *env = jctx.getEnv();
     jstring jstr = env->NewStringUTF(js.c_str());
-    jmethodID callFakeWebsocket = env->GetMethodID(g_loActivityClz, "callFakeWebsocketOnMessage", "(Ljava/lang/String;)V");
+    jmethodID callFakeWebsocket = env->GetMethodID(g_loActivityClz, "rawCallFakeWebsocketOnMessage", "(Ljava/lang/String;)V");
     env->CallVoidMethod(g_loActivityObj, callFakeWebsocket, jstr);
     env->DeleteLocalRef(jstr);
 
@@ -182,9 +176,11 @@ void closeDocument()
 {
     // Close one end of the socket pair, that will wake up the forwarding thread that was constructed in HULLO
     fakeSocketClose(closeNotificationPipeForForwardingThread[0]);
-
+    LOG_DBG("Waiting for Lokit to finish...");
+    std::unique_lock<std::mutex> lokitLock(COOLWSD::lokit_main_mutex);
+    LOG_DBG("Lokit has finished.");
     LOG_DBG("Waiting for COOLWSD to finish...");
-    std::unique_lock<std::mutex> lock(COOLWSD::lokit_main_mutex);
+    std::unique_lock<std::mutex> coolwsdLock(coolwsdRunningMutex);
     LOG_DBG("COOLWSD has finished.");
 }
 
@@ -345,9 +341,10 @@ Java_org_libreoffice_androidlib_LOActivity_createCOOLWSD(JNIEnv *env, jobject in
                     {
                         LOG_DBG("Creating COOLWSD");
                         {
+                            std::unique_lock<std::mutex> lock(coolwsdRunningMutex);
                             fakeClientFd = fakeSocketSocket();
                             LOG_DBG("createCOOLWSD created fakeClientFd: " << fakeClientFd);
-                            std::unique_ptr<COOLWSD> coolwsd(new COOLWSD());
+                            std::unique_ptr<COOLWSD> coolwsd = std::make_unique<COOLWSD>();
                             coolwsd->run(1, argv);
                         }
                         LOG_DBG("One run of COOLWSD completed");

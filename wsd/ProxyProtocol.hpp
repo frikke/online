@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -36,10 +40,6 @@ public:
     int getPollEvents(std::chrono::steady_clock::time_point /* now */,
                       int64_t &/* timeoutMaxMs */) override;
 
-    void checkTimeout(std::chrono::steady_clock::time_point /* now */) override
-    {
-    }
-
     void performWrites(std::size_t capacity) override;
 
     void onDisconnect() override
@@ -56,7 +56,7 @@ public:
     void shutdown(bool goingAway = false, const std::string &statusMessage = "") override;
     void getIOStats(uint64_t &sent, uint64_t &recv) override;
     // don't duplicate ourselves for every socket
-    void dumpState(std::ostream&) const override {}
+    void dumpState(std::ostream&, const std::string&) const override {}
     // instead do it centrally.
     void dumpProxyState(std::ostream& os);
     bool parseEmitIncoming(const std::shared_ptr<StreamSocket> &socket);

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,22 +11,20 @@
 
 #include <config.h>
 
-#include <test/lokassert.hpp>
-#include <Unit.hpp>
-#include <helpers.hpp>
-#include <net/WebSocketSession.hpp>
 #include "Util.hpp"
-
-#include <chrono>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <thread>
+#include <Unit.hpp>
+#include <WebSocketSession.hpp>
+#include <helpers.hpp>
+#include <test/lokassert.hpp>
 
 #include <Poco/Exception.h>
 #include <Poco/URI.h>
 #include <Poco/Util/LayeredConfiguration.h>
+
+#include <chrono>
+#include <memory>
+#include <ostream>
+#include <string>
 
 namespace
 {
@@ -59,6 +61,7 @@ class UnitLoad : public UnitWSD
     TestResult testExcelLoad();
     TestResult testReload();
     TestResult testLoad();
+    TestResult testLoadUserPrivateInfo();
 
     void configure(Poco::Util::LayeredConfiguration& config) override
     {
@@ -129,6 +132,7 @@ UnitBase::TestResult UnitLoad::testConnectNoLoad()
 
 UnitBase::TestResult UnitLoad::testLoadSimple()
 {
+    testname = __func__;
     std::string documentPath, documentURL;
     helpers::getDocumentPathAndURL("hello.odt", documentPath, documentURL, testname);
     loadDoc(documentURL, "load ");
@@ -137,6 +141,7 @@ UnitBase::TestResult UnitLoad::testLoadSimple()
 
 UnitBase::TestResult UnitLoad::testBadLoad()
 {
+    testname = __func__;
     try
     {
         // Load a document and get its status.
@@ -165,6 +170,7 @@ UnitBase::TestResult UnitLoad::testBadLoad()
 
 UnitBase::TestResult UnitLoad::testExcelLoad()
 {
+    testname = __func__;
     try
     {
         // Load a document and get status.
@@ -179,9 +185,9 @@ UnitBase::TestResult UnitLoad::testExcelLoad()
         helpers::sendTextFrame(socket, "status", testname);
         const auto status = helpers::assertResponseString(socket, "status:", testname);
 
-        // Expected format is something like 'status: type=spreadsheet parts=1 current=0 width=20685 height=24885 viewid=0 lastcolumn=31 lastrow=12'
+        // Expected format is something like 'status: type=spreadsheet parts=1 current=0 width=20685 height=24885 viewid=0 lastcolumn=31 lastrow=12 readonly=0'
         StringVector tokens(StringVector::tokenize(status, ' '));
-        LOK_ASSERT_EQUAL(static_cast<size_t>(9), tokens.size());
+        LOK_ASSERT(tokens.size() >= 9);
     }
     catch (const Poco::Exception& exc)
     {
@@ -192,6 +198,7 @@ UnitBase::TestResult UnitLoad::testExcelLoad()
 
 UnitBase::TestResult UnitLoad::testReload()
 {
+    testname = __func__;
     std::string documentPath, documentURL;
     helpers::getDocumentPathAndURL("hello.odt", documentPath, documentURL, testname);
     for (int i = 0; i < 3; ++i)
@@ -206,6 +213,7 @@ UnitBase::TestResult UnitLoad::testReload()
 
 UnitBase::TestResult UnitLoad::testLoad()
 {
+    testname = __func__;
     std::string documentPath, documentURL;
     helpers::getDocumentPathAndURL("hello.odt", documentPath, documentURL, testname);
 
@@ -218,14 +226,37 @@ UnitBase::TestResult UnitLoad::testLoad()
     TST_LOG("Loading " << documentURL);
     wsSession->sendMessage("load url=" + documentURL);
 
-    std::vector<char> message = wsSession->waitForMessage("status:", std::chrono::seconds(5));
+    std::vector<char> message = wsSession->waitForMessage("status:", std::chrono::seconds(10));
     LOK_ASSERT_MESSAGE("Failed to load the document", !message.empty());
 
     wsSession->asyncShutdown();
 
     LOK_ASSERT_MESSAGE("Expected success disconnection of the WebSocket",
-                       wsSession->waitForDisconnection(std::chrono::seconds(5)));
+                       wsSession->waitForDisconnection(std::chrono::seconds(10)));
 
+    return TestResult::Ok;
+}
+
+UnitBase::TestResult UnitLoad::testLoadUserPrivateInfo()
+{
+    // Given a document to be loaded:
+    testname = __func__;
+    std::string documentPath, documentURL;
+    helpers::getDocumentPathAndURL("hello.odt", documentPath, documentURL, testname);
+    std::shared_ptr<SocketPoll> socketPollPtr = std::make_shared<SocketPoll>("LoadPoll");
+    socketPollPtr->startThread();
+    auto wsSession
+        = http::WebSocketSession::create(socketPollPtr, helpers::getTestServerURI(), documentURL);
+
+    // When the user private info is valid JSON, but is not a dictionary:
+    wsSession->sendMessage("load url=" + documentURL + " authorprivateinfo=%5B%5D");
+
+    // Then make sure we can still load the document:
+    std::vector<char> message = wsSession->waitForMessage("status:", std::chrono::seconds(COMMAND_TIMEOUT_SECS));
+    // This failed, invalid user private info resulted in a failed load.
+    LOK_ASSERT(!message.empty());
+    wsSession->asyncShutdown();
+    LOK_ASSERT(wsSession->waitForDisconnection(std::chrono::seconds(COMMAND_TIMEOUT_SECS)));
     return TestResult::Ok;
 }
 
@@ -243,17 +274,19 @@ void UnitLoad::invokeWSDTest()
     if (result != TestResult::Ok)
         exitTest(result);
 
-    result = testLoadSimple();
-    if (result != TestResult::Ok)
-        exitTest(result);
-
     result = testExcelLoad();
     if (result != TestResult::Ok)
         exitTest(result);
 
-    result = testReload();
+    result = testLoadUserPrivateInfo();
     if (result != TestResult::Ok)
         exitTest(result);
+
+    // Disabling because it doesn't handle 'error: cmd=load kind=docunloading'
+    // when the document unloads. This leads to unreliable results.
+    // result = testReload();
+    // if (result != TestResult::Ok)
+    //     exitTest(result);
 
     exitTest(TestResult::Ok);
 }

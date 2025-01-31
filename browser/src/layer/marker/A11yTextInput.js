@@ -8,7 +8,7 @@
  * text area itself.
  */
 
-/* global app */
+/* global app _ */
 
 L.A11yTextInput = L.TextInput.extend({
 	initialize: function() {
@@ -19,20 +19,23 @@ L.A11yTextInput = L.TextInput.extend({
 		// Used for signaling when in a mobile device the user tapped the edit button
 		this._justSwitchedToEditMode = false;
 
+		// Used when editing a shape text content.
+		this._isEditingInSelection = false;
+		this._hasAnySelection = false;
+
+
 		// In core text selection exists even if it's empty and <backspace> deletes the empty selection
 		// instead of the previous character.
 		this._hasSelection = false;
 		this._lastCursorPosition = 0;
 		this._lastSelectionStart = 0;
 		this._lastSelectionEnd = 0;
+		this._listPrefixLength = 0;
+		this._isLeftRightArrow = 0;
 	},
 
 	hasAccessibilitySupport: function() {
 		return true;
-	},
-
-	hasFocus: function() {
-		return this._textArea && this._textArea === document.activeElement;
 	},
 
 	setHTML: function(content) {
@@ -69,11 +72,18 @@ L.A11yTextInput = L.TextInput.extend({
 		return this._hasSelection &&  this._lastSelectionStart === start && this._lastSelectionEnd === end;
 	},
 
-	_updateCursorPosition: function(nPos) {
-		if (typeof nPos !== 'number' || nPos < 0)
+	_updateCursorPosition: function(pos) {
+		if (typeof pos !== 'number')
 			return;
-		this._setLastCursorPosition(nPos);
-		this._setCursorPosition(nPos);
+		// Normalize input parameters
+		var l = this.getPlainTextContent().length;
+		if (pos < 0)
+			pos = 0;
+		if (pos > l)
+			pos = l;
+
+		this._setLastCursorPosition(pos);
+		this._setCursorPosition(pos);
 	} ,
 
 	_updateSelection: function(pos, start, end, forced) {
@@ -111,6 +121,7 @@ L.A11yTextInput = L.TextInput.extend({
 			+ '\n    start: ' + start + ', end: ' + end);
 
 		this._isComposing = false;
+		this._isLeftRightArrow = 0;
 		if (!this._hasFormulaBarFocus()) {
 			this.setHTML(content);
 			this.updateLastContent();
@@ -119,7 +130,7 @@ L.A11yTextInput = L.TextInput.extend({
 	},
 
 	_updateFocusedParagraph: function() {
-		window.app.console.log('_updateFocusedParagraph');
+		this._log('_updateFocusedParagraph');
 		if (this._remoteContent !== undefined) {
 			this._setFocusedParagraph(this._remoteContent, this._remotePosition,
 				this._remoteSelectionStart, this._remoteSelectionEnd);
@@ -134,9 +145,10 @@ L.A11yTextInput = L.TextInput.extend({
 		this._remoteSelectionEnd = undefined;
 	},
 
-	onAccessibilityFocusChanged: function(content, pos, start, end, force) {
+	onAccessibilityFocusChanged: function(content, pos, start, end, listPrefixLength, force) {
+		this._listPrefixLength = listPrefixLength;
 		if (!this.hasFocus() || (this._isComposing && !force)) {
-			window.app.console.log('onAccessibilityFocusChanged: skipped updating: '
+			this._log('onAccessibilityFocusChanged: skipped updating: '
 				+ '\n  hasFocus: ' + this.hasFocus()
 				+ '\n  _isComposing: ' + this._isComposing
 				+ '\n  force: ' + force);
@@ -154,12 +166,12 @@ L.A11yTextInput = L.TextInput.extend({
 	},
 
 	onAccessibilityCaretChanged: function(nPos) {
-		window.app.console.log('onAccessibilityCaretChanged: \n' +
+		this._log('onAccessibilityCaretChanged: \n' +
 			'    position: ' + nPos + '\n' +
 			'    _isComposing: ' + this._isComposing);
-		if (!this.hasFocus() || this._isComposing) {
+		if (this._isLeftRightArrow || !this.hasFocus() || this._isComposing) {
+			this._log('onAccessibilityCaretChanged: skip updating');
 			this._remotePosition = nPos;
-			this._setLastCursorPosition(nPos);
 		}
 		else if (!this._hasFormulaBarFocus()) {
 			this._updateCursorPosition(nPos);
@@ -173,12 +185,131 @@ L.A11yTextInput = L.TextInput.extend({
 	},
 
 	onAccessibilityTextSelectionChanged: function(start, end) {
-		if (!this.hasFocus() || this._isComposing) {
+		if (this._isLeftRightArrow || !this.hasFocus() || this._isComposing) {
 			this._remoteSelectionStart = start;
 			this._remoteSelectionEnd = end;
-			this._remotePosition = end;
+			var hasSelection = !(start === -1 && end === -1);
+			this._setSelectionFlag(hasSelection);
+			if (hasSelection) {
+				this._remotePosition = end;
+			}
+			this._statusLog('onAccessibilityTextSelectionChanged: skip updating');
 		} else {
 			this._updateSelection(this._lastCursorPosition, start, end);
+		}
+	},
+
+	_setDescription: function(text) {
+		this._log('setDescription: ' + text);
+		this._textArea.setAttribute('aria-description', text);
+	},
+
+	_updateTable: function(outCount, inList, row, col, rowSpan, colSpan) {
+		this._log('_updateTable: '
+			+ '\n outCount: ' + outCount
+			+ '\n inList: ' + inList.toString()
+			+ '\n row: ' + row + ', rowSpan: ' + rowSpan
+			+ '\n col: ' + col + ', colSpan: ' + colSpan
+		);
+
+		if (this._timeoutForA11yDescription)
+			clearTimeout(this._timeoutForA11yDescription);
+
+		var eventDescription = '';
+		if (outCount > 0 || inList.length > 0) {
+			this._lastRowIndex = 0;
+			this._lastColIndex = 0;
+			this._lastRowSpan = 1;
+			this._lastColSpan = 1;
+		}
+		for (var i = 0; i < outCount; i++) {
+			eventDescription += _('Out of table') + '. ';
+		}
+		for (i = 0; i < inList.length; i++) {
+			eventDescription += _('Table with {0} rows and {1} columns').replace('{0}', inList[i].rowCount).replace('{1}', inList[i].colCount) + '. ';
+		}
+		if (this._lastRowIndex !== row || this._lastRowSpan !== rowSpan) {
+			this._lastRowIndex = row;
+			if (this._lastRowSpan !== rowSpan && rowSpan > 1) {
+				eventDescription += _('Row {0} through {1}').replace('{0}', row).replace('{1}', row + rowSpan - 1);
+			}
+			else {
+				eventDescription += _('Row {0}').replace('{0}', row);
+			}
+			eventDescription += '. ';
+			this._lastRowSpan = rowSpan;
+		}
+		if (this._lastColIndex !== col || this._lastColSpan !== colSpan) {
+			this._lastColIndex = col;
+			if (this._lastColSpan !== colSpan && colSpan > 1) {
+				eventDescription += _('Column {0} through {1}').replace('{0}', col).replace('{1}', col + colSpan - 1);
+			}
+			else {
+				eventDescription += _('Column {0}').replace('{0}', col);
+			}
+			eventDescription += '. ';
+			this._lastColSpan = colSpan;
+		}
+		this._setDescription(eventDescription);
+
+		var that = this;
+		this._timeoutForA11yDescription = setTimeout(function() {
+			that._setDescription('');
+		}, 1000);
+	},
+
+	onAccessibilityFocusedCellChanged: function(outCount, inList, row, col, rowSpan, colSpan, paragraph) {
+		this._setFocusedParagraph(paragraph.content, parseInt(paragraph.position), parseInt(paragraph.start), parseInt(paragraph.end));
+		this._updateTable(outCount, inList, row + 1, col + 1, rowSpan, colSpan);
+	},
+
+	onAccessibilityEditingInSelectionState: function(cell, enabled, selectionDescr, paragraph) {
+		this._log('onAccessibilityEditingInSelectionState: cell: ' + cell + ', enabled: ' + enabled);
+		if (!cell) {
+			this._isEditingInSelection = enabled;
+		}
+		if (enabled) {
+			clearTimeout(this._timeoutForA11yDescription);
+			var eventDescription = '';
+			if (typeof selectionDescr === 'string' && selectionDescr.length > 0)
+				eventDescription += selectionDescr + '. ';
+			eventDescription += _('Editing activated. ');
+			if (typeof paragraph === 'string' && paragraph.length > 0)
+				eventDescription += paragraph;
+			this._setDescription(eventDescription);
+			this._timeoutForA11yDescription = setTimeout(function () {
+				this._setDescription('');
+			}.bind(this), 1000);
+		}
+	},
+
+	onAccessibilitySelectionChanged: function(cell, action, name, textContent) {
+		this._log('onAccessibilitySelectionChanged: cell: ' + cell + ', action: ' + action + ', name: ' + name);
+		if (this._timeoutForA11yDescription)
+			clearTimeout(this._timeoutForA11yDescription);
+		if (!this._isFormula())
+			this._emptyArea();
+		var eventDescription = '';
+		if (action === 'create' || action === 'add') {
+			this._hasAnySelection = true;
+			eventDescription =  _('{0} selected').replace('{0}', name) + '. ';
+			if (typeof textContent === 'string' && textContent.length > 0) {
+				eventDescription += (cell ? '' : _('Has text: ')) + textContent;
+			}
+		}
+		else if (action === 'remove') {
+			this._hasAnySelection = false;
+			eventDescription = _('{0} unselected').replace('{0}', name);
+		}
+		else if (action === 'delete') {
+			this._hasAnySelection = false;
+			eventDescription = _('{0} deleted').replace('{0}', name);
+		}
+		this._setDescription(eventDescription);
+		if (action !== 'create' && action !== 'add') {
+			this._timeoutForA11yDescription = setTimeout(function () {
+				this._setDescription('');
+			}.bind(this), 1000);
 		}
 	},
 
@@ -193,7 +324,7 @@ L.A11yTextInput = L.TextInput.extend({
 	_onBeforeInput: function(ev) {
 		if (this._map.uiManager.isUIBlocked())
 			return;
-		this._dbg('_onBeforeInput [');
+		this._statusLog('_onBeforeInput [');
 		this._ignoreNextBackspace = false;
 		if (!this._isSelectionValid()) {
 			this._setCursorPosition(this._getLastCursorPosition());
@@ -207,16 +338,22 @@ L.A11yTextInput = L.TextInput.extend({
 			this._updateCursorPosition(this._lastSelectionEnd);
 		}
 
+		if (!this._isComposing && !this._isLeftRightArrow && this._remotePosition !== undefined) {
+			this._updateFocusedParagraph();
+		}
+
 		// Firefox is not able to delete the <img> post space. Since no 'input' event is generated,
 		// we need to handle a <delete> at the end of the paragraph, here.
 		if (L.Browser.gecko && (!this._hasSelection || this._isLastSelectionEmpty()) &&
 			this._getLastCursorPosition() === this.getPlainTextContent().length &&
 			this._deleteHint === 'delete') {
-			window.app.console.log('Sending delete');
+			if (this._map._debug.logKeyboardEvents) {
+				window.app.console.log('Sending delete');
+			}
 			this._removeEmptySelectionIfAny();
 			this._removeTextContent(0, 1);
 		}
-		this._dbg('_onBeforeInput ]');
+		this._statusLog('_onBeforeInput ]');
 	},
 
 	updateLastContent: function() {
@@ -257,7 +394,7 @@ L.A11yTextInput = L.TextInput.extend({
 	_onInput: function(ev) {
 		if (this._map.uiManager.isUIBlocked())
 			return;
-		this._dbg('_onInput [');
+		this._statusLog('_onInput [');
 		app.idleHandler.notifyActive();
 
 		if (this._ignoreInputCount > 0) {
@@ -283,7 +420,9 @@ L.A11yTextInput = L.TextInput.extend({
 		// We use a different leading and terminal space character
 		// to differentiate backspace from delete, then replace the character.
 		if (!this._hasPreSpace()) { // missing initial space
-			window.app.console.log('Sending backspace');
+			if (this._map._debug.logKeyboardEvents) {
+				window.app.console.log('Sending backspace');
+			}
 			if (!ignoreBackspace) {
 				this._removeEmptySelectionIfAny();
 				this._removeTextContent(1, 0);
@@ -296,7 +435,9 @@ L.A11yTextInput = L.TextInput.extend({
 			return;
 		}
 		if (!this._hasPostSpace()) { // missing trailing space.
-			window.app.console.log('Sending delete');
+			if (this._map._debug.logKeyboardEvents) {
+				window.app.console.log('Sending delete');
+			}
 			this._removeTextContent(0, this._hasSelection && this._isLastSelectionEmpty() ? 2 : 1);
 			this._appendSpace();
 			var pos = this._getLastCursorPosition();
@@ -347,9 +488,11 @@ L.A11yTextInput = L.TextInput.extend({
 		while (matchTo < compareUpTo && content[matchTo] === lastContent[matchTo])
 			matchTo++;
 
-		window.app.console.log('Comparison matchAt ' + matchTo + '\n' +
-			'\tnew "' + this.codePointsToString(content) + '" (' + content.length + ')' + '\n' +
-			'\told "' + this.codePointsToString(lastContent) + '" (' + lastContent.length + ')');
+		if (this._map._debug.logKeyboardEvents) {
+			window.app.console.log('Comparison matchAt ' + matchTo + '\n' +
+				'\tnew "' + this.codePointsToString(content) + '" (' + content.length + ')' + '\n' +
+				'\told "' + this.codePointsToString(lastContent) + '" (' + lastContent.length + ')');
+		}
 
 		// no new content
 		if (matchTo === content.length && matchTo === lastContent.length)
@@ -427,9 +570,10 @@ L.A11yTextInput = L.TextInput.extend({
 		this._finishFormulabarEditing(content, matchTo);
 
 		// special handling for mentions
-		this._handleMentionInput(ev, removeBefore);
+		if (this._map.getDocType() === 'text')
+			this._map.mention.handleMentionInput(ev);
 
-		this._dbg('_onInput ]');
+		this._statusLog('_onInput ]');
 	},
 
 	_removeEmptySelectionIfAny: function() {

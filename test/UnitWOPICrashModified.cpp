@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -12,6 +16,8 @@
 #include <Unit.hpp>
 #include <Util.hpp>
 #include <lokassert.hpp>
+
+#include <csignal>
 
 /// Test crashing a document after modifications.
 class UnitWOPICrashModified : public WopiTestServer
@@ -28,6 +34,8 @@ public:
         , _pid(-1)
     {
     }
+
+    void kitSegfault(int /* count */) override { /* ignore */ }
 
     std::unique_ptr<http::Response> assertPutFileRequest(const Poco::Net::HTTPRequest&) override
     {

@@ -1,80 +1,179 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.DownloadProgress.
  */
-/* global _ $ */
+/* global _ $ JSDialog app */
 L.Control.DownloadProgress = L.Control.extend({
 	options: {
-		position: 'bottomright'
+		snackbarTimeout: 20000,
+		userWarningKey: 'warnedAboutLargeCopy'
 	},
 
 	initialize: function (options) {
 		L.setOptions(this, options);
 	},
 
-	onAdd: function () {
-		this._initLayout();
-		return this._container;
+	onAdd: function (map) {
+		this._map = map;
+		this._started = false;
+		this._complete = false;
+		this._closed = false;
+		this._isLargeCopy = false;
 	},
 
-	// we really don't want mouse and other events propagating
-	// to the parent map - since they affect the context.
-	_ignoreEvents: function(elem) {
-		L.DomEvent.on(elem, 'mousedown mouseup mouseover mouseout mousemove',
-			      function(e) {
-				      L.DomEvent.stopPropagation(e);
-				      return false;
-			      }, this);
+	_userAlreadyWarned: function () {
+		return window.prefs.getBoolean(this.options.userWarningKey);
 	},
 
-	_initLayout: function () {
-		this._container = L.DomUtil.create('div', 'leaflet-control-layers');
-		this._container.style.visibility = 'hidden';
-		this._ignoreEvents(this._container);
-
-		var closeButton = L.DomUtil.create('a', 'leaflet-popup-close-button download-popup', this._container);
-		closeButton.href = '#close';
-		closeButton.innerHTML = '&#215;';
-		L.DomEvent.on(closeButton, 'click', this._onClose, this);
-
-		var wrapper = L.DomUtil.create('div', 'leaflet-popup-content-wrapper', this._container);
-		var content = this._content = L.DomUtil.create('div', 'leaflet-popup-content', wrapper);
-		content.style.width  = '100px';
-
-		// start download button
-		var startDownload = this._downloadButton = document.createElement('a');
-		startDownload.href = '#start';
-		startDownload.innerHTML = _('Start download');
-		startDownload.style.font = '13px/11px Tahoma, Verdana, sans-serif';
-		startDownload.style.alignment = 'center';
-		startDownload.style.height = 20 + 'px';
-		L.DomEvent.on(startDownload, 'click', this._onStartDownload, this);
-
-		// download progress bar
-		this._progress = L.DomUtil.create('div', 'leaflet-paste-progress', null);
-		this._bar = L.DomUtil.create('span', '', this._progress);
-		this._value = L.DomUtil.create('span', '', this._bar);
-		L.DomUtil.setStyle(this._value, 'line-height', '14px');
-
-		// confirm button
-		var confirmCopy = this._confirmPasteButton = document.createElement('a');
-		confirmCopy.href = '#complete';
-		confirmCopy.innerHTML = _('Confirm copy to clipboard');
-		confirmCopy.style.font = '13px/11px Tahoma, Verdana, sans-serif';
-		confirmCopy.style.alignment = 'center';
-		confirmCopy.style.height = 20 + 'px';
-		L.DomEvent.on(confirmCopy, 'click', this._onConfirmCopyAction, this);
+	_setUserAlreadyWarned: function () {
+		window.prefs.set(this.options.userWarningKey, true);
 	},
 
-	show: function () {
+	_getDialogTitle: function () {
+		return _('Download Selection');
+	},
+
+	_getLargeCopyPasteMessage: function () {
+		return this._map._clip._substProductName(
+			_('If you want to share large elements outside of {productname} it\'s necessary to first download them.'));
+	},
+
+	_getDownloadProgressDialogId: function () {
+		return 'copy_paste_download_progress';
+	},
+
+	// Step 1. Large copy paste warning
+
+	_showLargeCopyPasteWarning: function (inSnackbar) {
+		var modalId = this._getDownloadProgressDialogId();
+
+		var msg = this._getLargeCopyPasteMessage();
+		var buttonText = _('Download') + L.Util.replaceCtrlAltInMac(' (Ctrl + C)');
+
+		if (inSnackbar) {
+			this._map.uiManager.showSnackbar(
+				msg, buttonText, this._onStartDownload.bind(this), this.options.snackbarTimeout);
+
+			this.setupKeyboardShortcutForSnackbar();
+		} else {
+			this._map.uiManager.showInfoModal(modalId, this._getDialogTitle(), msg, '',
+				buttonText, this._onStartDownload.bind(this), true, modalId + '-response');
+
+			this.setupKeyboardShortcutForDialog(modalId);
+		}
+	},
+
+	// Step 2. Download progress
+
+	_showDownloadProgress: function (inSnackbar) {
+		var modalId = this._getDownloadProgressDialogId();
+		var msg = _('Downloading clipboard content');
+		var buttonText = _('Cancel');
+
+		if (inSnackbar) {
+			this._map.uiManager.showProgressBar(msg, buttonText, this._onClose.bind(this));
+		} else if (this._isLargeCopy) {
+			// downloading for copy, next: show download complete dialog
+			buttonText = _('Copy') + L.Util.replaceCtrlAltInMac(' (Ctrl + C)');
+
+			this._map.uiManager.showProgressBarDialog(modalId, this._getDialogTitle(), msg,
+				buttonText, this._onConfirmCopyAction.bind(this), 0, this._onClose.bind(this));
+
+			JSDialog.enableButtonInModal(modalId, modalId + '-response', false);
+		} else {
+			// downloading for paste, next: dialog will dissapear
+			this._map.uiManager.showProgressBarDialog(modalId, this._getDialogTitle(), msg,
+				'', this._onClose.bind(this), 0, this._onClose.bind(this));
+		}
+	},
+
+	_closeDownloadProgressDialog: function () {
+		var modalId = this._getDownloadProgressDialogId();
+		if (!this._userAlreadyWarned())
+			this._map.uiManager.closeModal(this._map.uiManager.generateModalId(modalId));
+	},
+
+	// Step 3. Download complete
+
+	_showDownloadComplete: function (inSnackbar) {
+		var modalId = this._getDownloadProgressDialogId();
+		var snackbarMsg = _('Download completed and ready to be copied to clipboard.');
+		var dialogMsg = snackbarMsg + ' ' + _('From now on clipboard notifications will discreetly appear at the bottom.');
+		var buttonText = _('Copy') + L.Util.replaceCtrlAltInMac(' (Ctrl + C)');
+
+		if (inSnackbar) {
+			this._map.uiManager.setSnackbarProgress(100);
+
+			this._map.uiManager.showSnackbar(
+				snackbarMsg, buttonText, this._onConfirmCopyAction.bind(this), this.options.snackbarTimeout);
+
+			setTimeout(() => {
+				this.setupKeyboardShortcutForSnackbar();
+			}, 100);
+		} else {
+			JSDialog.setMessageInModal(modalId, dialogMsg, '');
+			JSDialog.enableButtonInModal(modalId, modalId + '-response', true);
+			this.setupKeyboardShortcutForDialog(modalId);
+		}
+	},
+
+	_setupKeyboardShortcutForElement: function (eventTargetId, buttonId) {
+		var keyDownCallback = function(e) {
+			var modifierKeys = !e.altKey && !e.shiftKey;
+			if (L.Browser.mac) {
+				modifierKeys = modifierKeys && e.metaKey && !e.ctrlKey;
+			} else {
+				modifierKeys = modifierKeys && e.ctrlKey && !e.metaKey;
+			}
+			// CTRL + C / Command + C
+			if (modifierKeys && e.key === 'c') {
+				document.getElementById(buttonId).click();
+				e.preventDefault();
+			}
+		};
+		if (document.getElementById(eventTargetId))
+			document.getElementById(eventTargetId).onkeydown = keyDownCallback.bind(this);
+	},
+
+	setupKeyboardShortcutForDialog: function (modalId) {
+		var dialogId = this._map.uiManager.generateModalId(modalId);
+		var buttonId = modalId + '-response';
+		this._setupKeyboardShortcutForElement(dialogId, buttonId);
+		document.getElementById(buttonId).focus();
+	},
+
+	setupKeyboardShortcutForSnackbar: function () {
+		this._setupKeyboardShortcutForElement('snackbar-container', 'button');
+
+		// Snackbars cannot get focus, but we are using it with a button and it requires to be focused. No need to change snackbar imp for now.
+		if (document.getElementById('button'))
+			document.getElementById('button').focus(); // TODO: This "button" id is too generic. It could be something like "snackbar-button" etc.
+	},
+
+	// isLargeCopy specifies if we are copying and have to explain user the process
+	// if it is false we do paste so only show download progress
+	show: function (isLargeCopy) {
 		window.app.console.log('DownloadProgress.show');
 		// better to init the following state variables here,
 		// since the widget could be re-used without having been destroyed
 		this._started = false;
 		this._complete = false;
 		this._closed = false;
-		this._content.appendChild(this._downloadButton);
-		this._container.style.visibility = '';
+		this._isLargeCopy = isLargeCopy;
+
+		if (isLargeCopy)
+			this._showLargeCopyPasteWarning(this._userAlreadyWarned());
+		else
+			this._showDownloadProgress(this._userAlreadyWarned());
 	},
 
 	isClosed: function () {
@@ -85,14 +184,18 @@ L.Control.DownloadProgress = L.Control.extend({
 		return this._started;
 	},
 
+	isComplete: function () {
+		return this._complete;
+	},
+
 	currentStatus: function () {
 		if (this._closed)
 			return 'closed';
-		if (this._content.contains(this._downloadButton))
+		if (!this._started && !this._complete)
 			return 'downloadButton';
-		if (this._content.contains(this._progress))
+		if (this._started)
 			return 'progress';
-		if (this._content.contains(this._confirmPasteButton))
+		if (this._complete)
 			return 'confirmPasteButton';
 	},
 
@@ -102,8 +205,12 @@ L.Control.DownloadProgress = L.Control.extend({
 	},
 
 	setValue: function (value) {
-		this._bar.style.width = Math.round(value) + '%';
-		this._value.innerHTML = Math.round(value) + '%';
+		if (this._userAlreadyWarned())
+			this._map.uiManager.setSnackbarProgress(Math.round(value));
+		else {
+			var modalId = this._getDownloadProgressDialogId();
+			this._map.uiManager.setDialogProgress(modalId, Math.round(value));
+		}
 	},
 
 	_setProgressCursor: function() {
@@ -118,15 +225,18 @@ L.Control.DownloadProgress = L.Control.extend({
 		this._setProgressCursor();
 		this._started = true;
 		this.setValue(0);
-		this._content.removeChild(this._downloadButton);
-		this._content.appendChild(this._progress);
 	},
 
 	_onStartDownload: function () {
 		if (!this._uri)
 			return;
+
+		this._showDownloadProgress(this._userAlreadyWarned());
+
 		this.startProgressMode();
 		this._download();
+
+		return true;
 	},
 
 	_onUpdateProgress: function (e) {
@@ -141,53 +251,67 @@ L.Control.DownloadProgress = L.Control.extend({
 	_onComplete: function () {
 		if (this._complete)
 			return;
+		this.setValue(100);
 		this._setNormalCursor();
 		this._complete = true;
-		if (this._content.contains(this._progress))
-			this._content.removeChild(this._progress);
-		this._content.style.width  = '150px';
-		this._content.appendChild(this._confirmPasteButton);
+		this._started = false;
+
+		if (this._isLargeCopy)
+			this._showDownloadComplete(this._userAlreadyWarned());
+		else
+			this._closeDownloadProgressDialog();
 	},
 
 	_onConfirmCopyAction: function () {
 		this._map._clip.filterExecCopyPaste('.uno:Copy');
 		this._onClose();
+		this._setUserAlreadyWarned();
+
+		var msg = _('Content copied to clipboard');
+		this._map.uiManager.showSnackbar(msg);
 	},
 
 	_onClose: function () {
+		if (this._userAlreadyWarned())
+			this._map.uiManager.closeSnackbar();
+
+		if (this._started)
+			this._closeDownloadProgressDialog();
+
+		this._started = false;
+		this._complete = false;
+		this._closed = true;
+
 		this._setNormalCursor();
 		this._cancelDownload();
-		if (this._content.contains(this._confirmPasteButton))
-			this._content.removeChild(this._confirmPasteButton);
-		if (this._content.contains(this._progress))
-			this._content.removeChild(this._progress);
 		if (this._map)
 			this._map.focus();
-		this.remove();
-		this._closed = true;
 	},
 
-	_download: function () {
-		var that = this;
-		this._map._clip._doAsyncDownload(
-			'GET', that._uri, null, true,
-			function(response) {
-				window.app.console.log('clipboard async download done');
-				// annoying async parse of the blob ...
-				var reader = new FileReader();
-				reader.onload = function() {
-					var text = reader.result;
-					window.app.console.log('async clipboard parse done: ' + text.substring(0, 256));
-					var idx = text.indexOf('<!DOCTYPE HTML');
-					if (idx > 0)
-						text = text.substring(idx, text.length);
-					that._map._clip.setTextSelectionHTML(text);
-				};
-				// TODO: failure to parse ? ...
-				reader.readAsText(response);
-			},
-			function(progress) { return progress/2; }
-		);
+	_download: async function () {
+		let response;
+		try {
+			response = await this._map._clip._doAsyncDownload(
+				'GET', this._uri, null, true,
+				function(progress) { return progress/2; },
+			);
+		} catch (error) {
+			this._onClose();
+			app.showAsyncDownloadError(error, _('Download failed'));
+			return;
+		}
+
+		window.app.console.log('clipboard async download done');
+		// annoying async parse of the blob ...
+		var reader = new FileReader();
+		reader.onload = () => {
+			var text = reader.result;
+			window.app.console.log('async clipboard parse done: ' + text.substring(0, 256));
+			let result = this._map._clip.parseClipboard(text);
+			this._map._clip.setTextSelectionHTML(result['html'], result['plain']);
+		};
+		// TODO: failure to parse ? ...
+		reader.readAsText(response);
 	},
 
 	_cancelDownload: function () {

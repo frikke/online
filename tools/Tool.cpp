@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -193,7 +197,9 @@ void Tool::handleOption(const std::string& optionName,
         Poco::SharedPtr<Poco::Net::PrivateKeyPassphraseHandler> consoleClientHandler = new Poco::Net::KeyConsoleHandler(false);
         Poco::SharedPtr<Poco::Net::InvalidCertificateHandler> invalidClientCertHandler = new Poco::Net::AcceptCertificateHandler(false);
         Poco::Net::Context::Ptr sslClientContext = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "");
-        Poco::Net::SSLManager::instance().initializeClient(consoleClientHandler, invalidClientCertHandler, sslClientContext);
+        Poco::Net::SSLManager::instance().initializeClient(std::move(consoleClientHandler),
+                                                           std::move(invalidClientCertHandler),
+                                                           std::move(sslClientContext));
     }
 }
 
@@ -260,7 +266,7 @@ int Tool::main(const std::vector<std::string>& origArgs)
             std::vector< std::string > files( toCopy );
             std::copy( args.begin() + offset, args.begin() + offset + toCopy, files.begin() );
             offset += toCopy;
-            clients.emplace_back([this, files]{Worker(*this, files).run();});
+            clients.emplace_back([this, files=std::move(files)]{Worker(*this, files).run();});
         }
     }
 
@@ -272,6 +278,7 @@ int Tool::main(const std::vector<std::string>& origArgs)
     return EX_OK;
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 POCO_APP_MAIN(Tool)
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

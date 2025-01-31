@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,11 +13,178 @@
 
 #include "FileServer.hpp"
 #include "StringVector.hpp"
-#include "Util.hpp"
 
-#include <Poco/JSON/Object.h>
+#include <JsonUtil.hpp>
 
-std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefaults, std::string& uiMode, std::string& uiTheme)
+#include <cctype>
+
+#include <wasm/base64.hpp>
+
+PreProcessedFile::PreProcessedFile(std::string filename, const std::string& data)
+    : _filename(std::move(filename))
+    , _size(data.length())
+{
+    std::size_t pos = 0; ///< The current position to search from.
+    std::size_t lastpos = 0; ///< The last position in a literal string.
+
+    do
+    {
+        std::size_t newpos = data.find_first_of("<%", pos);
+        if (newpos == std::string::npos || newpos + 2 >= _size)
+        {
+            // Not enough data to parse a variable.
+            break;
+        }
+
+        assert(newpos + 2 < _size && "Expected at least 3 characters for variable");
+
+        if (data[newpos] == '<')
+        {
+            if (newpos + 5 < _size && data.compare(newpos + 1, 4, "!--%") != 0)
+            {
+                // Just a tag; continue searching.
+                pos = newpos + 1;
+                continue;
+            }
+
+            std::size_t nestedpos = data.find_first_of("<>", newpos + 1);
+            if (nestedpos != std::string::npos && data[nestedpos] == '<')
+            {
+                // We expected to find the end of comment before a new tag.
+                // Resume searching.
+                pos = nestedpos;
+                continue;
+            }
+
+            // Find the matching closing comment
+            std::size_t endpos = data.find_first_of('>', newpos + 1);
+            if (endpos == std::string::npos)
+            {
+                // Broken comment.
+                break;
+            }
+
+            // Extract variable name.
+            const std::size_t varstart = data.find_first_of('%', newpos);
+            if (varstart == std::string::npos || varstart > endpos)
+            {
+                // Comment without a variable.
+                pos = endpos + 1;
+                continue;
+            }
+
+            std::size_t varend = varstart + 1;
+            while (varend < endpos)
+            {
+                if (data[varend] == '%' || (!std::isalpha(data[varend]) && data[varend] != '_'))
+                    break;
+
+                ++varend;
+            }
+
+            if (varend >= endpos || data[varend] != '%')
+            {
+                // Comment without a variable.
+                pos = endpos + 1;
+                continue;
+            }
+
+            // Insert previous literal.
+            if (newpos > lastpos)
+            {
+                _segments.emplace_back(SegmentType::Data, data.substr(lastpos, newpos - lastpos));
+            }
+
+            lastpos = endpos + 1;
+            _segments.emplace_back(SegmentType::CommentedVariable,
+                                   data.substr(varstart + 1, varend - varstart - 1));
+        }
+        else
+        {
+            assert(data[newpos] == '%' && "Expected '%' at given position");
+
+            // Extract variable name.
+            std::size_t varend = newpos + 1;
+            while (varend < _size)
+            {
+                if (data[varend] == '%' || (!std::isalpha(data[varend]) && data[varend] != '_'))
+                    break;
+
+                ++varend;
+            }
+
+            if (varend > _size || data[varend] != '%')
+            {
+                // Broken variable.
+                pos = varend;
+                continue;
+            }
+
+            // Insert previous literal.
+            if (newpos > lastpos)
+            {
+                _segments.emplace_back(SegmentType::Data, data.substr(lastpos, newpos - lastpos));
+            }
+
+            lastpos = varend + 1;
+            _segments.emplace_back(SegmentType::Variable,
+                                   data.substr(newpos + 1, varend - newpos - 1));
+        }
+
+        pos = lastpos;
+    } while (pos < _size);
+
+    if (lastpos < _size)
+    {
+        _segments.emplace_back(SegmentType::Data, data.substr(lastpos));
+    }
+}
+
+std::string PreProcessedFile::substitute(const std::unordered_map<std::string, std::string>& values)
+{
+    std::string recon;
+    recon.reserve(_size * 2);
+    for (const auto& seg : _segments)
+    {
+        switch (seg.first)
+        {
+            case SegmentType::Data:
+                recon.append(seg.second);
+                break;
+            case SegmentType::Variable:
+            case SegmentType::CommentedVariable:
+            {
+                const auto it = values.find(seg.second);
+                if (it == values.end())
+                {
+                    // Leave original variable as-is.
+                    if (seg.first == SegmentType::Variable)
+                    {
+                        recon.append("%");
+                        recon.append(seg.second);
+                        recon.append("%");
+                    }
+                    else if (seg.first == SegmentType::CommentedVariable)
+                    {
+                        recon.append("<!--%");
+                        recon.append(seg.second);
+                        recon.append("%-->");
+                    }
+                }
+                else
+                {
+                    // Substitute with the given value.
+                    recon.append(it->second);
+                }
+            }
+            break;
+        }
+    }
+
+    return recon;
+}
+
+std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefaults, std::string& uiMode, std::string& uiTheme, std::string& savedUIState)
 {
     static std::string previousUIDefaults;
     static std::string previousJSON("{}");
@@ -32,8 +203,9 @@ std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefa
     Poco::JSON::Object presentationDefs;
     Poco::JSON::Object drawingDefs;
 
-    uiMode = "";
+    uiMode.clear();
     uiTheme = "light";
+    savedUIState = "true";
     StringVector tokens(StringVector::tokenize(uiDefaults, ';'));
     for (const auto& token : tokens)
     {
@@ -63,8 +235,28 @@ std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefa
         // detect the UITheme default, light or dark
         if (keyValue.equals(0, "UITheme"))
         {
-                json.set("darkTheme", keyValue.equals(1, "dark"));
-                uiTheme = keyValue[1];
+            if (keyValue.equals(1, "dark")) {
+                json.set("darkTheme", "true");
+            } else {
+                json.set("darkTheme", "false");
+            }
+            uiTheme = keyValue[1];
+            continue;
+        }
+        if (keyValue.equals(0, "SavedUIState"))
+        {
+            if (keyValue.equals(1, "false"))
+            {
+                savedUIState = "false";
+            }
+            else
+            {
+                if (!keyValue.equals(1, "true"))
+                {
+                    LOG_ERR("unknown SavedUIState value " << keyValue[1]);
+                }
+                savedUIState = "true";
+            }
         }
         if (keyValue.equals(0, "SaveAsMode"))
         {
@@ -72,6 +264,16 @@ std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefa
             {
                 json.set("saveAsMode", "group");
             }
+            continue;
+        }
+        if (keyValue.equals(0, "TouchscreenHint"))
+        {
+            json.set("touchscreenHint", keyValue[1]);
+            continue;
+        }
+        if (keyValue.equals(0, "OnscreenKeyboardHint"))
+        {
+            json.set("onscreenKeyboardHint", keyValue[1]);
             continue;
         }
         else if (keyValue.startsWith(0, "Text"))
@@ -89,7 +291,7 @@ std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefa
             currentDef = &presentationDefs;
             key = keyValue[0].substr(12);
         }
-        else if (Util::startsWith(keyValue[0], "Drawing"))
+        else if (keyValue[0].starts_with("Drawing"))
         {
             currentDef = &drawingDefs;
             key = keyValue[0].substr(7);
@@ -103,11 +305,11 @@ std::string FileServerRequestHandler::uiDefaultsToJSON(const std::string& uiDefa
         assert(currentDef);
 
         // detect the actual UI widget we want to hide or show
-        if (key == "Ruler" || key == "Sidebar" || key == "Statusbar")
+        if (key == "Ruler" || key == "Sidebar" || key == "Statusbar" || key == "Toolbar")
         {
-            bool value(true);
+            std::string value("true");
             if (keyValue.equals(1, "false") || keyValue.equals(1, "False") || keyValue.equals(1, "0"))
-                value = false;
+                value = "false";
 
             currentDef->set("Show" + key, value);
         }
@@ -171,9 +373,9 @@ std::string FileServerRequestHandler::checkFileInfoToJSON(const std::string& che
 
 namespace
 {
-bool isValidCss(const std::string& token)
+constexpr bool isValidCss(const std::string_view token)
 {
-    const std::string forbidden = "<>{}&|\\\"^`'$[]";
+    constexpr std::string_view forbidden = "<>{}&|\\\"^`'$[]";
     for (auto c: token)
     {
         if (c < 0x20 || c >= 0x7F || forbidden.find(c) != std::string::npos)
@@ -193,47 +395,45 @@ std::string FileServerRequestHandler::cssVarsToStyle(const std::string& cssVars)
         return previousStyle;
 
     std::ostringstream styleOSS;
-    styleOSS << "<style>:root {";
+    styleOSS << ":root {";
     StringVector tokens(StringVector::tokenize(cssVars, ';'));
     for (const auto& token : tokens)
     {
-        StringVector keyValue(StringVector::tokenize(tokens.getParam(token), '='));
+        const std::string param = tokens.getParam(token);
+        StringVector keyValue(StringVector::tokenize(param, '='));
         if (keyValue.size() < 2)
         {
-            LOG_ERR("Skipping the token [" << tokens.getParam(token) << "] since it does not have '='");
+            static bool warnedOnce = false;
+            if (!warnedOnce)
+            {
+                warnedOnce = true;
+                LOG_ERR("Skipping the token ["
+                        << param << "] since it "
+                        << (param.ends_with('=') ? "is empty" : "does not have '='"));
+            }
+
             continue;
         }
         else if (keyValue.size() > 2)
         {
-            LOG_ERR("Skipping the token [" << tokens.getParam(token) << "] since it has more than one '=' pair");
+            LOG_ERR("Skipping the token [" << param << "] since it has more than one '=' pair");
             continue;
         }
 
-        if (!isValidCss(tokens.getParam(token)))
+        if (!isValidCss(param))
         {
-            LOG_WRN("Skipping the token [" << tokens.getParam(token) << "] since it contains forbidden characters");
+            LOG_WRN("Skipping the token [" << param << "] since it contains forbidden characters");
             continue;
         }
 
         styleOSS << keyValue[0] << ':' << keyValue[1] << ';';
     }
-    styleOSS << "}</style>";
+    styleOSS << "}";
 
     previousVars = cssVars;
-    previousStyle = styleOSS.str();
+    previousStyle = macaron::Base64::Encode(styleOSS.str());
 
     return previousStyle;
-}
-
-std::string FileServerRequestHandler::stringifyBoolFromConfig(
-                                                const Poco::Util::LayeredConfiguration& config,
-                                                std::string propertyName,
-                                                bool defaultValue)
-{
-    std::string value = "false";
-    if (config.getBool(propertyName, defaultValue))
-        value = "true";
-    return value;
 }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

@@ -1,12 +1,24 @@
 /* -*- js-indent-level: 8 -*- */
-/* global errorMessages getParameterByName accessToken accessTokenTTL accessHeader createOnlineModule */
-/* global app L host idleTimeoutSecs outOfFocusTimeoutSecs _ */
+
+/*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/* global errorMessages accessToken accessTokenTTL accessHeader createOnlineModule */
+/* global app $ L host idleTimeoutSecs outOfFocusTimeoutSecs _ */
 /*eslint indent: [error, "tab", { "outerIIFEBody": 0 }]*/
+
 (function (global) {
 
 
 var wopiParams = {};
-var wopiSrc = getParameterByName('WOPISrc');
+var wopiSrc = global.coolParams.get('WOPISrc');
 
 if (wopiSrc !== '' && accessToken !== '') {
 	wopiParams = { 'access_token': accessToken, 'access_token_ttl': accessTokenTTL };
@@ -19,16 +31,16 @@ if (window.ThisIsTheEmscriptenApp)
 	// Temporary hack
 	var filePath = 'file:///sample.docx';
 else
-	var filePath = getParameterByName('file_path');
+	var filePath = global.coolParams.get('file_path');
 
-app.file.permission = getParameterByName('permission') || 'edit';
+app.setPermission(global.coolParams.get('permission') || 'edit');
 
-var timestamp = getParameterByName('timestamp');
-var target = getParameterByName('target') || '';
+var timestamp = global.coolParams.get('timestamp');
+var target = global.coolParams.get('target') || '';
 // Should the document go inactive or not
-var alwaysActive = getParameterByName('alwaysactive');
+var alwaysActive = global.coolParams.get('alwaysactive');
 // Cool Debug mode
-var debugMode = getParameterByName('debug');
+var debugMode = global.coolParams.get('debug');
 
 var docURL, docParams;
 var isWopi = false;
@@ -41,7 +53,7 @@ if (wopiSrc != '') {
 	docParams = {};
 }
 
-var notWopiButIframe = getParameterByName('NotWOPIButIframe') != '';
+var notWopiButIframe = global.coolParams.get('NotWOPIButIframe') != '';
 var map = L.map('map', {
 	server: host,
 	doc: docURL,
@@ -63,6 +75,8 @@ var map = L.map('map', {
 
 map.uiManager = L.control.uiManager();
 map.addControl(map.uiManager);
+if (!L.Browser.cypressTest)
+	map.tooltip = L.control.tooltip();
 
 map.uiManager.initializeBasicUI();
 
@@ -73,18 +87,30 @@ if (host === '' && !window.ThisIsAMobileApp) {
 	map.uiManager.showInfoModal('empty-host-url-modal', '', errorMessages.emptyhosturl, '', _('OK'), null, false);
 }
 
-if (L.Map.versionBar)
-	map.addControl(L.Map.versionBar);
-
 L.Map.THIS = map;
 app.map = map;
 app.idleHandler.map = map;
 
 if (window.ThisIsTheEmscriptenApp) {
+	var docParamsString = $.param(docParams);
+	// The URL may already contain a query (e.g., 'http://server.tld/foo/wopi/files/bar?desktop=baz') - then just append more params
+	var docParamsPart = docParamsString ? (docURL.includes('?') ? '&' : '?') + docParamsString : '';
+	var encodedWOPI = encodeURIComponent(docURL + docParamsPart);
+
 	var Module = {
 		onRuntimeInitialized: function() {
 			map.loadDocument(global.socket);
 		},
+		print: function (text) {
+			if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+			console.warn(text);
+		},
+		printErr: function (text) {
+			if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+			console.error(text);
+		},
+		arguments_: [docURL, encodedWOPI, isWopi ? 'true' : 'false'],
+		arguments: [docURL, encodedWOPI, isWopi ? 'true' : 'false'],
 	};
 	createOnlineModule(Module);
 	app.HandleCOOLMessage = Module['_handle_cool_message'];
@@ -106,8 +132,12 @@ window.bundlejsLoaded = true;
 
 ////// Unsupported Browser Warning /////
 
-if (L.Browser.isInternetExplorer) {
-	map.uiManager.showInfoModal('browser-not-supported-modal', '', _('Warning! The browser you are using is not supported.'), '', _('OK'), null, false);
+var uaLowerCase = navigator.userAgent.toLowerCase();
+if (uaLowerCase.indexOf('msie') != -1 || uaLowerCase.indexOf('trident') != -1) {
+	map.uiManager.showInfoModal(
+		'browser-not-supported-modal', '',
+		_('Warning! The browser you are using is not supported.'),
+		'', _('OK'), null, false);
 }
 
 }(window));

@@ -1,13 +1,15 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
 #pragma once
-
-#include "config.h"
 
 #include "Protocol.hpp"
 #include "HttpRequest.hpp"
@@ -19,7 +21,7 @@
 #include "StringVector.hpp"
 #include "lokassert.hpp"
 
-#include <Poco/JSON/Object.h>
+#include <JsonUtil.hpp>
 #include <Poco/URI.h>
 #include <Poco/Util/LayeredConfiguration.h>
 
@@ -78,9 +80,13 @@ protected:
     /// Sets the file content to a given value and update the last file modified time
     void setFileContent(const std::string& fileContent)
     {
-        LOG_TST("setFileContent: [" << COOLProtocol::getAbbreviatedMessage(fileContent ) << ']');
         _fileContent = fileContent;
+        const auto oldTime = _fileLastModifiedTime;
         _fileLastModifiedTime = std::chrono::system_clock::now();
+        LOG_TST("setFileContent at " << Util::getIso8601FracformatTime(getFileLastModifiedTime())
+                                     << ": [" << COOLProtocol::getAbbreviatedMessage(_fileContent)
+                                     << "], previous version was at "
+                                     << Util::getIso8601FracformatTime(oldTime));
     }
 
     const std::chrono::system_clock::time_point& getFileLastModifiedTime() const
@@ -104,9 +110,9 @@ protected:
         {
             // That was a filename, set its contents.
             LOG_TST("WopiTestServer created with " << data.size() << " bytes from file ["
-                                                   << filenameOrContents << "]");
+                                                   << filenameOrContents << ']');
             _filename = filenameOrContents; // Capture the real filename.
-            setFileContent(Util::toString(data));
+            setFileContent(std::string(data.begin(), data.end()));
         }
         else
         {
@@ -217,7 +223,7 @@ protected:
     /// Given a wopi URI, extracts the filename.
     static std::string extractFilenameFromWopiUri(const std::string& uriPath)
     {
-        if (Util::startsWith(uriPath, getURIRootPath()))
+        if (uriPath.starts_with(getURIRootPath()))
         {
             const auto first = getURIRootPath().size();
             const auto it = uriPath.find_first_of('/', first);
@@ -230,13 +236,13 @@ protected:
     /// Returns true iff @uriPath is a Wopi path but not to the contents.
     static bool isWopiInfoRequest(const std::string& uriPath)
     {
-        return Util::startsWith(uriPath, getURIRootPath()) && !Util::endsWith(uriPath, "/contents");
+        return uriPath.starts_with(getURIRootPath()) && !uriPath.ends_with("/contents");
     }
 
     /// Returns true iff @uriPath is a Wopi path to the contents of a file.
     static bool isWopiContentRequest(const std::string& uriPath)
     {
-        return Util::startsWith(uriPath, getURIRootPath()) && Util::endsWith(uriPath, "/contents");
+        return uriPath.starts_with(getURIRootPath()) && uriPath.ends_with("/contents");
     }
 
     void configure(Poco::Util::LayeredConfiguration& config) override
@@ -244,6 +250,9 @@ protected:
         UnitWSD::configure(config);
         // we're still internally confused as to https vs. http in places.
         config.setBool("storage.ssl.as_scheme", false);
+
+        // Reset to default.
+        config.setBool("storage.wopi.is_legacy_server", false);
     }
 
     /// Returns the default CheckFileInfo json.
@@ -278,7 +287,7 @@ protected:
     {
         std::unique_ptr<http::Response> httpResponse = assertCheckFileInfoRequest(request);
         if (!httpResponse)
-            httpResponse = Util::make_unique<http::Response>(http::StatusCode::OK);
+            httpResponse = std::make_unique<http::Response>(http::StatusCode::OK);
 
         if (httpResponse->statusLine().statusCategory() ==
             http::StatusLine::StatusCodeClass::Successful)
@@ -288,12 +297,12 @@ protected:
 
             std::ostringstream jsonStream;
             fileInfo->stringify(jsonStream);
-            const std::string json = jsonStream.str();
+            std::string json = jsonStream.str();
             LOG_TST("FakeWOPIHost: Response to CheckFileInfo "
                     << Poco::URI(request.getURI()).getPath() << ": 200 OK: " << json);
 
             httpResponse->set("Last-Modified", Util::getHttpTime(getFileLastModifiedTime()));
-            httpResponse->setBody(json, "application/json; charset=utf-8");
+            httpResponse->setBody(std::move(json), "application/json; charset=utf-8");
         }
         else
         {
@@ -309,7 +318,7 @@ protected:
 
     /// Override to set the CheckFileInfo attributes.
     virtual void configCheckFileInfo(const Poco::Net::HTTPRequest& /*request*/,
-                                     Poco::JSON::Object::Ptr /*fileInfo*/)
+                                     Poco::JSON::Object::Ptr& /*fileInfo*/)
     {
     }
 
@@ -318,7 +327,7 @@ protected:
     {
         std::unique_ptr<http::Response> httpResponse = assertGetFileRequest(request);
         if (!httpResponse)
-            httpResponse = Util::make_unique<http::Response>(http::StatusCode::OK);
+            httpResponse = std::make_unique<http::Response>(http::StatusCode::OK);
 
         if (httpResponse->statusLine().statusCategory() ==
             http::StatusLine::StatusCodeClass::Successful)
@@ -433,7 +442,7 @@ protected:
 
                 http::Response httpResponse(http::StatusCode::OK);
                 httpResponse.set("Last-Modified", Util::getHttpTime(getFileLastModifiedTime()));
-                httpResponse.setBody(content, "application/json; charset=utf-8");
+                httpResponse.setBody(std::move(content), "application/json; charset=utf-8");
                 socket->sendAndShutdown(httpResponse);
             }
 
@@ -445,64 +454,72 @@ protected:
             LOG_TST("FakeWOPIHost: Handling PutFile (#" << _countPutFile
                                                         << "): " << uriReq.getPath());
 
-            const std::string wopiTimestamp = request.get("X-COOL-WOPI-Timestamp", std::string());
-            if (!wopiTimestamp.empty())
-            {
-                const std::string fileModifiedTime =
-                    Util::getIso8601FracformatTime(getFileLastModifiedTime());
-                if (wopiTimestamp != fileModifiedTime)
-                {
-                    LOG_TST("FakeWOPIHost: Document conflict detected, Stored ModifiedTime: ["
-                            << fileModifiedTime << "], Upload ModifiedTime: [" << wopiTimestamp
-                            << ']');
-                    http::Response httpResponse(http::StatusCode::Conflict);
-                    httpResponse.setBody(
-                        "{\"COOLStatusCode\":" +
-                        std::to_string(static_cast<int>(COOLStatusCode::DocChanged)) + '}');
-                    socket->sendAndShutdown(httpResponse);
-                    return true;
-                }
-            }
-            else
-            {
-                LOG_TST("FakeWOPIHost: Forced document upload");
-            }
-
-            std::unique_ptr<http::Response> response = assertPutFileRequest(request);
-            if (!response || response->statusLine().statusCategory() ==
-                                 http::StatusLine::StatusCodeClass::Successful)
-            {
-                const std::streamsize size = request.getContentLength();
-                LOG_TST("FakeWOPIHost: Writing document contents in storage (" << size << "bytes)");
-                std::vector<char> buffer(size);
-                message.read(buffer.data(), size);
-                setFileContent(Util::toString(buffer));
-            }
-
-            if (response)
-            {
-                LOG_TST("FakeWOPIHost: Response to POST "
-                        << uriReq.getPath() << ": " << response->statusLine().statusCode() << ' '
-                        << response->statusLine().reasonPhrase());
-                socket->sendAndShutdown(*response);
-            }
-            else
-            {
-                // By default we return success.
-                const std::string body = "{\"LastModifiedTime\": \"" +
-                                         Util::getIso8601FracformatTime(getFileLastModifiedTime()) +
-                                         "\" }";
-                LOG_TST("FakeWOPIHost: Response (default) to POST " << uriReq.getPath()
-                                                                    << ": 200 OK " << body);
-                http::Response httpResponse(http::StatusCode::OK);
-                httpResponse.setBody(body, "application/json; charset=utf-8");
-                socket->sendAndShutdown(httpResponse);
-            }
-
-            return true;
+            return handleWopiUpload(request, message, socket);
         }
 
         return false;
+    }
+
+    /// Handles the uploading of a document to wopi.
+    virtual bool handleWopiUpload(const Poco::Net::HTTPRequest& request,
+                                  Poco::MemoryInputStream& message,
+                                  std::shared_ptr<StreamSocket>& socket)
+    {
+        const std::string wopiTimestamp = request.get("X-COOL-WOPI-Timestamp", std::string());
+        if (!wopiTimestamp.empty())
+        {
+            const std::string fileModifiedTime =
+                Util::getIso8601FracformatTime(getFileLastModifiedTime());
+            if (wopiTimestamp != fileModifiedTime)
+            {
+                LOG_TST("FakeWOPIHost: Document conflict detected, Stored ModifiedTime: ["
+                        << fileModifiedTime << "], Upload ModifiedTime: [" << wopiTimestamp << ']');
+                http::Response httpResponse(http::StatusCode::Conflict);
+                httpResponse.setBody("{\"COOLStatusCode\":" +
+                                     std::to_string(static_cast<int>(COOLStatusCode::DocChanged)) +
+                                     '}');
+                socket->sendAndShutdown(httpResponse);
+                return true;
+            }
+        }
+        else
+        {
+            LOG_TST("FakeWOPIHost: Forced document upload");
+        }
+
+        std::unique_ptr<http::Response> response = assertPutFileRequest(request);
+        if (!response || response->statusLine().statusCategory() ==
+                             http::StatusLine::StatusCodeClass::Successful)
+        {
+            const std::streamsize size = request.getContentLength();
+            LOG_TST("FakeWOPIHost: Writing document contents in storage (" << size << "bytes)");
+            std::vector<char> buffer(size);
+            message.read(buffer.data(), size);
+            setFileContent(Util::toString(buffer));
+        }
+
+        const Poco::URI uriReq(request.getURI());
+        if (response)
+        {
+            LOG_TST("FakeWOPIHost: Response to POST " << uriReq.getPath() << ": "
+                                                      << response->statusLine().statusCode() << ' '
+                                                      << response->statusLine().reasonPhrase());
+            socket->sendAndShutdown(*response);
+        }
+        else
+        {
+            // By default we return success.
+            std::string body = "{\"LastModifiedTime\": \"" +
+                               Util::getIso8601FracformatTime(getFileLastModifiedTime()) +
+                               "\" }";
+            LOG_TST("FakeWOPIHost: Response (default) to POST " << uriReq.getPath() << ": 200 OK "
+                                                                << body);
+            http::Response httpResponse(http::StatusCode::OK);
+            httpResponse.setBody(std::move(body), "application/json; charset=utf-8");
+            socket->sendAndShutdown(httpResponse);
+        }
+
+        return true;
     }
 
     /// In some very rare cases we may get requests from other tests.
@@ -525,16 +542,13 @@ protected:
     bool handleHttpRequest(const Poco::Net::HTTPRequest& request, Poco::MemoryInputStream& message,
                            std::shared_ptr<StreamSocket>& socket) override
     {
-        Poco::URI uriReq(Util::decodeURIComponent(request.getURI()));
+        Poco::URI uriReq(Uri::decode(request.getURI()));
 
         {
             std::ostringstream oss;
             oss << "FakeWOPIHost: " << request.getMethod() << " request URI [" << uriReq.toString()
                 << "]:\n";
-            for (const auto& pair : request)
-            {
-                oss << '\t' << pair.first << ": " << pair.second << " / ";
-            }
+            Util::joinPair(oss, request, " / ");
 
             if (UnitBase::get().isFinished())
                 oss << "\nIgnoring as test has finished";
@@ -555,7 +569,7 @@ protected:
         {
             return handleHttpPostRequest(request, message, socket);
         }
-        else if (!Util::startsWith(uriReq.getPath(), "/cool/")) // Skip requests to the websrv.
+        else if (!uriReq.getPath().starts_with("/cool/")) // Skip requests to the websrv.
         {
             // Complain if we are expected to handle something that we don't.
             LOG_TST("ERROR: FakeWOPIHost: Request, cannot handle request: " << uriReq.getPath());

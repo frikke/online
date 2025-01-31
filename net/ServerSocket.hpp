@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,25 +11,26 @@
 
 #pragma once
 
+#include "NetUtil.hpp"
 #include "memory"
 
 #include "Socket.hpp"
 #include "Log.hpp"
 
-#include <Poco/Net/SocketAddress.h>
-
 class SocketFactory
 {
 public:
-    virtual std::shared_ptr<Socket> create(const int fd) = 0;
+    virtual std::shared_ptr<Socket> create(const int fd, Socket::Type type) = 0;
 };
 
 /// A non-blocking, streaming socket.
 class ServerSocket : public Socket
 {
 public:
-    ServerSocket(Socket::Type type, SocketPoll& clientPoller, std::shared_ptr<SocketFactory> sockFactory) :
-        Socket(type),
+    ServerSocket(Socket::Type type,
+                 std::chrono::steady_clock::time_point creationTime,
+                 SocketPoll& clientPoller, std::shared_ptr<SocketFactory> sockFactory) :
+        Socket(type, creationTime),
 #if !MOBILEAPP
         _type(type),
 #endif
@@ -35,15 +40,18 @@ public:
     }
 
     /// Control access to a bound TCP socket
-    enum Type { Local, Public };
+    STATE_ENUM(Type, Local, Public);
 
     /// Create a new server socket - accepted sockets will be added
     /// to the @clientSockets' poll when created with @factory.
-    static std::shared_ptr<ServerSocket> create(ServerSocket::Type type, int port,
-                                                Socket::Type socketType, SocketPoll& clientSocket,
+    static std::shared_ptr<ServerSocket> create(ServerSocket::Type type,
+                                                int port,
+                                                Socket::Type socketType,
+                                                std::chrono::steady_clock::time_point creationTime,
+                                                SocketPoll& clientSocket,
                                                 std::shared_ptr<SocketFactory> factory)
     {
-        auto serverSocket = std::make_shared<ServerSocket>(socketType, clientSocket, std::move(factory));
+        auto serverSocket = std::make_shared<ServerSocket>(socketType, creationTime, clientSocket, std::move(factory));
 
         if (serverSocket && serverSocket->bind(type, port) && serverSocket->listen())
             return serverSocket;
@@ -94,22 +102,20 @@ public:
         if (events & POLLIN)
         {
             std::shared_ptr<Socket> clientSocket = accept();
-            if (!clientSocket)
+            if (clientSocket)
             {
-                const std::string msg = "Failed to accept. (errno: ";
-                throw std::runtime_error(msg + std::strerror(errno) + ')');
+                LOGA_TRC(Socket, "Accepted client #" << clientSocket->getFD() << ", " << *clientSocket);
+                _clientPoller.insertNewSocket(std::move(clientSocket));
             }
-
-            LOG_TRC("Accepted client #" << clientSocket->getFD());
-            _clientPoller.insertNewSocket(clientSocket);
         }
     }
 
 protected:
+    bool isUnrecoverableAcceptError(const int cause);
     /// Create a Socket instance from the accepted socket FD.
-    std::shared_ptr<Socket> createSocketFromAccept(int fd) const
+    std::shared_ptr<Socket> createSocketFromAccept(int fd, Socket::Type type) const
     {
-        return _sockFactory->create(fd);
+        return _sockFactory->create(fd, type);
     }
 
 private:
@@ -126,14 +132,15 @@ private:
 class LocalServerSocket : public ServerSocket
 {
 public:
-    LocalServerSocket(SocketPoll& clientPoller, std::shared_ptr<SocketFactory> sockFactory) :
-        ServerSocket(Socket::Type::Unix, clientPoller, std::move(sockFactory))
+    LocalServerSocket(std::chrono::steady_clock::time_point creationTime,
+                      SocketPoll& clientPoller, std::shared_ptr<SocketFactory> sockFactory) :
+        ServerSocket(Socket::Type::Unix, creationTime, clientPoller, std::move(sockFactory))
     {
     }
-    ~LocalServerSocket();
+    ~LocalServerSocket() override;
 
-    virtual bool bind(Type, int) override { assert(false); return false; }
-    virtual std::shared_ptr<Socket> accept() override;
+    bool bind(Type, int) override { assert(false); return false; }
+    std::shared_ptr<Socket> accept() override;
     std::string bind();
 #ifndef HAVE_ABSTRACT_UNIX_SOCKETS
     bool link(std::string to);

@@ -1,19 +1,57 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * Document parts switching and selecting handler
  */
 
-/* global app _ */
+/* global app _ cool */
+/* global _ JSDialog app OtherViewCellCursorSection */
 
 L.Map.include({
+	/*
+		@param {number} part - Target part
+		@param {boolean} external - Do we need to inform a core
+		@param {boolean} calledFromSetPartHandler - Requests a scroll to the cursor
+	*/
 	setPart: function (part, external, calledFromSetPartHandler) {
+		if (cool.Comment.isAnyEdit()) {
+			cool.CommentSection.showCommentEditingWarning();
+			return;
+		}
+
 		var docLayer = this._docLayer;
+		var docType = docLayer._docType;
+		var isTheSamePart = false;
+
+		// check hashes, when we add/delete/move parts they can have the same part number as before
+		if (docType === 'spreadsheet') {
+			isTheSamePart =
+				app.calc.partHashes[docLayer._prevSelectedPart] === app.calc.partHashes[part];
+		} else if ((docType === 'presentation' || docType === 'drawing')) {
+			if (docLayer._prevSelectedPart !== undefined && part < app.impress.partList.length && app.impress.partList[docLayer._prevSelectedPart])
+				isTheSamePart = app.impress.partList[docLayer._prevSelectedPart].hash === app.impress.partList[part].hash;
+		} else if (docType !== 'text') {
+			console.error('Unknown docType: ' + docType);
+		}
+
+		if (docLayer._selectedPart === part && isTheSamePart) {
+			return;
+		}
 
 		if (docLayer.isCalc())
 			docLayer._sheetSwitch.save(part /* toPart */);
 
+		docLayer._clearMsgReplayStore(true /* notOtherMsg*/);
 		docLayer._prevSelectedPart = docLayer._selectedPart;
-		docLayer._selectedParts = [];
+
 		if (part === 'prev') {
 			if (docLayer._selectedPart > 0) {
 				docLayer._selectedPart -= 1;
@@ -58,8 +96,7 @@ L.Map.include({
 
 		this.fire('scrolltopart');
 
-		docLayer._selectedParts.push(docLayer._selectedPart);
-		if (docLayer.isCursorVisible()) {
+		if (app.file.textCursor.visible) {
 			// a click outside the slide to clear any selection
 			app.socket.sendMessage('resetselection');
 		}
@@ -68,14 +105,13 @@ L.Map.include({
 
 		this.fire('updateparts', {
 			selectedPart: docLayer._selectedPart,
-			selectedParts: docLayer._selectedParts,
 			parts: docLayer._parts,
 			docType: docLayer._docType
 		});
 
-		docLayer.eachView(docLayer._viewCursors, docLayer._onUpdateViewCursor, docLayer);
-		docLayer.eachView(docLayer._cellViewCursors, docLayer._onUpdateCellViewCursor, docLayer);
-		docLayer.eachView(docLayer._graphicViewMarkers, docLayer._onUpdateGraphicViewSelection, docLayer);
+		OtherViewCellCursorSection.updateVisibilities();
+		app.definitions.otherViewCursorSection.updateVisibilities();
+		app.definitions.otherViewGraphicSelectionSection.updateVisibilities();
 		docLayer.eachView(docLayer._viewSelections, docLayer._onUpdateTextViewSelection, docLayer);
 		docLayer._clearSelections(calledFromSetPartHandler);
 		docLayer._updateOnChangePart();
@@ -85,48 +121,48 @@ L.Map.include({
 			docLayer._invalidatePreviews();
 		}
 		docLayer._drawSearchResults();
-		if (!this._searchRequested) {
-			this.focus();
-		}
+		this.focus();
 	},
 
 	// part is the part index/id
 	// how is 0 to deselect, 1 to select, and 2 to toggle selection
-	selectPart: function (part, how, external) {
-		//TODO: Update/track selected parts(?).
-		var docLayer = this._docLayer;
-		var index = docLayer._selectedParts.indexOf(part);
-		if (index >= 0 && how != 1) {
-			// Remove (i.e. deselect)
-			docLayer._selectedParts.splice(index, 1);
-		}
-		else if (how != 0) {
-			// Add (i.e. select)
-			docLayer._selectedParts.push(part);
-		}
+	// This function is Impress only.
+	selectPart: function (part, how, external, fireEvent = true) {
+		const currentSelectedCount = app.impress.getSelectedSlidesCount();
 
-		this.fire('updateparts', {
-			selectedPart: docLayer._selectedPart,
-			selectedParts: docLayer._selectedParts,
-			parts: docLayer._parts,
-			docType: docLayer._docType
-		});
+		const targetPart = app.impress.partList[part];
 
-		// If this wasn't triggered from the server,
-		// then notify the server of the change.
-		if (!external) {
-			app.socket.sendMessage('selectclientpart part=' + part + ' how=' + how);
+		if (how < 2) targetPart.selected = how;
+		else targetPart.selected = targetPart.selected === 1 ? 0 : 1;
+
+		if (currentSelectedCount !== app.impress.getSelectedSlidesCount()) {
+			if (fireEvent) this.fire('updateparts', {});
+
+			// If this wasn't triggered from the server,
+			// then notify the server of the change.
+			if (!external) {
+				app.socket.sendMessage('selectclientpart part=' + part + ' how=' + how);
+			}
 		}
 	},
 
 	deselectAll: function() {
-		var docLayer = this._docLayer;
-		while (docLayer._selectedParts.length > 0) {
-			this.selectPart(docLayer._selectedParts[0], 0, false);
+		for (let i = 0; i < app.impress.partList.length; i++) {
+			this.selectPart(i, 0, false, false);
 		}
+		this.fire('updateparts', {});
 	},
 
 	_processPreviewQueue: function() {
+		if (!this._docLayer)
+			return;
+
+		if (!this._docLayer._canonicalIdInitialized)
+			return;
+
+		if (!this._docLayer._preview)
+			return;
+
 		if (this._previewRequestsOnFly > 1) {
 			// we don't always get a response for each tile requests
 			// especially when we have more than one view
@@ -143,72 +179,74 @@ L.Map.include({
 				this._timeToEmptyQueue = now;
 			}
 		}
+
+		var previewParts = [];
 		// take 3 requests from the queue:
 		while (this._previewRequestsOnFly < 3) {
 			var tile = this._previewQueue.shift();
 			if (!tile)
 				break;
-			var isVisible = this.isPreviewVisible(tile[0], true);
-			if (isVisible != true)
+			var isVisible = this._docLayer._preview._isPreviewVisible(tile[0]);
+			if (isVisible != true && tile[1].indexOf('slideshow') < 0)
 				// skip this! we can't see it
 				continue;
 			this._previewRequestsOnFly++;
+			this.fire('beforerequestpreview', { part: tile[0] });
 			app.socket.sendMessage(tile[1]);
+			previewParts.push(tile[0]);
 		}
+
+		if (previewParts.length > 0)
+			window.app.console.debug('PREVIEW: request preview parts : ' + previewParts.join());
 	},
 
 	_addPreviewToQueue: function(part, tileMsg) {
 		for (var tile in this._previewQueue)
-			if (tile[0] === part)
+			if (this._previewQueue[tile][0] === part)
 				// we already have this tile in the queue
 				// no need to ask for it twice
 				return;
 		this._previewQueue.push([part, tileMsg]);
 	},
 
-	getPreview: function (id, index, maxWidth, maxHeight, options) {
-		if (!this._docPreviews) {
-			this._docPreviews = {};
-		}
-		var autoUpdate = options ? !!options.autoUpdate : false;
-		var fetchThumbnail = options && options.fetchThumbnail ? options.fetchThumbnail : true;
-		this._docPreviews[id] = {id: id, index: index, maxWidth: maxWidth, maxHeight: maxHeight, autoUpdate: autoUpdate, invalid: false};
+	getPreview: function (id, part, maxWidth, maxHeight, options) {
 
-		var docLayer = this._docLayer;
-		if (docLayer._docType === 'text') {
-			return;
-		}
-		else {
-			var part = index;
-			var tilePosX = 0;
-			var tilePosY = 0;
-			var tileWidth = docLayer._partWidthTwips ? docLayer._partWidthTwips: docLayer._docWidthTwips;
-			var tileHeight = docLayer._partHeightTwips ? docLayer._partHeightTwips: docLayer._docHeightTwips;
-		}
-		var docRatio = tileWidth / tileHeight;
-		var imgRatio = maxWidth / maxHeight;
+		if (!this._docPreviews) this._docPreviews = {};
+
+		const autoUpdate = options ? !!options.autoUpdate : false;
+		const fetchThumbnail = options && options.fetchThumbnail !== undefined ? options.fetchThumbnail : true;
+		const isSlideshow = options && options.slideshow !== undefined ? options.slideshow : false;
+
+		this._docPreviews[id] = {id: id, index: part, maxWidth: maxWidth, maxHeight: maxHeight, autoUpdate: autoUpdate, invalid: false};
+
+		let docLayer = this._docLayer;
+
+		if (docLayer._docType === 'text') return;
+
+		const tileWidth = docLayer._partWidthTwips ? docLayer._partWidthTwips: docLayer._docWidthTwips;
+		const tileHeight = docLayer._partHeightTwips ? docLayer._partHeightTwips: docLayer._docHeightTwips;
+
+		const docRatio = tileWidth / tileHeight;
+		const imgRatio = maxWidth / maxHeight;
+
 		// fit into the given rectangle while maintaining the ratio
-		if (imgRatio > docRatio) {
-			maxWidth = Math.round(tileWidth * maxHeight / tileHeight);
-		}
-		else {
-			maxHeight = Math.round(tileHeight * maxWidth / tileWidth);
-		}
+		if (imgRatio > docRatio) maxWidth = Math.round(tileWidth * maxHeight / tileHeight);
+		else maxHeight = Math.round(tileHeight * maxWidth / tileWidth);
 
 		if (fetchThumbnail) {
 			var mode = docLayer._selectedMode;
 			this._addPreviewToQueue(part, 'tile ' +
 							'nviewid=0' + ' ' +
-							'part=' + part + ' ' +
-							((mode !== 0) ? ('mode=' + mode + ' ') : '') +
-							'width=' + maxWidth * app.roundedDpiScale + ' ' +
-							'height=' + maxHeight * app.roundedDpiScale + ' ' +
-							'tileposx=' + tilePosX + ' ' +
-							'tileposy=' + tilePosY + ' ' +
-							'tilewidth=' + tileWidth + ' ' +
-							'tileheight=' + tileHeight + ' ' +
-							'id=' + id + ' ' +
-						 'broadcast=no');
+							'part=' + String(part) + ' ' +
+							'mode=' + String(mode) + ' ' +
+							'width=' + String(maxWidth * app.roundedDpiScale) + ' ' +
+							'height=' + String(maxHeight * app.roundedDpiScale) + ' ' +
+							'tileposx=' + '0 ' +
+							'tileposy=' + '0 ' +
+							'tilewidth=' + String(tileWidth) + ' ' +
+							'tileheight=' + String(tileHeight) + ' ' +
+							'id=' + String(id) +
+							(isSlideshow ? ' slideshow=1' : ''));
 			this._processPreviewQueue();
 		}
 
@@ -237,8 +275,7 @@ L.Map.include({
 							'tileposy=' + tilePosY + ' ' +
 							'tilewidth=' + tileWidth + ' ' +
 							'tileheight=' + tileHeight + ' ' +
-							'id=' + id + ' ' +
-							'broadcast=no');
+							'id=' + id);
 		this._processPreviewQueue();
 	},
 
@@ -277,10 +314,22 @@ L.Map.include({
 	},
 
 	insertPage: function(nPos) {
+		if (cool.Comment.isAnyEdit()) {
+			cool.CommentSection.showCommentEditingWarning();
+			return;
+		}
+
 		if (this.isPresentationOrDrawing()) {
-			app.socket.sendMessage('uno .uno:InsertPage');
+			if (nPos === undefined) {
+				app.socket.sendMessage('uno .uno:InsertPage');
+			}
+			else {
+				var argument = {InsertPos: {type: 'int16', value: nPos}};
+				app.socket.sendMessage('uno .uno:InsertPage ' + JSON.stringify(argument));
+			}
 		}
 		else if (this.getDocType() === 'spreadsheet') {
+			this._docLayer._sheetSwitch.updateOnSheetInsertion(nPos);
 			var command = {
 				'Name': {
 					'type': 'string',
@@ -341,6 +390,7 @@ L.Map.include({
 			app.socket.sendMessage('uno .uno:DeletePage');
 		}
 		else if (this.getDocType() === 'spreadsheet') {
+			this._docLayer._sheetSwitch.updateOnSheetDeleted(nPos);
 			var command = {
 				'Index': {
 					'type': 'long',
@@ -360,7 +410,7 @@ L.Map.include({
 			return;
 		}
 
-		if (this.getDocType() === 'spreadsheet' && docLayer._parts <= docLayer.hiddenParts() + 1) {
+		if (this.getDocType() === 'spreadsheet' && docLayer._parts <= app.calc.getHiddenPartCount() + 1) {
 			return;
 		}
 
@@ -404,21 +454,20 @@ L.Map.include({
 	},
 
 	showPage: function () {
-		if (this.getDocType() === 'spreadsheet' && this.hasAnyHiddenPart()) {
-			var partNames_ = this._docLayer._partNames;
-			var hiddenParts_ = this._docLayer._hiddenParts;
+		if (this.getDocType() === 'spreadsheet' && app.calc.isAnyPartHidden()) {
+			var hiddenParts = app.calc.getHiddenPartNameArray();
 
-			if (hiddenParts_.length > 0) {
+			if (app.calc.isAnyPartHidden()) {
 				var container = document.createElement('div');
 				container.style.maxHeight = '300px';
 				container.style.overflowY = 'auto';
-				for (var i = 0; i < hiddenParts_.length; i++) {
+				for (var i = 0; i < hiddenParts.length; i++) {
 					var checkbox = document.createElement('input');
 					checkbox.type = 'checkbox';
-					checkbox.id = 'hidden-part-checkbox-' + String(hiddenParts_[i]);
+					checkbox.id = 'hidden-part-checkbox-' + hiddenParts[i];
 					var label = document.createElement('label');
-					label.htmlFor = 'hidden-part-checkbox-' + String(hiddenParts_[i]);
-					label.innerText = partNames_[hiddenParts_[i]];
+					label.htmlFor = 'hidden-part-checkbox-' + hiddenParts[i];
+					label.innerText = hiddenParts[i];
 					var newLine = document.createElement('br');
 					container.appendChild(checkbox);
 					container.appendChild(label);
@@ -426,34 +475,53 @@ L.Map.include({
 				}
 			}
 
-			var callback = function() {
+			const dialogId = 'show-sheets-modal';
+
+			const buttonCallback = function() {
 				var checkboxList = document.querySelectorAll('input[id^="hidden-part-checkbox"]');
 				for (var i = 0; i < checkboxList.length; i++) {
 					if (checkboxList[i].checked === true) {
-						var partName_ = partNames_[parseInt(checkboxList[i].id.replace('hidden-part-checkbox-', ''))];
+						var partName_ = checkboxList[i].id.replace('hidden-part-checkbox-', '');
 						var argument = {aTableName: {type: 'string', value: partName_}};
 						app.socket.sendMessage('uno .uno:Show ' + JSON.stringify(argument));
 					}
 				}
 			};
 
-			this.uiManager.showInfoModal('show-sheets-modal', '', ' ', ' ', _('Close'), callback, true, 'show-sheets-modal-response');
-			document.getElementById('show-sheets-modal').querySelectorAll('label')[0].outerHTML = container.outerHTML;
+			this.uiManager.showInfoModal(dialogId, _('Show sheets'), ' ', ' ', _('OK'), buttonCallback, true, dialogId + '-response');
+			const modal = document.getElementById(dialogId);
+			modal.insertBefore(container, modal.children[0]);
+
+			JSDialog.enableButtonInModal(dialogId, dialogId + '-response', false);
+
+			var checkboxes = document.querySelectorAll('#show-sheets-modal input[type="checkbox"]');
+			checkboxes.forEach(function(checkbox) {
+				checkbox.addEventListener('change', function() {
+					var anyChecked = false;
+					checkboxes.forEach(function(checkbox) {
+						if (checkbox.checked) {
+							anyChecked = true;
+						}
+					});
+					JSDialog.enableButtonInModal(dialogId, dialogId + '-response', anyChecked);
+				});
+			});
 		}
 	},
 
 	hidePage: function (tabNumber) {
-		if (this.getDocType() === 'spreadsheet' && this.getNumberOfVisibleParts() > 1) {
+		if (this.getDocType() === 'spreadsheet' && app.calc.getVisiblePartCount() > 1) {
 			var argument = {nTabNumber: {type: 'int16', value: tabNumber}};
 			app.socket.sendMessage('uno .uno:Hide ' + JSON.stringify(argument));
 		}
 	},
 
 	hideSlide: function() {
-		for (var index = 0; index < this._docLayer._selectedParts.length; index++) {
-			var id = this._docLayer._selectedParts[index];
-			L.DomUtil.addClass(this._docLayer._preview._previewTiles[id], 'hidden-slide');
-			this._docLayer._hiddenSlides.add(id);
+		for (let i = 0; i < app.impress.partList.length; i++) {
+			if (app.impress.partList[i].selected) {
+				app.impress.partList[i].visible = 0;
+				L.DomUtil.addClass(this._docLayer._preview._previewTiles[i], 'hidden-slide');
+			}
 		}
 
 		app.socket.sendMessage('uno .uno:HideSlide');
@@ -461,34 +529,19 @@ L.Map.include({
 	},
 
 	showSlide: function() {
-		for (var index = 0; index < this._docLayer._selectedParts.length; index++) {
-			var id = this._docLayer._selectedParts[index];
-			L.DomUtil.removeClass(this._docLayer._preview._previewTiles[id], 'hidden-slide');
-			this._docLayer._hiddenSlides.delete(id);
+		for (let i = 0; i < app.impress.partList.length; i++) {
+			if (app.impress.partList[i].selected) {
+				app.impress.partList[i].visible = 1;
+				L.DomUtil.removeClass(this._docLayer._preview._previewTiles[i], 'hidden-slide');
+			}
 		}
 
 		app.socket.sendMessage('uno .uno:ShowSlide');
 		this.fire('toggleslidehide');
 	},
 
-	isHiddenPart: function (part) {
-		if (this.getDocType() !== 'spreadsheet')
-			return false;
-		return this._docLayer.isHiddenPart(part);
-	},
-
-	hasAnyHiddenPart: function () {
-		if (this.getDocType() !== 'spreadsheet')
-			return false;
-		return this._docLayer.hasAnyHiddenPart();
-	},
-
 	getNumberOfParts: function () {
 		return this._docLayer._parts;
-	},
-
-	getNumberOfVisibleParts: function () {
-		return this.getNumberOfParts() - this._docLayer.hiddenParts();
 	},
 
 	getCurrentPartNumber: function () {

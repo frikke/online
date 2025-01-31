@@ -1,5 +1,15 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
  * JSDialog.MobileTabControl - widgets handling tabs on mobile
  *
  * Example JSON:
@@ -8,10 +18,6 @@
  *     type: 'tabcontrol',
  *     children: [...]
  * }
- *
- * Copyright the Collabora Online contributors.
- *
- * SPDX-License-Identifier: MPL-2.0
  */
 
 /* global JSDialog $ */
@@ -92,7 +98,7 @@ function _tabsToPanelConverter(parentContainer, data, builder, tabTooltip) {
 	var tabs = 0;
 	var tabObjects = [];
 	for (var tabIdx = 0; data.children && tabIdx < data.children.length; tabIdx++) {
-		if (data.children[tabIdx].type === 'tabpage') {
+		if (data.children[tabIdx].type === 'tabpage' || data.vertical) {
 			tabs++;
 			tabObjects.push(data.children[tabIdx]);
 		}
@@ -113,7 +119,7 @@ function _tabsToPanelConverter(parentContainer, data, builder, tabTooltip) {
 		for (tabIdx = 0; tabIdx < data.children.length; tabIdx++) {
 			var tab = data.children[tabIdx];
 
-			if (tab.type !== 'tabpage')
+			if (tab.type !== 'tabpage' && !data.vertical)
 				continue;
 
 			tabObjects[tabId].text = data.tabs[tabId].text;
@@ -123,7 +129,7 @@ function _tabsToPanelConverter(parentContainer, data, builder, tabTooltip) {
 		for (tabIdx = 0; tabIdx < data.children.length; tabIdx++) {
 			tab = data.children[tabIdx];
 
-			if (tab.type !== 'tabpage')
+			if (tab.type !== 'tabpage' && !data.vertical)
 				continue;
 
 			tabObjects[singleTabId].text = data.tabs[singleTabId].text;
@@ -136,6 +142,33 @@ function _tabsToPanelConverter(parentContainer, data, builder, tabTooltip) {
 	return false;
 }
 
+// if the tabs list is too long, it ends up being pretty messy. We should switch to submenus in that case
+function _tabsToSubmenuConverter(parentContainer, data, builder) {
+    const submenuChildren = [];
+
+    for (const [index, tab] of Object.entries(data.children)) {
+        if (tab.type !== 'tabpage') {
+            continue
+        }
+
+        submenuChildren.push({
+            children: tab.children,
+            command: tab.command,
+            enabled: true,
+            executionType: 'menu',
+            id: tab.id,
+            parent: parentContainer,
+            text: data.tabs[index].text,
+            type: 'submenu',
+        });
+    }
+
+    data.children = submenuChildren;
+
+    return JSDialog.container(parentContainer, data, builder);
+}
+
+
 JSDialog.mobileTabControl = function (parentContainer, data, builder) {
 	var buildInnerData = _tabsToPanelConverter(parentContainer, data, builder);
 	return buildInnerData;
@@ -143,5 +176,10 @@ JSDialog.mobileTabControl = function (parentContainer, data, builder) {
 
 JSDialog.mobilePanelControl = function (parentContainer, data, builder) {
 	var buildInnerData = _panelTabsHandler(parentContainer, data, builder);
+	return buildInnerData;
+};
+
+JSDialog.mobileSubmenuTabControl = function (parentContainer, data, builder) {
+	var buildInnerData = _tabsToSubmenuConverter(parentContainer, data, builder);
 	return buildInnerData;
 };

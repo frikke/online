@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,18 +11,16 @@
 
 #pragma once
 
+#include <StringVector.hpp>
+#include <Util.hpp>
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iomanip>
 #include <map>
-#include <regex>
-#include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include <StringVector.hpp>
-#include <Util.hpp>
 
 #define LOK_USE_UNSTABLE_API
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
@@ -40,21 +42,21 @@ namespace COOLProtocol
     // Negative numbers for error.
     std::tuple<int, int, std::string> ParseVersion(const std::string& version);
 
-    inline bool stringToInteger(const std::string& input, int& value)
+    inline bool stringToInteger(const std::string_view input, int& value)
     {
         bool res;
         std::tie(value, res) = Util::i32FromString(input);
         return res;
     }
 
-    inline bool stringToUInt32(const std::string& input, uint32_t& value)
+    inline bool stringToUInt32(const std::string_view input, uint32_t& value)
     {
         bool res;
         std::tie(value, res) = Util::i32FromString(input);
         return res;
     }
 
-    inline bool stringToUInt64(const std::string& input, uint64_t& value)
+    inline bool stringToUInt64(const std::string_view input, uint64_t& value)
     {
         bool res;
         std::tie(value, res) = Util::u64FromString(input);
@@ -75,19 +77,30 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenInteger(const std::string& token, const std::string_view name, int& value);
-    bool getTokenUInt32(const std::string& token, const std::string_view name, uint32_t& value);
-    bool getTokenUInt64(const std::string& token, const std::string_view name, uint64_t& value);
-    bool getTokenString(const std::string& token, const std::string_view name, std::string& value);
-    bool getTokenKeyword(const std::string& token, const std::string_view name, const std::map<std::string, int>& map, int& value);
+    bool getTokenInteger(const std::string_view token, const std::string_view name, int& value);
+    bool getTokenUInt32(const std::string_view token, const std::string_view name, uint32_t& value);
+    bool getTokenUInt64(const std::string_view token, const std::string_view name, uint64_t& value);
+    bool getTokenString(const std::string_view token, const std::string_view name,
+                        std::string& value);
+    bool getTokenKeyword(const std::string_view token, const std::string_view name,
+                         const std::map<std::string, int>& map, int& value);
 
     bool getTokenKeyword(const StringVector& tokens, const std::string_view name, const std::map<std::string, int>& map, int& value);
 
-    bool getTokenInteger(const StringVector& tokens, const std::string_view name, int& value);
+    inline bool getTokenInteger(const StringVector& tokens, const std::string_view name,
+                                int& value)
+    {
+        for (size_t i = 0; i < tokens.size(); i++)
+        {
+            if (getTokenInteger(tokens[i], name, value))
+                return true;
+        }
+        return false;
+    }
 
     /// Literal-string token names.
     template <std::size_t N>
-    inline bool getTokenInteger(const std::string& token, const char (&name)[N], int& value)
+    inline bool getTokenInteger(const std::string_view token, const char (&name)[N], int& value)
     {
         // N includes null termination.
         static_assert(N > 1, "Token name must be at least one character long.");
@@ -104,7 +117,8 @@ namespace COOLProtocol
 
     /// Extracts a name and value from token. Returns true if value is a non-negative integer.
     template <std::size_t N>
-    inline bool getNonNegTokenInteger(const std::string& token, const char (&name)[N], int& value)
+    inline bool getNonNegTokenInteger(const std::string_view token, const char (&name)[N],
+                                      int& value)
     {
         return getTokenInteger(token, name, value) && value >= 0;
     }
@@ -124,8 +138,8 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenStringFromMessage(const std::string& message, const std::string_view name, std::string& value);
-    bool getTokenKeywordFromMessage(const std::string& message, const std::string_view name, const std::map<std::string, int>& map, int& value);
+    bool getTokenStringFromMessage(const std::string_view message, const std::string_view name,
+                                   std::string& value);
 
     inline
     std::vector<int> tokenizeInts(const char* data, const size_t size, const char delimiter = ',')
@@ -155,10 +169,9 @@ namespace COOLProtocol
         return tokens;
     }
 
-    inline
-    std::vector<int> tokenizeInts(const std::string& s, const char delimiter = ',')
+    inline std::vector<int> tokenizeInts(const std::string_view str, const char delimiter = ',')
     {
-        return tokenizeInts(s.data(), s.size(), delimiter);
+        return tokenizeInts(str.data(), str.size(), delimiter);
     }
 
     inline bool getTokenIntegerFromMessage(const std::string& message, const std::string_view name, int& value)
@@ -254,7 +267,10 @@ namespace COOLProtocol
         {
             // By default, all uno commands are modifying, unless we are certain they don't.
             return !tokens.equals(1, ".uno:SidebarHide") && !tokens.equals(1, ".uno:SidebarShow") &&
-                   !tokens.equals(1, ".uno:Copy") && !tokens.equals(1, ".uno:Save");
+                   !tokens.equals(1, ".uno:Copy") && !tokens.equals(1, ".uno:Save") &&
+                   !tokens.startsWith(1, ".uno:ToolbarMode") && // ToolbarMode?Mode...
+                   !tokens.equals(1, ".uno:InvertBackground") &&
+                   !tokens.equals(1, ".uno:ChangeTheme");
         }
 
         return false;
@@ -274,6 +290,36 @@ namespace COOLProtocol
         return getFirstLine(message.data(), message.size());
     }
 
+    constexpr int maxNonAbbreviatedMsgLen = 500;
+
+    inline bool shouldEllipse(const char* message, const size_t length, const size_t spanLen)
+    {
+        // If first line is less than the length (ignoring possible final newline), add ellipsis.
+        if (spanLen == length)
+            return false;
+        if (spanLen < length - 1)
+            return true;
+        return message[length - 1] != '\n';
+    }
+
+    /// Given a well-formed utf-8 string 'message' of messageLen bytes and a
+    /// desire to truncate to approximately abbrevLen bytes return the shortest
+    /// string greater of equal to abbrevLen that does not split a utf-8
+    /// sequence.
+    inline std::string truncateUtf8(const char* message, size_t messageLen, size_t abbrevLen)
+    {
+        std::string ret(message, abbrevLen);
+        for (size_t i = abbrevLen; i < messageLen; ++i)
+        {
+            const char unit = message[i];
+            const bool continuation = (static_cast<uint8_t>(unit) & 0xC0) == 0x80;
+            if (!continuation) // likely
+                break;
+            ret.push_back(unit);
+        }
+        return ret;
+    }
+
     /// Returns an abbreviation of the message (the first line, indicating truncation). We assume
     /// that it adhers to the COOL protocol, i.e. that there is always a first (or only) line that
     /// is in printable UTF-8. I.e. no encoding of binary bytes is done. The format of the result is
@@ -287,28 +333,26 @@ namespace COOLProtocol
             return std::string();
         }
 
-        const std::string firstLine = getFirstLine(message, std::min(length, 500));
+        const size_t spanLen = Util::getDelimiterPosition(message,
+            std::min(length, maxNonAbbreviatedMsgLen), '\n');
 
         // If first line is less than the length (minus newline), add ellipsis.
-        if (firstLine.size() < static_cast<std::string::size_type>(length) - 1)
-        {
-            return firstLine + "...";
-        }
+        if (shouldEllipse(message, length, spanLen))
+            return truncateUtf8(message, length, spanLen) + "...";
 
-        return firstLine;
+        return std::string(message, spanLen);
     }
 
     inline std::string getAbbreviatedMessage(const std::string& message)
     {
-        const size_t pos = Util::getDelimiterPosition(message.data(), std::min<size_t>(message.size(), 501), '\n');
+        const size_t spanLen = Util::getDelimiterPosition(message.data(),
+            std::min<size_t>(message.size(), maxNonAbbreviatedMsgLen), '\n');
 
         // If first line is less than the length (minus newline), add ellipsis.
-        if (pos < static_cast<std::string::size_type>(message.size()) - 1)
-        {
-            return message.substr(0, pos) + "...";
-        }
+        if (shouldEllipse(message.data(), message.size(), spanLen))
+            return truncateUtf8(message.data(), message.size(), spanLen) + "...";
 
-        return message;
+        return message.substr(0, spanLen);
     }
 
     template <typename T>

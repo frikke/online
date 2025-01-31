@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,9 +11,8 @@
 
 #pragma once
 
-#include <config_version.h>
-
 #include <fcntl.h>
+#include <ios>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -28,15 +31,12 @@
 #include <NetUtil.hpp>
 #include <net/Socket.hpp>
 #include <utility>
+#include <algorithm>
 #if ENABLE_SSL
 #include <net/SslSocket.hpp>
 #endif
 #include "Log.hpp"
 #include "Util.hpp"
-
-#ifndef APP_NAME
-static_assert(false, "config.h must be included in the .cpp being compiled");
-#endif
 
 // This is a partial implementation of RFC 7230
 // and its related RFCs, with focus on the core
@@ -143,16 +143,18 @@ namespace http
 {
 /// The parse-state of a field.
 STATE_ENUM(FieldParseState,
-           Unknown, //< Not yet parsed.
-           Incomplete, //< Not enough data to parse this field. Need more data.
-           Invalid, //< The field is invalid/unexpected/long.
-           Valid //< The field is both complete and valid.
+           Unknown, ///< Not yet parsed.
+           Incomplete, ///< Not enough data to parse this field. Need more data.
+           Invalid, ///< The field is invalid/unexpected/long.
+           Valid ///< The field is both complete and valid.
 );
 
 /// Named HTTP Status Codes.
 /// See https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
 enum class StatusCode : unsigned
 {
+    None = 0, // Undefined status (unknown)
+
     // Informational
     Continue = 100,
     SwitchingProtocols = 101,
@@ -322,6 +324,9 @@ static inline const char* getReasonPhraseForCode(StatusCode statusCode)
     return getReasonPhraseForCode(static_cast<unsigned>(statusCode));
 }
 
+std::string getAgentString();
+std::string getServerString();
+
 /// The callback signature for handling IO writes.
 /// Returns the number of bytes read from the buffer,
 /// -1 for error (terminates the transfer).
@@ -350,16 +355,29 @@ public:
     static constexpr int64_t MaxFieldLen = MaxNameLen + MaxValueLen;
     static constexpr int64_t MaxHeaderLen = MaxNumberFields * MaxFieldLen; // ~1.18 MB.
 
-    /// Describes the header state during parsing.
-    STATE_ENUM(State, New,
-               Incomplete, //< Haven't reached the end yet.
-               InvalidField, //< Too long, no colon, etc.
-               TooManyFields, //< Too many fields to accept.
-               Complete //< Header is complete and valid.
+    static constexpr const char* CONNECTION = "Connection";
+
+    /// Describes the `Connection` header token value
+    STATE_ENUM(
+        ConnectionToken,
+        None, ///< No `Connection` header token set
+        Close, ///< `Connection: close` [RFC2616 14.10](https://www.rfc-editor.org/rfc/rfc2616#section-14.10)
+        KeepAlive, ///< `Connection: Keep-Alive` Obsolete [RFC2068 19.7.1](https://www.rfc-editor.org/rfc/rfc2068#section-19.7.1)
+        Upgrade ///< `Connection: Upgrade` HTTP/1.1 only [RFC2817](https://www.rfc-editor.org/rfc/rfc2817)
     );
 
-    using Container = std::vector<std::pair<std::string, std::string>>;
-    using ConstIterator = std::vector<std::pair<std::string, std::string>>::const_iterator;
+    /// Describes the header state during parsing.
+    STATE_ENUM(State, New,
+               Incomplete, ///< Haven't reached the end yet.
+               InvalidField, ///< Too long, no colon, etc.
+               TooManyFields, ///< Too many fields to accept.
+               Complete ///< Header is complete and valid.
+    );
+
+    using Pair = std::pair<std::string, std::string>;
+    using Container = std::vector<Pair>;
+    using Iterator = std::vector<Pair>::iterator;
+    using ConstIterator = std::vector<Pair>::const_iterator;
 
     ConstIterator begin() const { return _headers.begin(); }
     ConstIterator end() const { return _headers.end(); }
@@ -374,29 +392,37 @@ public:
         _headers.emplace_back(std::move(key), std::move(value));
     }
 
-    /// Set an HTTP header field, replacing an earlier value, if exists.
+    /// Set an HTTP header field, replacing an earlier value, if exists (case insensitive).
     void set(const std::string& key, std::string value)
     {
-        for (auto& pair : _headers)
-        {
-            if (pair.first == key)
-            {
-                pair.second.swap(value);
-                return;
-            }
+        const Iterator e = _headers.end();
+        const Iterator it = std::find_if(_headers.begin(), e,
+                                    [&key](const Pair &pair) -> bool { return Util::iequal(pair.first, key); });
+        if( e != it ) {
+            it->second.swap(value);
+        } else {
+            _headers.emplace_back(key, std::move(value));
         }
-
-        _headers.emplace_back(key, std::move(value));
     }
 
+    // Returns true if the HTTP header field exists (case insensitive)
     bool has(const std::string& key) const
     {
-        for (const auto& pair : _headers)
-        {
-            if (Util::iequal(pair.first, key))
-                return true;
-        }
+        const ConstIterator e = end();
+        return e != std::find_if(begin(), e,
+                            [&key](const Pair &pair) -> bool { return Util::iequal(pair.first, key); });
+    }
 
+    /// Remove the first matching HTTP header field (case insensitive), returning true if found and removed.
+    bool remove(const std::string& key)
+    {
+        const ConstIterator e = end();
+        const ConstIterator it = std::find_if(begin(), e,
+                                    [&key](const Pair &pair) -> bool { return Util::iequal(pair.first, key); });
+        if( e != it ) {
+            _headers.erase(it);
+            return true;
+        }
         return false;
     }
 
@@ -406,13 +432,14 @@ public:
         // There are typically half a dozen header
         // entries, rarely much more. A map would
         // probably not be faster but would add complexity.
-        for (const auto& pair : _headers)
-        {
-            if (Util::iequal(pair.first, key))
-                return pair.second;
+        const ConstIterator e = end();
+        const ConstIterator it = std::find_if(begin(), e,
+                                    [&key](const Pair &pair) -> bool { return Util::iequal(pair.first, key); });
+        if( e != it ) {
+            return it->second;
+        } else {
+            return def;
         }
-
-        return def;
     }
 
     /// Set the Content-Type header.
@@ -435,8 +462,53 @@ public:
     /// Return true iff Transfer-Encoding is set to chunked (the last entry).
     bool getChunkedTransferEncoding() const { return _chunked; }
 
-    /// Adds a new "Cookie" header entry with the given cookies.
-    void addCookies(const Container& pairs)
+    bool hasConnectionToken() const { return has(CONNECTION); }
+    ConnectionToken getConnectionToken() const
+    {
+        const std::string token = get(CONNECTION);
+        if (Util::iequal("close", token))
+        {
+            return ConnectionToken::Close;
+        }
+        else if (Util::iequal("keep-alive", token))
+        {
+            return ConnectionToken::KeepAlive;
+        }
+        else if (Util::iequal("upgrade", token))
+        {
+            return ConnectionToken::Upgrade;
+        }
+        else
+        {
+            return ConnectionToken::None;
+        }
+    }
+    void setConnectionToken(ConnectionToken token)
+    {
+        std::string value;
+        switch (token)
+        {
+            case ConnectionToken::Close:
+                value = "close";
+                break;
+            case ConnectionToken::KeepAlive:
+                value = "Keep-Alive";
+                break;
+            case ConnectionToken::Upgrade:
+                value = "Upgrade";
+                break;
+            default:
+                remove(CONNECTION);
+                return;
+        }
+        set(CONNECTION, std::move(value));
+    }
+
+    /// Adds a new "Cookie" header entry with the given content.
+    void addCookie(const std::string& cookie) { add(COOKIE, cookie); }
+
+    /// Adds a new "Cookie" header entry with the given pairs.
+    void addCookie(const Container& pairs)
     {
         std::string s;
         s.reserve(256);
@@ -518,9 +590,9 @@ public:
 
     /// The stages of processing the request.
     STATE_ENUM(Stage,
-               Header, //< Communicate the header.
-               Body, //< Communicate the body (if any).
-               Finished //< Done.
+               Header, ///< Communicate the header.
+               Body, ///< Communicate the body (if any).
+               Finished ///< Done.
     );
 
     /// Create a Request given a @url, http @verb, @header, and http @version.
@@ -579,7 +651,6 @@ public:
     /// Set the file to send as the body of the request.
     void setBodyFile(const std::string& path)
     {
-        //FIXME: use generalized lambda capture to move the ifstream, available in C++14.
         auto ifs = std::make_shared<std::ifstream>(path, std::ios::binary);
 
         ifs->seekg(0, std::ios_base::end);
@@ -587,12 +658,30 @@ public:
         ifs->seekg(0, std::ios_base::beg);
 
         setBodySource(
-            [=](char* buf, int64_t len) -> int64_t
+            [ ifs=std::move(ifs) ](char* buf, int64_t len) -> int64_t
             {
                 ifs->read(buf, len);
                 return ifs->gcount();
             },
             size);
+    }
+
+    void setBody(const std::string& body, std::string contentType = "text/html;charset=utf-8")
+    {
+        if (!body.empty()) // Type is only meaningful if there is a body.
+            _header.setContentType(std::move(contentType));
+
+        _header.add("Content-Length", std::to_string(body.size()));
+
+        auto iss = std::make_shared<std::istringstream>(body, std::ios::binary);
+
+        setBodySource(
+            [ iss=std::move(iss) ](char* buf, int64_t len) -> int64_t
+            {
+                iss->read(buf, len);
+                return iss->gcount();
+            },
+            body.size());
     }
 
     Stage stage() const { return _stage; }
@@ -663,11 +752,19 @@ public:
     /// and/or to interrupt transmission.
     int64_t readData(const char* p, int64_t len);
 
+    void dumpState(std::ostream& os, const std::string& indent = "\n  ") const
+    {
+        os << indent << "http::Request: " << _version << ' ' << _verb << ' ' << _url;
+        os << indent << "\tstage: " << name(_stage);
+        os << indent << "\theaders: ";
+        Util::joinPair(os, _header, (indent + '\t').c_str());
+    }
+
 private:
     Header _header;
-    std::string _url; //< The URL to request, without hostname.
-    std::string _verb; //< Used as-is, but only POST supported.
-    std::string _version; //< The protocol version, currently 1.1.
+    std::string _url; ///< The URL to request, without hostname.
+    std::string _verb; ///< Used as-is, but only POST supported.
+    std::string _version; ///< The protocol version, currently 1.1.
     IoReadFunc _bodyReaderCb;
     Stage _stage;
 };
@@ -715,12 +812,12 @@ public:
     /// The Status Code class of the response.
     /// None of these implies complete receipt of the response.
     STATE_ENUM(StatusCodeClass,
-               Invalid, //< Not a valid Status Code.
-               Informational, //< Request being processed, not final response.
-               Successful, //< Successfully processed request, response on the way.
-               Redirection, //< Redirected to a different resource.
-               Client_Error, //< Bad request, cannot respond.
-               Server_Error //< Bad server, cannot respond.
+               Invalid, ///< Not a valid Status Code.
+               Informational, ///< Request being processed, not final response.
+               Successful, ///< Successfully processed request, response on the way.
+               Redirection, ///< Redirected to a different resource.
+               Client_Error, ///< Bad request, cannot respond.
+               Server_Error ///< Bad server, cannot respond.
     );
 
     StatusCodeClass statusCategory() const
@@ -760,11 +857,11 @@ public:
     const std::string& reasonPhrase() const { return _reasonPhrase; }
 
 private:
-    std::string _httpVersion; //< Typically "HTTP/1.1"
-    unsigned _versionMajor; //< The first version digit (typically 1).
-    unsigned _versionMinor; //< The second version digit (typically 1).
+    std::string _httpVersion; ///< Typically "HTTP/1.1"
+    unsigned _versionMajor; ///< The first version digit (typically 1).
+    unsigned _versionMinor; ///< The second version digit (typically 1).
     unsigned _statusCode;
-    std::string _reasonPhrase; //< A client SHOULD ignore the reason-phrase content.
+    std::string _reasonPhrase; ///< A client SHOULD ignore the reason-phrase content.
 };
 
 /// The response for an HTTP request.
@@ -803,7 +900,7 @@ public:
         , _fd(fd)
     {
         _header.add("Date", Util::getHttpTimeNow());
-        _header.add("Server", HTTP_SERVER_STRING);
+        _header.add("Server", http::getServerString());
     }
 
     /// A response sent from a server.
@@ -815,11 +912,11 @@ public:
 
     /// The state of an incoming response, when parsing.
     STATE_ENUM(State,
-               New, //< Valid but meaningless.
-               Incomplete, //< In progress, no errors.
-               Error, //< This is for protocol errors, not 400 and 500 reponses.
-               Timeout, //< The request has exceeded the time allocated.
-               Complete //< Successfully completed (does *not* imply 200 OK).
+               New, ///< Valid but meaningless.
+               Incomplete, ///< In progress, no errors.
+               Error, ///< This is for protocol errors, not 400 and 500 reponses.
+               Timeout, ///< The request has exceeded the time allocated.
+               Complete ///< Successfully completed (does *not* imply 200 OK).
     );
 
     /// The state of the Response (for the server's response use statusLine).
@@ -832,7 +929,9 @@ public:
     }
 
     const StatusLine& statusLine() const { return _statusLine; }
+    StatusCode statusCode() const { return _statusLine.statusCode(); }
 
+    Header& header() { return _header; }
     const Header& header() const { return _header; }
 
     /// Add an HTTP header field.
@@ -840,6 +939,12 @@ public:
 
     /// Set an HTTP header field, replacing an earlier value, if exists.
     void set(const std::string& key, std::string value) { _header.set(key, std::move(value)); }
+
+    /// Set the Content-Type header.
+    void setContentType(std::string type) { _header.setContentType(std::move(type)); }
+
+    /// Set the Content-Length header.
+    void setContentLength(int64_t length) { _header.setContentLength(length); }
 
     /// Get a header entry value by key, if found, defaulting to @def, if missing.
     std::string get(const std::string& key, const std::string& def = std::string()) const
@@ -854,6 +959,8 @@ public:
     void saveBodyToFile(const std::string& path)
     {
         _bodyFile.open(path, std::ios_base::out | std::ios_base::binary);
+        if (!_bodyFile.good())
+            LOG_ERR("Unable to open [" << path << "] for saveBodyToFile");
         _onBodyWriteCb = [this](const char* p, int64_t len)
         {
             LOG_TRC("Writing " << len << " bytes");
@@ -884,7 +991,7 @@ public:
 
     /// Set the body to be sent to the client.
     /// Also sets Content-Length and Content-Type.
-    void setBody(std::string body, std::string contentType = "text/html charset=UTF-8")
+    void setBody(std::string body, std::string contentType = "text/html;charset=utf-8")
     {
         _body = std::move(body);
         _header.setContentLength(_body.size()); // Always set it, even if 0.
@@ -908,6 +1015,10 @@ public:
     /// Serializes the Server Response into the given buffer.
     bool writeData(Buffer& out) const
     {
+        assert(!get("Date").empty() && "Date is always set in http::Response ctor");
+        assert(get("Server") == http::getServerString() &&
+               "Server Agent is always set in http::Response ctor");
+
         _statusLine.writeData(out);
         _header.writeData(out);
         out.append("\r\n"); // End of header.
@@ -943,6 +1054,22 @@ public:
     /// Sets the context used by logPrefix.
     void setLogContext(int fd) { _fd = fd; }
 
+    void dumpState(std::ostream& os, const std::string& indent = "\n  ") const
+    {
+        os << indent << "http::Response: #" << _fd;
+        os << indent << "\tstatusLine: " << _statusLine.httpVersion() << ' '
+           << getReasonPhraseForCode(_statusLine.statusCode()) << ' ' << _statusLine.reasonPhrase();
+        os << indent << "\tstate: " << name(_state);
+        os << indent << "\tparseStage: " << name(_parserStage);
+        os << indent << "\trecvBodySize: " << _recvBodySize;
+        os << indent << "\theaders: ";
+
+        std::string childIndent = indent + '\t';
+        Util::joinPair(os, _header, childIndent.c_str());
+        os << indent
+           << Util::dumpHex(_body, "\tbody:\n", Util::replace(childIndent, "\n", "").c_str());
+    }
+
 private:
     inline void logPrefix(std::ostream& os) const { os << '#' << _fd << ": "; }
 
@@ -963,14 +1090,14 @@ private:
 
     StatusLine _statusLine;
     Header _header;
-    std::atomic<State> _state; //< The state of the Response.
-    ParserStage _parserStage; //< The parser's state.
-    int64_t _recvBodySize; //< The amount of data we received (compared to the Content-Length).
-    std::string _body; //< Used when _bodyHandling is InMemory.
-    std::ofstream _bodyFile; //< Used when _bodyHandling is OnDisk.
-    IoWriteFunc _onBodyWriteCb; //< Used to handling body receipt in all cases.
-    FinishedCallback _finishedCallback; //< Called when response is finished.
-    int _fd; //< The socket file-descriptor.
+    std::atomic<State> _state; ///< The state of the Response.
+    ParserStage _parserStage; ///< The parser's state.
+    int64_t _recvBodySize; ///< The amount of data we received (compared to the Content-Length).
+    std::string _body; ///< Used when _bodyHandling is InMemory.
+    std::ofstream _bodyFile; ///< Used when _bodyHandling is OnDisk.
+    IoWriteFunc _onBodyWriteCb; ///< Used to handling body receipt in all cases.
+    FinishedCallback _finishedCallback; ///< Called when response is finished.
+    int _fd; ///< The socket file-descriptor.
 };
 
 /// A client socket to make asynchronous HTTP requests.
@@ -988,8 +1115,10 @@ private:
         , _port(std::to_string(portNumber))
         , _protocol(protocolType)
         , _fd(-1)
+        , _handshakeSslVerifyFailure(0)
         , _timeout(getDefaultTimeout())
         , _connected(false)
+        , _result(net::AsyncConnectResult::Ok)
     {
         assert(!_host.empty() && portNumber > 0 && !_port.empty() &&
                "Invalid hostname and portNumber for http::Sesssion");
@@ -1052,11 +1181,11 @@ public:
         const bool secure = (scheme == "https://" || scheme == "wss://");
         const auto protocol = secure ? Protocol::HttpSsl : Protocol::HttpUnencrypted;
         if (portString.empty())
-            return create(hostname, protocol, getDefaultPort(protocol));
+            return create(std::move(hostname), protocol, getDefaultPort(protocol));
 
         const std::pair<std::int32_t, bool> portPair = Util::i32FromString(portString);
         if (portPair.second && portPair.first > 0)
-            return create(hostname, protocol, portPair.first);
+            return create(std::move(hostname), protocol, portPair.first);
 
         LOG_ERR_S("Invalid port [" << portString << "] in URI [" << uri
                                    << "] to http::Session::create");
@@ -1097,7 +1226,7 @@ public:
     /// Get the timeout, in microseconds.
     std::chrono::microseconds getTimeout() const { return _timeout; }
 
-    std::shared_ptr<Response> response() { return _response; }
+    /// The response we _got_ for our request. Do *not* use this to _send_ a response!
     const std::shared_ptr<Response>& response() const { return _response; }
     const std::string& getUrl() const { return _request.getUrl(); }
 
@@ -1108,6 +1237,11 @@ public:
     /// onFinished is triggered whenever a request has finished,
     /// regardless of the reason (error, timeout, completion).
     void setFinishedHandler(FinishedCallback onFinished) { _onFinished = std::move(onFinished); }
+
+    /// The onConnectFail callback handler signature.
+    using ConnectFailCallback = std::function<void(const std::shared_ptr<Session>& session)>;
+
+    void setConnectFailHandler(ConnectFailCallback onConnectFail) { _onConnectFail = std::move(onConnectFail); }
 
     /// Make a synchronous request to download a file to the given path.
     /// Note: when the server returns an error, the response body,
@@ -1181,7 +1315,7 @@ public:
     /// Note: when reusing this Session, it is assumed that the socket
     /// is already added to the SocketPoll on a previous call (do not
     /// use multiple SocketPoll instances on the same Session).
-    bool asyncRequest(const Request& req, SocketPoll& poll)
+    void asyncRequest(const Request& req, SocketPoll& poll)
     {
         LOG_TRC("new asyncRequest: " << req.getVerb() << ' ' << host() << ':' << port() << ' '
                                      << req.getUrl());
@@ -1190,18 +1324,7 @@ public:
 
         if (!isConnected())
         {
-            std::shared_ptr<StreamSocket> socket = connect();
-            if (!socket)
-            {
-                LOG_ERR("Failed to connect to " << _host << ':' << _port);
-                return false;
-            }
-
-            LOG_ASSERT_MSG(_socket.lock(), "Connect must set the _socket member.");
-            LOG_ASSERT_MSG(_socket.lock()->getFD() == socket->getFD(),
-                           "Socket FD's mismatch after connect().");
-            LOG_TRC("Inserting in poller after connecting");
-            poll.insertNewSocket(socket);
+            asyncConnect(poll);
         }
         else
         {
@@ -1214,7 +1337,6 @@ public:
         LOG_DBG("starting asyncRequest: " << req.getVerb() << ' ' << host() << ':' << port() << ' '
                                           << req.getUrl());
 
-        return true;
     }
 
     void asyncShutdown()
@@ -1227,6 +1349,30 @@ public:
         }
     }
 
+    std::string getSslVerifyMessage()
+    {
+#if ENABLE_SSL
+        std::shared_ptr<StreamSocket> socket = _socket.lock();
+        if (socket)
+            return SslStreamSocket::getSslVerifyString(socket->getSslVerifyResult());
+        return SslStreamSocket::getSslVerifyString(_handshakeSslVerifyFailure);
+#else
+        return std::string();
+#endif
+    }
+
+    std::string getSslCert(std::string& subjectHash)
+    {
+#if ENABLE_SSL
+        std::shared_ptr<StreamSocket> socket = _socket.lock();
+        if (socket)
+            return socket->getSslCert(subjectHash);
+#else
+        (void) subjectHash;
+#endif
+        return std::string();
+    }
+
     void disconnect()
     {
         LOG_TRC("disconnect");
@@ -1237,6 +1383,37 @@ public:
         }
     }
 
+    net::AsyncConnectResult connectionResult()
+    {
+        return _result;
+    }
+
+    /// Returns the socket FD, for logging/informational purposes.
+    int getFD() const { return _fd; }
+
+    void dumpState(std::ostream& os, const std::string& indent) const override
+    {
+        const auto now = std::chrono::steady_clock::now();
+        os << indent << "http::Session: #" << _fd << " (" << (_socket.lock() ? "have" : "no")
+           << " socket)";
+        os << indent << "\tconnected: " << std::boolalpha << _connected;
+        os << indent << "\ttimeout: " << _timeout;
+        os << indent << "\thost: " << _host;
+        os << indent << "\tport: " << _port;
+        os << indent << "\tprotocol: " << name(_protocol);
+        os << indent << "\thandshakeSslVerifyFailure: " << _handshakeSslVerifyFailure;
+        os << indent << "\tstartTime: " << Util::getTimeForLog(now, _startTime);
+        _request.dumpState(os, indent + '\t');
+        if (_response)
+            _response->dumpState(os, indent + '\t');
+        else
+            os << indent << "\tresponse: null";
+
+        os << '\n';
+
+        // We are typically called from the StreamSocket, so don't
+        // recurse back by calling dumpState on the socket again.
+    }
 
 private:
     inline void logPrefix(std::ostream& os) const { os << '#' << _fd << ": "; }
@@ -1268,7 +1445,8 @@ private:
         while (!_response->done())
         {
             const auto now = std::chrono::steady_clock::now();
-            checkTimeout(now);
+            if (checkTimeout(now))
+                return false;
 
             const auto remaining =
                 std::chrono::duration_cast<std::chrono::microseconds>(deadline - now);
@@ -1278,8 +1456,32 @@ private:
         return _response->state() == Response::State::Complete;
     }
 
+    void callOnFinished()
+    {
+        if (!_onFinished)
+            return;
+
+        LOG_TRC("onFinished calling client");
+        std::shared_ptr<Session> self = shared_from_this();
+        try
+        {
+            [[maybe_unused]] const long references = self.use_count();
+            assert(references > 1 && "Expected more than 1 reference to http::Session.");
+
+            _onFinished(self);
+
+            assert(self.use_count() > 1 &&
+                    "Erroneously onFinish reset 'this'. Use 'addCallback()' on the "
+                    "SocketPoll to reset on idle instead.");
+        }
+        catch (const std::exception& exc)
+        {
+            LOG_ERR("Error while invoking onFinished client callback: " << exc.what());
+        }
+    }
+
     /// Set up a new request and response.
-    void newRequest(Request req)
+    void newRequest(const Request& req)
     {
         _startTime = std::chrono::steady_clock::now();
 
@@ -1298,20 +1500,10 @@ private:
             assert(_response->state() != Response::State::Incomplete &&
                    "Unexpected response in Incomplete state");
             assert(_response->done() && "Must have response in done state");
-            if (_onFinished)
-            {
-                LOG_TRC("onFinished calling client");
-                try
-                {
-                    _onFinished(std::static_pointer_cast<Session>(shared_from_this()));
-                }
-                catch (const std::exception& exc)
-                {
-                    LOG_ERR("Error while invoking onFinished client callback: " << exc.what());
-                }
-            }
 
-            if (_response->get("Connection", "") == "close")
+            callOnFinished();
+
+            if (_response->header().getConnectionToken() == Header::ConnectionToken::Close)
             {
                 LOG_TRC("Our peer has sent the 'Connection: close' token. Disconnecting.");
                 onDisconnect();
@@ -1322,7 +1514,7 @@ private:
         _response.reset();
         _response = std::make_shared<Response>(onFinished, _fd);
 
-        _request = std::move(req);
+        _request = req;
 
         std::string host = _host;
 
@@ -1331,9 +1523,9 @@ private:
             host.append(":");
             host.append(_port);
         }
-        _request.set("Host", host); // Make sure the host is set.
+        _request.set("Host", std::move(host)); // Make sure the host is set.
         _request.set("Date", Util::getHttpTimeNow());
-        _request.set("User-Agent", HTTP_AGENT_STRING);
+        _request.set("User-Agent", http::getAgentString());
     }
 
     void onConnect(const std::shared_ptr<StreamSocket>& socket) override
@@ -1349,6 +1541,7 @@ private:
         {
             LOG_DBG("Error: onConnect without a valid socket");
             _fd = -1;
+            _handshakeSslVerifyFailure = 0;
             _connected = false;
         }
     }
@@ -1430,9 +1623,53 @@ private:
 
             if (!socket->send(_request))
             {
+                _result = net::AsyncConnectResult::SocketError;
                 LOG_ERR("Error while writing to socket");
             }
         }
+    }
+
+    std::shared_ptr<Session> shared_from_this()
+    {
+        return std::static_pointer_cast<Session>(ProtocolHandlerInterface::shared_from_this());
+    }
+
+    void callOnConnectFail()
+    {
+        if (!_onConnectFail)
+            return;
+
+        std::shared_ptr<Session> self = shared_from_this();
+        try
+        {
+            [[maybe_unused]] const long references = self.use_count();
+            assert(references > 1 && "Expected more than 1 reference to http::Session.");
+
+            _onConnectFail(self);
+
+            assert(self.use_count() > 1 &&
+                    "Erroneously onConnectFail reset 'this'. Use 'addCallback()' on the "
+                    "SocketPoll to reset on idle instead.");
+        }
+        catch (const std::exception& exc)
+        {
+            LOG_ERR("Error while invoking onConnectFail client callback: " << exc.what());
+        }
+    }
+
+    // on failure the stream will be discarded, so save the ssl verification
+    // result while it is still available
+    void onHandshakeFail() override
+    {
+        std::shared_ptr<StreamSocket> socket = _socket.lock();
+        if (socket)
+        {
+            LOG_TRC("onHandshakeFail");
+            _handshakeSslVerifyFailure = socket->getSslVerifyResult();
+            _result = net::AsyncConnectResult::SSLHandShakeFailure;
+        }
+
+        callOnConnectFail();
     }
 
     void onDisconnect() override
@@ -1442,7 +1679,6 @@ private:
         if (socket)
         {
             LOG_TRC("onDisconnect");
-
             socket->shutdown(); // Flag for shutdown for housekeeping in SocketPoll.
             socket->closeConnection(); // Immediately disconnect.
             _socket.reset();
@@ -1460,7 +1696,8 @@ private:
         _socket.reset(); // Reset to make sure we are disconnected.
         std::shared_ptr<StreamSocket> socket =
             net::connect(_host, _port, isSecure(), shared_from_this());
-        assert(_fd == socket->getFD() && "The socket FD must have been set in onConnect");
+        assert((!socket || _fd == socket->getFD()) &&
+               "The socket FD must have been set in onConnect");
 
         // When used with proxy.php we may indeed get nullptr here.
         // assert(socket && "Unexpected nullptr returned from net::connect");
@@ -1468,17 +1705,58 @@ private:
         return socket; // Return the shared pointer.
     }
 
-    void checkTimeout(std::chrono::steady_clock::time_point now) override
+    void asyncConnectCompleted(SocketPoll& poll, const std::shared_ptr<StreamSocket> &socket, net::AsyncConnectResult result)
+    {
+        assert((!socket || _fd == socket->getFD()) &&
+               "The socket FD must have been set in onConnect");
+
+        // When used with proxy.php we may indeed get nullptr here.
+        // assert(socket && "Unexpected nullptr returned from net::connect");
+        _socket = socket; // Hold a weak pointer to it.
+        _result = result;
+
+        if (!socket)
+        {
+            LOG_ERR("Failed to connect to " << _host << ':' << _port);
+            callOnConnectFail();
+            return;
+        }
+
+        LOG_ASSERT_MSG(_socket.lock(), "Connect must set the _socket member.");
+        LOG_ASSERT_MSG(_socket.lock()->getFD() == socket->getFD(),
+                       "Socket FD's mismatch after connect().");
+        LOG_TRC("Inserting in poller after connecting");
+        poll.insertNewSocket(socket);
+    }
+
+    void asyncConnect(SocketPoll& poll)
+    {
+        _socket.reset(); // Reset to make sure we are disconnected.
+
+        auto pushConnectCompleteToPoll = [this, &poll](std::shared_ptr<StreamSocket> socket, net::AsyncConnectResult result ) {
+            poll.addCallback([selfLifecycle = shared_from_this(), this, &poll, socket=std::move(socket), result]() {
+                asyncConnectCompleted(poll, socket, result);
+            });
+        };
+
+        net::asyncConnect(_host, _port, isSecure(), shared_from_this(), pushConnectCompleteToPoll);
+    }
+
+    bool checkTimeout(std::chrono::steady_clock::time_point now) override
     {
         if (!_response || _response->done())
-            return;
+            return false;
 
+        const std::chrono::microseconds timeout = getTimeout();
         const auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(now - _startTime);
-        if (now < _startTime || duration > getTimeout() || SigUtil::getTerminationFlag())
+
+        if (now < _startTime ||
+            (timeout > std::chrono::microseconds::zero() && duration > timeout) ||
+            SigUtil::getTerminationFlag())
         {
-            LOG_WRN("Timed out while requesting [" << _request.getVerb() << ' ' << _host
-                                                   << _request.getUrl() << "] after " << duration);
+            LOG_WRN("CheckTimeout: Timeout while requesting [" << _request.getVerb() << ' ' << _host
+                                                               << _request.getUrl() << "] after " << duration);
 
             // Flag that we timed out.
             _response->timeout();
@@ -1488,7 +1766,9 @@ private:
             // no good maintaining a poor connection (if that's the issue).
             onDisconnect(); // Trigger manually (why wait for poll to do it?).
             assert(isConnected() == false);
+            return true;
         }
+        return false;
     }
 
     int sendTextMessage(const char*, const size_t, bool) const override { return 0; }
@@ -1498,14 +1778,17 @@ private:
     const std::string _host;
     const std::string _port;
     const Protocol _protocol;
-    int _fd; //< The socket file-descriptor.
+    int _fd; ///< The socket file-descriptor.
+    long _handshakeSslVerifyFailure; ///< Save SslVerityResult at onHandshakeFail
     std::chrono::microseconds _timeout;
     std::chrono::steady_clock::time_point _startTime;
     bool _connected;
     Request _request;
     FinishedCallback _onFinished;
+    ConnectFailCallback _onConnectFail;
     std::shared_ptr<Response> _response;
-    std::weak_ptr<StreamSocket> _socket; //< Must be the last member.
+    std::weak_ptr<StreamSocket> _socket; ///< Must be the last member.
+    net::AsyncConnectResult _result; // last connection tentative result
 };
 
 /// HTTP Get a URL synchronously.
@@ -1539,6 +1822,10 @@ public:
         , _size(0)
         , _fd(-1)
         , _connected(false)
+        , _start(0)
+        , _end(-1)
+        , _startIsSuffix(false)
+        , _statusCode(http::StatusCode::OK)
     {
     }
 
@@ -1568,8 +1855,13 @@ public:
     /// Note: when reusing this Session, it is assumed that the socket
     /// is already added to the SocketPoll on a previous call (do not
     /// use multiple SocketPoll instances on the same Session).
-    bool asyncUpload(std::string fromFile, std::string mimeType)
+    bool asyncUpload(std::string fromFile, std::string mimeType, int start, int end, bool startIsSuffix, http::StatusCode statusCode = http::StatusCode::OK)
     {
+        _start = start;
+        _end = end;
+        _startIsSuffix = startIsSuffix;
+        _statusCode = statusCode;
+
         LOG_TRC("asyncUpload from file [" << fromFile << ']');
 
         _fd = open(fromFile.c_str(), O_RDONLY);
@@ -1592,7 +1884,93 @@ public:
         _size = sb.st_size;
         _data = std::move(fromFile);
         _mimeType = std::move(mimeType);
+
+        int firstBytePos = getStart();
+
+        if (lseek(_fd, firstBytePos, SEEK_SET) < 0)
+            LOG_SYS("Failed to seek " << _data << " to " << firstBytePos << " because: " << strerror(errno));
+        else
+            _pos = firstBytePos;
+
         return true;
+    }
+
+    /// Start an asynchronous upload of a whole file
+    bool asyncUpload(std::string fromFile, std::string mimeType)
+    {
+        return asyncUpload(std::move(fromFile), std::move(mimeType), 0, -1, false);
+    }
+
+    /// Start a partial asynchronous upload from a file based on the contents of a "Range" header
+    bool asyncUpload(std::string fromFile, std::string mimeType, std::string rangeHeader)
+    {
+        size_t equalsPos = rangeHeader.find("=");
+        if (equalsPos == std::string::npos) return asyncUpload(std::move(fromFile), std::move(mimeType));
+
+        std::string unit = rangeHeader.substr(0, equalsPos);
+        if (unit != "bytes") return asyncUpload(std::move(fromFile), std::move(mimeType));
+
+        std::string range = rangeHeader.substr(equalsPos + 1);
+
+        size_t dashPos = range.find("-");
+        std::string startString = range.substr(0, dashPos);
+        std::string endString = "-1";
+
+        if (dashPos != std::string::npos) {
+            endString = range.substr(dashPos + 1);
+        }
+
+        int start = 0;
+        int end = -1;
+        bool startIsSuffix = false;
+
+        if (startString == "") {
+            // Could be a suffix
+            try {
+                start = std::stoi(endString);
+                startIsSuffix = true;
+            }
+            catch (std::invalid_argument&) {}
+            catch (std::out_of_range&) {}
+
+            return asyncUpload(std::move(fromFile), std::move(mimeType), start, end,
+                               startIsSuffix, http::StatusCode::PartialContent);
+        }
+
+        try {
+            start = std::stoi(startString);
+            end = std::stoi(endString) + 1;
+        }
+        catch (std::invalid_argument&) {}
+        catch (std::out_of_range&) {}
+
+        // FIXME: does not support ranges that specify multiple comma-separated values
+
+        return asyncUpload(std::move(fromFile), std::move(mimeType), start, end,
+                           startIsSuffix, http::StatusCode::PartialContent);
+    }
+
+    int getStart() {
+        if (_startIsSuffix) return _size - _start;
+        return _start;
+    }
+
+    int getEnd() {
+        if (_startIsSuffix) return _size;
+        if (_end == -1) return _size;
+        if (_end > _size) return _size;
+
+        return _end;
+    }
+
+    /// Calculate how much we're going to send based on the file size and the range
+    int getSendSize() {
+        int end = getEnd();
+        int start = getStart();
+
+        if (start > _size) return 0;
+
+        return end - start;
     }
 
     void asyncShutdown()
@@ -1613,6 +1991,28 @@ public:
         }
     }
 
+    void dumpState(std::ostream& os, const std::string& indent) const override
+    {
+        const auto now = std::chrono::steady_clock::now();
+        os << indent << "http::server::Session: #" << _fd << " (" << (_socket ? "have" : "no")
+           << " socket)";
+        os << indent << "\tconnected: " << std::boolalpha << _connected;
+        os << indent << "\tstartTime: " << Util::getTimeForLog(now, _startTime);
+        os << indent << "\tmimeType: " << _mimeType;
+        os << indent << "\tstatusCode: " << getReasonPhraseForCode(_statusCode);
+        os << indent << "\tsize: " << _size;
+        os << indent << "\tpos: " << _pos;
+        os << indent << "\tstart: " << _start;
+        os << indent << "\tend: " << _end;
+        os << indent << "\tstartIsSuffix: " << _startIsSuffix;
+        os << indent
+           << Util::dumpHex(_data, "\tdata:\n", Util::replace(indent + '\t', "\n", "").c_str());
+        os << '\n';
+
+        // We are typically called from the StreamSocket, so don't
+        // recurse back by calling dumpState on the socket again.
+    }
+
 private:
     void onConnect(const std::shared_ptr<StreamSocket>& socket) override
     {
@@ -1626,13 +2026,13 @@ private:
                 LOG_TRC("Connected");
                 _connected = true;
 
-                LOG_DBG("Sending header with size " << _size);
-                http::Response httpResponse(http::StatusCode::OK);
-                httpResponse.set("Content-Length", std::to_string(_size));
+                LOG_DBG("Sending header with size " << getSendSize());
+                http::Response httpResponse(_statusCode);
+                httpResponse.set("Content-Length", std::to_string(getSendSize()));
                 httpResponse.set("Content-Type", _mimeType);
-                httpResponse.set("accept-ranges", "bytes");
-                httpResponse.set("Content-Range", "bytes 0-" + std::to_string(_size - 1) + '/' +
-                                                      std::to_string(_size));
+                httpResponse.set("Accept-Ranges", "bytes");
+                httpResponse.set("Content-Range", "bytes " + std::to_string(getStart()) + "-" + std::to_string(getEnd() - 1) + '/' +
+                                    std::to_string(_size));
 
                 socket->send(httpResponse);
                 return;
@@ -1675,7 +2075,7 @@ private:
         return events;
     }
 
-    virtual void handleIncomingMessage(SocketDisposition& /*disposition*/) override
+    void handleIncomingMessage(SocketDisposition& /*disposition*/) override
     {
         if (!isConnected())
         {
@@ -1700,14 +2100,14 @@ private:
             {
                 //FIXME: replace with in-place read into the output buffer.
                 char buffer[64 * 1024];
-                const auto size = std::min(sizeof(buffer), capacity);
+                const auto size = std::min({sizeof(buffer), capacity, (size_t)(getEnd() - _pos)});
                 int n;
                 while ((n = ::read(_fd, buffer, size)) < 0 && errno == EINTR)
                     LOG_TRC("EINTR reading from " << _data);
 
-                if (n <= 0)
+                if (n <= 0 || _pos >= getEnd())
                 {
-                    if (n == 0)
+                    if (n >= 0)
                     {
                         LOG_TRC("performWrites finished uploading");
                     }
@@ -1723,6 +2123,7 @@ private:
                 }
 
                 _socket->send(buffer, n);
+                _pos += n;
                 LOG_ASSERT(static_cast<std::size_t>(n) <= capacity);
                 capacity -= n;
                 LOG_TRC("performWrites wrote " << n << " bytes, capacity: " << capacity);
@@ -1751,23 +2152,31 @@ private:
 private:
     std::chrono::microseconds _timeout;
     std::chrono::steady_clock::time_point _startTime;
-    std::string _data; //< Data to upload, if not from a file, OR, the filename (if _pos == -1).
-    std::string _mimeType; //< The data Content-Type.
-    int _pos; //< The current position in the data string.
-    int _size; //< The size of the data in bytes.
-    int _fd; //< The descriptor of the file to upload.
+    std::string _data; ///< Data to upload, if not from a file, OR, the filename (if _pos == -1).
+    std::string _mimeType; ///< The data Content-Type.
+    int _pos; ///< The current position in the data string.
+    int _size; ///< The size of the data in bytes.
+    int _fd; ///< The descriptor of the file to upload.
     bool _connected;
+    int _start; ///< The position we start reading from, the data includes this first byte
+                //  If this is greater than _size we will return no bytes
+                //  If this is less than 0 or greater than _end behavior is unspecified
+    int _end; ///< The position we stop reading at, the data does not include this last byte
+              //  If this is greater than or equal to _start we will only return bytes in the range
+              //  If this is greater than _size we will return all bytes between _start and _size
+              //  If this is -1 we will treat it as if it were equal to _size
+    bool _startIsSuffix; ///< If this is true, we'll treat _start as an offset from the end, not from the start
+                         //  In that case, we'll ignore end entirely
+                         //  e.g. if this is true and start is 5, we will send the last 5 bytes
+    http::StatusCode _statusCode;
     FinishedCallback _onFinished;
-    std::shared_ptr<StreamSocket> _socket; //< Must be the last member.
+    std::shared_ptr<StreamSocket> _socket; ///< Must be the last member.
 };
 }
 
 inline std::ostream& operator<<(std::ostream& os, const http::Header& header)
 {
-    for (const auto& pair : header)
-    {
-        os << '\t' << pair.first << ": " << pair.second << " / ";
-    }
+    Util::joinPair(os, header, " / ");
 
     return os;
 }

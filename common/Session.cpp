@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,36 +13,40 @@
 
 #include "Session.hpp"
 
+#include <common/Anonymizer.hpp>
+#include <common/Log.hpp>
+#include <common/Protocol.hpp>
+#include <common/Uri.hpp>
+#include <common/Util.hpp>
+
 #include <Poco/Exception.h>
 #include <Poco/Path.h>
 #include <Poco/String.h>
 #include <Poco/URI.h>
 
-#include "Common.hpp"
-#include "Protocol.hpp"
-#include "Log.hpp"
-#include "Util.hpp"
-
 using namespace COOLProtocol;
 
 using Poco::Exception;
 
-Session::Session(const std::shared_ptr<ProtocolHandlerInterface> &protocol,
-                 const std::string& name, const std::string& id, bool readOnly) :
-    MessageHandlerInterface(protocol),
-    _id(id),
-    _name(name),
-    _disconnected(false),
-    _isActive(true),
-    _lastActivityTime(std::chrono::steady_clock::now()),
-    _isCloseFrame(false),
-    _isWritable(readOnly),
-    _isReadOnly(readOnly),
-    _isAllowChangeComments(false),
-    _haveDocPassword(false),
-    _isDocPasswordProtected(false),
-    _watermarkOpacity(0.2),
-    _accessibilityState(false)
+Session::Session(const std::shared_ptr<ProtocolHandlerInterface>& protocol, const std::string& name,
+                 const std::string& id, bool readOnly)
+    : MessageHandlerInterface(protocol)
+    , _id(id)
+    , _name(name)
+    , _disconnected(false)
+    , _isActive(true)
+    , _lastActivityTime(std::chrono::steady_clock::now())
+    , _isCloseFrame(false)
+    , _writePermission(!readOnly)
+    , _isWritable(!readOnly)
+    , _isReadOnly(readOnly)
+    , _isAllowChangeComments(false)
+    , _haveDocPassword(false)
+    , _isDocPasswordProtected(false)
+    , _isAdminUser(std::nullopt)
+    , _watermarkOpacity(0.2)
+    , _accessibilityState(false)
+    , _disableVerifyHost(false)
 {
 }
 
@@ -78,7 +86,7 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
     std::size_t offset = 1;
     if (tokens.size() > 2 && tokens[1].find("part=") == 0)
     {
-        getTokenInteger(tokens[1], "part", part);
+        (void)getTokenInteger(tokens[1], "part", part);
         ++offset;
     }
 
@@ -94,47 +102,52 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
 
         if (name == "url")
         {
-            _docURL = value;
+            _docURL = std::move(value);
             ++offset;
         }
         else if (name == "jail")
         {
-            _jailedFilePath = value;
+            _jailedFilePath = std::move(value);
             ++offset;
         }
         else if (name == "xjail")
         {
-            _jailedFilePathAnonym = value;
+            _jailedFilePathAnonym = std::move(value);
             ++offset;
         }
         else if (name == "authorid")
         {
-            Poco::URI::decode(value, _userId);
+            _userId = Uri::decode(value);
             ++offset;
         }
         else if (name == "xauthorid")
         {
-            Poco::URI::decode(value, _userIdAnonym);
+            _userIdAnonym = Uri::decode(value);
             ++offset;
         }
         else if (name == "author")
         {
-            Poco::URI::decode(value, _userName);
+            _userName = Uri::decode(value);
             ++offset;
         }
         else if (name == "xauthor")
         {
-            Poco::URI::decode(value, _userNameAnonym);
+            _userNameAnonym = Uri::decode(value);
             ++offset;
         }
         else if (name == "authorextrainfo")
         {
-            Poco::URI::decode(value, _userExtraInfo);
+            _userExtraInfo = Uri::decode(value);
             ++offset;
         }
         else if (name == "authorprivateinfo")
         {
-            Poco::URI::decode(value, _userPrivateInfo);
+            _userPrivateInfo = Uri::decode(value);
+            ++offset;
+        }
+        else if (name == "serverprivateinfo")
+        {
+            _serverPrivateInfo = Uri::decode(value);
             ++offset;
         }
         else if (name == "readonly")
@@ -144,7 +157,7 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
         }
         else if (name == "password")
         {
-            _docPassword = value;
+            _docPassword = std::move(value);
             _haveDocPassword = true;
             ++offset;
         }
@@ -153,17 +166,17 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
             if (value == "en")
                 _lang = "en-US";
             else
-                _lang = value;
+                _lang = std::move(value);
             ++offset;
         }
         else if (name == "timezone")
         {
-            _timezone= value;
+            _timezone= std::move(value);
             ++offset;
         }
         else if (name == "watermarkText")
         {
-            Poco::URI::decode(value, _watermarkText);
+            _watermarkText = Uri::decode(value);
             ++offset;
         }
         else if (name == "watermarkOpacity")
@@ -173,37 +186,47 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
         }
         else if (name == "timestamp")
         {
-            timestamp = value;
+            timestamp = std::move(value);
             ++offset;
         }
         else if (name == "template")
         {
-            doctemplate = value;
+            doctemplate = std::move(value);
             ++offset;
         }
         else if (name == "deviceFormFactor")
         {
-            _deviceFormFactor = value;
+            _deviceFormFactor = std::move(value);
             ++offset;
         }
         else if (name == "spellOnline")
         {
-            _spellOnline = value;
+            _spellOnline = std::move(value);
+            ++offset;
+        }
+        else if (name == "darkTheme")
+        {
+            _darkTheme = std::move(value);
+            ++offset;
+        }
+        else if (name == "darkBackground")
+        {
+            _darkBackground = std::move(value);
             ++offset;
         }
         else if (name == "batch")
         {
-            _batch = value;
+            _batch = std::move(value);
             ++offset;
         }
         else if (name == "enableMacrosExecution")
         {
-            _enableMacrosExecution = value;
+            _enableMacrosExecution = std::move(value);
             ++offset;
         }
         else if (name == "macroSecurityLevel")
         {
-            _macroSecurityLevel = value;
+            _macroSecurityLevel = std::move(value);
             ++offset;
         }
         else if (name == "accessibilityState")
@@ -211,11 +234,21 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
             _accessibilityState = value == "true";
             ++offset;
         }
+        else if (name == "isAllowChangeComments")
+        {
+            _isAllowChangeComments = value == "true";
+            ++offset;
+        }
+        else if (name == "verifyHost")
+        {
+            _disableVerifyHost = value == "false";
+            ++offset;
+        }
     }
 
-    Util::mapAnonymized(_userId, _userIdAnonym);
-    Util::mapAnonymized(_userName, _userNameAnonym);
-    Util::mapAnonymized(_jailedFilePath, _jailedFilePathAnonym);
+    Anonymizer::mapAnonymized(_userId, _userIdAnonym);
+    Anonymizer::mapAnonymized(_userName, _userNameAnonym);
+    Anonymizer::mapAnonymized(_jailedFilePath, _jailedFilePathAnonym);
 
     if (tokens.size() > offset)
     {
@@ -224,6 +257,17 @@ void Session::parseDocOptions(const StringVector& tokens, int& part, std::string
             if (tokens.size() > offset + 1)
                 _docOptions += tokens.cat(' ', offset + 1);
         }
+    }
+
+    // Disable spell check if the document is read-only
+    disableSpellCheckIfReadOnly();
+}
+
+void Session::disableSpellCheckIfReadOnly()
+{
+    if (_isReadOnly)
+    {
+        _spellOnline = "false";
     }
 }
 
@@ -246,7 +290,7 @@ void Session::shutdown(bool goingAway, const std::string& statusMessage)
     {
         // skip the queue; FIXME: should we flush SessionClient's queue ?
         std::string closeMsg = "close: " + statusMessage;
-        _protocol->sendTextMessage(closeMsg.c_str(), closeMsg.size());
+        _protocol->sendTextMessage(closeMsg);
         _protocol->shutdown(goingAway, statusMessage);
     }
 }
@@ -256,15 +300,15 @@ void Session::handleMessage(const std::vector<char> &data)
     try
     {
         std::unique_ptr< std::vector<char> > replace;
-        if (UnitBase::isUnitTesting() && !Util::isFuzzing() && UnitBase::get().filterSessionInput(this, &data[0], data.size(), replace))
+        if (UnitBase::isUnitTesting() && !Util::isFuzzing() && UnitBase::get().filterSessionInput(this, data.data(), data.size(), replace))
         {
-            if (!replace || replace->empty())
+            if (replace && !replace->empty())
                 _handleInput(replace->data(), replace->size());
             return;
         }
 
         if (!data.empty())
-            _handleInput(&data[0], data.size());
+            _handleInput(data.data(), data.size());
     }
     catch (const Exception& exc)
     {
@@ -292,11 +336,13 @@ void Session::getIOStats(uint64_t &sent, uint64_t &recv)
 
 void Session::dumpState(std::ostream& os)
 {
-    os << "\n\t\tid: " << _id
+    os << std::boolalpha
+       << "\n\t\tid: " << _id
        << "\n\t\tname: " << _name
        << "\n\t\tdisconnected: " << _disconnected
        << "\n\t\tisActive: " << _isActive
        << "\n\t\tisCloseFrame: " << _isCloseFrame
+       << "\n\t\twritePermission: " << _writePermission
        << "\n\t\tisWritable: " << _isWritable
        << "\n\t\tisReadOnly: " << _isReadOnly
        << "\n\t\tisAllowChangeComments: " << _isAllowChangeComments

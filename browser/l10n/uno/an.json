@@ -1,6 +1,7 @@
 {
 "Background Color":"Color d'o fundo",
 "Column":"Columna",
+"Comments":"Comentarios",
 "Date":"Calendata",
 "Fontwork...":"Fontwork...",
 "Formatting Mark":"Marca de formatación",
@@ -10,16 +11,21 @@
 "None":"Garra",
 "Number":"Numero",
 "Percent":"Percentache",
-"Propert~ies...":"Prop~iedatz...",
+"Properties":"Propiedaz",
+"Propert~ies...":"Prop~iedaz...",
 "Rename S~heet...":"Cambiar nombre a la fuella...",
 "R~ight-To-Left":"De ~dreita a cucha",
 "Scientific":"Scientifico",
+"Show":"Amostrar",
 "Stop":"Aturar",
 "Thousands Separator":"Separador de milars",
+"~Advanced Filter...":"Filtro ~avanzau...",
 "~Arrange":"~Ordenar",
 "~File":"~Fichero",
 "~Help":"~Aduya",
 "~Insert":"F~icar",
+"~Page":"~Pachina",
 "~Pivot Table":"Tabla ~dinamica",
-"~Properties...":"~Propiedatz..."
+"~Properties...":"~Propiedaz...",
+"~Table Properties...":"Propiedaz d'a ~tabla..."
 }

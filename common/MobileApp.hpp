@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,11 +11,12 @@
 
 #pragma once
 
-#include "config.h"
-
 #if MOBILEAPP
 
+#define LIBO_INTERNAL_ONLY
 #include <LibreOfficeKit/LibreOfficeKit.hxx>
+
+#include <Storage.hpp>
 
 #ifdef IOS
 #import "CODocument.h"
@@ -55,6 +60,34 @@ public:
 #ifdef IOS
     CODocument *coDocument;
 #endif
+};
+
+/// Stub/Dummy WOPI types/interface.
+class WopiStorage : public StorageBase
+{
+public:
+    class WOPIFileInfo : public FileInfo
+    {
+    public:
+        enum class TriState
+        {
+            False,
+            True,
+            Unset
+        };
+
+        std::string getTemplateSource() const { return std::string(); }
+
+        bool getDisablePrint() const { return false; }
+        bool getDisableExport() const { return false; }
+        bool getDisableCopy() const { return false; }
+        bool getEnableOwnerTermination() const { return false; }
+        std::string getWatermarkText() const { return std::string(); }
+
+        TriState getDisableChangeTrackingShow() const { return TriState::Unset; }
+        TriState getDisableChangeTrackingRecord() const { return TriState::Unset; }
+        TriState getHideChangeTrackingControls() const { return TriState::Unset; }
+    };
 };
 
 #endif

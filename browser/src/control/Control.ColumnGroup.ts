@@ -1,7 +1,16 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.ColumnGroup
-*/
+ */
 
 /* global app */
 
@@ -16,42 +25,18 @@
 namespace cool {
 
 export class ColumnGroup extends GroupBase {
-	_map: any;
+	name: string = L.CSections.ColumnGroup.name;
+	anchor: any = ['top', [L.CSections.CornerGroup.name, 'right', 'left']];
+	expand: string[] = ['left', 'right']; // Expand horizontally.
+	processingOrder: number = L.CSections.ColumnGroup.processingOrder;
+	drawingOrder: number = L.CSections.ColumnGroup.drawingOrder;
+	zIndex: number = L.CSections.ColumnGroup.zIndex;
+
 	_sheetGeometry: cool.SheetGeometry;
 	_cornerHeaderWidth: number;
 	_splitPos: cool.Point;
 
-	constructor() {
-		super({
-			name: L.CSections.ColumnGroup.name,
-			anchor: ['top', [L.CSections.CornerGroup.name, 'right', 'left']],
-			position: [0, 0], // This section's myTopLeft is placed according to corner group section if exists, if not, this is placed at (0, 0).
-			size: [0, 0], // No initial width is necessary. Width will be expanded. Height is computed inside update function.
-			expand: 'left right', // Expand horizontally.
-			processingOrder: L.CSections.ColumnGroup.processingOrder,
-			drawingOrder: L.CSections.ColumnGroup.drawingOrder,
-			zIndex: L.CSections.ColumnGroup.zIndex,
-			interactable: true,
-			sectionProperties: {},
-		});
-	}
-
-	// This function is called by CanvasSectionContainer when the section is added to the sections list.
-	onInitialize(): void {
-		this._map = L.Map.THIS;
-		this.sectionProperties.docLayer = this._map._docLayer;
-		this._groups = null;
-
-		// group control styles
-		this._groupHeadSize = Math.round(12 * app.dpiScale);
-		this._levelSpacing = app.roundedDpiScale;
-
-		this._map.on('sheetgeometrychanged', this.update, this);
-		this._map.on('viewrowcolumnheaders', this.update, this);
-		this._createFont();
-		this.update();
-		this.isRemoved = false;
-	}
+	constructor() { super(); }
 
 	update(): void {
 		if (this.isRemoved) // Prevent calling while deleting the section. It causes errors.
@@ -110,7 +95,7 @@ export class ColumnGroup extends GroupBase {
 			this.context.fillStyle = this.backgroundColor;
 			this.context.fillRect(this.transformRectX(startX, this._groupHeadSize), startY, this._groupHeadSize, this._groupHeadSize);
 			this.context.strokeStyle = 'black';
-			this.context.lineWidth = app.dpiScale;
+			this.context.lineWidth = 1.0;
 			this.context.strokeRect(this.transformRectX(startX + 0.5, this._groupHeadSize), startY + 0.5, this._groupHeadSize, this._groupHeadSize);
 
 			if (!group.hidden) {
@@ -141,10 +126,12 @@ export class ColumnGroup extends GroupBase {
 			startX += this._groupHeadSize;
 			startX = startX >= this._cornerHeaderWidth + this._groupHeadSize ? startX: this._cornerHeaderWidth + this._groupHeadSize;
 			startY += this._groupHeadSize * 0.5;
+			startX = Math.round(startX) + 1;
+			startY = Math.round(startY);
 			this.context.strokeStyle = 'black';
-			this.context.lineWidth = app.dpiScale;
-			this.context.moveTo(this.transformX(startX + 0.5), startY + 0.5);
-			this.context.lineTo(this.transformX(endX - app.roundedDpiScale + 0.5), startY + 0.5);
+			this.context.lineWidth = 2.0;
+			this.context.moveTo(this.transformX(startX), startY);
+			this.context.lineTo(this.transformX(endX - app.roundedDpiScale), startY);
 			this.context.stroke();
 		}
 	}
@@ -159,7 +146,7 @@ export class ColumnGroup extends GroupBase {
 		const startY = levelSpacing + (ctrlHeadSize + levelSpacing) * level;
 
 		ctx.strokeStyle = 'black';
-		ctx.lineWidth = app.dpiScale;
+		ctx.lineWidth = 1.0;
 		ctx.strokeRect(this.transformRectX(startX + 0.5, ctrlHeadSize), startY + 0.5, ctrlHeadSize, ctrlHeadSize);
 		// draw level number
 		ctx.fillStyle = this._textColor;
@@ -187,9 +174,7 @@ export class ColumnGroup extends GroupBase {
 			index = Math.floor(index / levelPercentage);
 			return index;
 		}
-		else {
-			return -1;
-		}
+		return -1;
 	}
 
 	findClickedGroup (point: number[]): GroupEntry {
@@ -202,8 +187,10 @@ export class ColumnGroup extends GroupBase {
 						const startX = this.getRelativeX(group_.startPos);
 						const startY = this._levelSpacing + (this._groupHeadSize + this._levelSpacing) * group_.level;
 						const endX = startX + this._groupHeadSize;
-						const endY = group_.endPos + this._cornerHeaderWidth - this.documentTopLeft[1];
-						if (this.isPointInRect(point, startX, startY, endX, endY, mirrorX)) {
+						const endY = startY + this._groupHeadSize;
+						if (group_.level == 0 && this.isPointInRect(point, startX, startY, endX, endY, mirrorX))
+							return group_;
+						else if (this._isPreviousGroupVisible(group_.level, group_.startPos, group_.endPos, group_.hidden) && this.isPointInRect(point, startX, startY, endX, endY, mirrorX)) {
 							return group_;
 						}
 					}
@@ -213,25 +200,12 @@ export class ColumnGroup extends GroupBase {
 		return null;
 	}
 
-	// Users can double click on group tails.
-	findTailsGroup (point: number[]): GroupEntry {
-		const mirrorX = this.isCalcRTL();
-		for (let i = 0; i < this._groups.length; i++) {
-			if (this._groups[i]) {
-				for (const group in this._groups[i]) {
-					if (Object.prototype.hasOwnProperty.call(this._groups[i], group)) {
-						const group_ = this._groups[i][group];
-						const startX = this.getRelativeX(group_.startPos);
-						const startY = this._levelSpacing + (this._groupHeadSize + this._levelSpacing) * group_.level;
-						const endX = group_.endPos + this._cornerHeaderWidth - this.documentTopLeft[0];
-						const endY = startY + this._groupHeadSize;
-						if (this.isPointInRect(point, startX, startY, endX, endY, mirrorX)) {
-							return group_;
-						}
-					}
-				}
-			}
-		}
+	getTailsGroupRect (group: GroupEntry): number[] {
+		const startX = this.getRelativeX(group.startPos);
+		const startY = this._levelSpacing + (this._groupHeadSize + this._levelSpacing) * group.level;
+		const endX = group.endPos + this._cornerHeaderWidth - this.documentTopLeft[0];
+		const endY = startY + this._groupHeadSize;
+		return [startX, endX, startY, endY];
 	}
 
 	onRemove(): void {

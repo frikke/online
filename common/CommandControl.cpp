@@ -1,11 +1,16 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
 #include <config.h>
+
 #include <string>
 #include <unordered_set>
 #include "ConfigUtil.hpp"
@@ -31,7 +36,7 @@ void LockManager::generateLockedCommandList()
 {
 #ifdef ENABLE_FEATURE_LOCK
 
-    LockedCommandListString = config::getString("feature_lock.locked_commands", "");
+    LockedCommandListString = ConfigUtil::getString("feature_lock.locked_commands", "");
     Util::trim(LockedCommandListString);
     StringVector commandList = StringVector::tokenize(LockedCommandListString);
 
@@ -68,7 +73,7 @@ void LockManager::parseLockedHost(Poco::Util::LayeredConfiguration& conf)
     readOnlyWopiHosts.clear();
     disabledCommandWopiHosts.clear();
 
-    lockHostEnabled = config::getBool("feature_lock.locked_hosts[@allow]", false);
+    lockHostEnabled = ConfigUtil::getBool("feature_lock.locked_hosts[@allow]", false);
 
     if (lockHostEnabled)
     {
@@ -126,11 +131,11 @@ void LockManager::setTranslationPath(const std::string& lockedDialogLang)
         const std::string path =
             "feature_lock.translations.language[" + std::to_string(i) + "][@name]";
 
-        if (!config::has(path))
+        if (!ConfigUtil::has(path))
         {
             return;
         }
-        if (config::getString(path, "") == lockedDialogLang)
+        if (ConfigUtil::getString(path, "") == lockedDialogLang)
         {
             LockManager::translationPath =
                 "feature_lock.translations.language[" + std::to_string(i) + ']';
@@ -140,11 +145,11 @@ void LockManager::setTranslationPath(const std::string& lockedDialogLang)
 }
 void LockManager::mapUnlockLink(const std::string& host, const std::string& path)
 {
-    if (!config::has(path + ".unlock_link"))
+    if (!ConfigUtil::has(path + ".unlock_link"))
     {
         return;
     }
-    const std::string link = config::getString(path + ".unlock_link" , "");
+    const std::string link = ConfigUtil::getString(path + ".unlock_link", "");
     if (!link.empty())
     {
         unlockLinkMap.insert({host, link });
@@ -160,7 +165,7 @@ RestrictionManager::RestrictionManager() {}
 void RestrictionManager::generateRestrictedCommandList()
 {
 #ifdef ENABLE_FEATURE_RESTRICTION
-    RestrictedCommandListString = config::getString("restricted_commands", "");
+    RestrictedCommandListString = ConfigUtil::getString("restricted_commands", "");
     Util::trim(RestrictedCommandListString);
     StringVector commandList = StringVector::tokenize(RestrictedCommandListString);
 

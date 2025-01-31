@@ -2,2078 +2,3075 @@
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-06-30 12:09+0200\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"POT-Creation-Date: 2025-01-27 11:16+0100\n"
+"PO-Revision-Date: 2024-12-14 09:00+0000\n"
+"Last-Translator: தமிழ்நேரம் <anishprabu.t@gmail.com>\n"
+"Language-Team: Tamil <https://hosted.weblate.org/projects/collabora-online/"
+"ui/ta/>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Translate Toolkit 2.2.5\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.9-rc\n"
 
-#: admin/admin.strings.js:6
+#: admin/admin.strings.js:15
 msgid "Admin console"
-msgstr ""
+msgstr "நிர்வாக கன்சோல்"
 
-#: admin/admin.strings.js:7
+#: admin/admin.strings.js:16
 msgid "Settings"
 msgstr "அமைவுகள்"
 
-#: admin/admin.strings.js:8
+#: admin/admin.strings.js:17
 msgid "Overview"
-msgstr ""
+msgstr "கண்ணோட்டம்"
 
-#: admin/admin.strings.js:9
+#: admin/admin.strings.js:18
 msgid "(current)"
 msgstr "(நடப்பு)"
 
-#: admin/admin.strings.js:10
+#: admin/admin.strings.js:19
 msgid "Analytics"
-msgstr ""
+msgstr "பகுப்பாய்வு"
 
-#: admin/admin.strings.js:11
+#: admin/admin.strings.js:20
 msgid "History"
 msgstr "வரலாறு"
 
-#: admin/admin.strings.js:12
+#: admin/admin.strings.js:21
 msgid "Log"
-msgstr ""
+msgstr "பதிவு"
 
-#: admin/admin.strings.js:13
+#: admin/admin.strings.js:22
 msgid "Dashboard"
-msgstr ""
+msgstr "முகப்புப்பெட்டி"
 
-#: admin/admin.strings.js:14
+#: admin/admin.strings.js:23
 msgid "Users online"
 msgstr "இணைநிலை பயனர்கள்"
 
-#: admin/admin.strings.js:15
+#: admin/admin.strings.js:24
 msgid "User Name"
-msgstr ""
+msgstr "பயனர் பெயர்"
 
-#: admin/admin.strings.js:16
-#, fuzzy
+#: admin/admin.strings.js:25
 msgid "Documents open"
-msgstr "ஆவணங்கள் திறந்துள்ளன"
+msgstr "ஆவணங்கள் திறந்திருக்கும்"
 
-#: admin/admin.strings.js:17 admin/src/AdminSocketOverview.js:73
-#: admin/src/AdminSocketOverview.js:122 admin/src/AdminSocketOverview.js:349
+#: admin/admin.strings.js:26 admin/src/AdminSocketOverview.js:82
+#: admin/src/AdminSocketOverview.js:131 admin/src/AdminSocketOverview.js:358
 msgid " user(s)."
-msgstr ""
+msgstr " பயனர் (கள்)."
 
-#: admin/admin.strings.js:18 admin/src/AdminSocketOverview.js:205
-#, fuzzy
+#: admin/admin.strings.js:27 admin/src/AdminSocketOverview.js:214
 msgid " document(s) open."
-msgstr "ஆவணங்கள் திறந்துள்ளன"
+msgstr " ஆவணம் (கள்) திறந்திருக்கும்."
 
-#: admin/admin.strings.js:19
+#: admin/admin.strings.js:28
 msgid "Number of Documents"
-msgstr ""
+msgstr "ஆவணங்களின் எண்ணிக்கை"
 
-#: admin/admin.strings.js:20
+#: admin/admin.strings.js:29
 msgid "Memory consumed"
 msgstr "நினைவு பயன்படுத்தப்பட்டுள்ளது"
 
-#: admin/admin.strings.js:21
+#: admin/admin.strings.js:30
 msgid "Bytes sent"
-msgstr ""
+msgstr "பைட்டுகள் அனுப்பப்பட்டன"
 
-#: admin/admin.strings.js:22
+#: admin/admin.strings.js:31
 msgid "Bytes received"
-msgstr ""
+msgstr "பைட்டுகள் பெறப்பட்டன"
 
-#: admin/admin.strings.js:23
+#: admin/admin.strings.js:32
 msgid "PID"
-msgstr "PID"
+msgstr "பிஐடி"
 
-#: admin/admin.strings.js:24
+#: admin/admin.strings.js:33 admin/src/AdminClusterOverview.js:352
 msgid "Document"
 msgstr "ஆவணம்"
 
-#: admin/admin.strings.js:25
+#: admin/admin.strings.js:34
 msgid "Views"
-msgstr ""
+msgstr "காட்சிகள்"
 
-#: admin/admin.strings.js:26
+#: admin/admin.strings.js:35
 msgid "Elapsed time"
 msgstr "கடந்த நேரம்"
 
-#: admin/admin.strings.js:27
+#: admin/admin.strings.js:36
 msgid "Idle time"
-msgstr ""
+msgstr "செயலற்ற நேரம்"
 
-#: admin/admin.strings.js:28
+#: admin/admin.strings.js:37
 msgid "Modified"
-msgstr ""
+msgstr "மாற்றியமைக்கப்பட்ட"
 
-#: admin/admin.strings.js:29
+#: admin/admin.strings.js:38
 msgid "Uploaded"
-msgstr ""
+msgstr "பதிவேற்றப்பட்டது"
 
-#: admin/admin.strings.js:30
+#: admin/admin.strings.js:39
 msgid "WOPI host"
-msgstr ""
+msgstr "வோபி புரவலன்"
 
-#: admin/admin.strings.js:31
+#: admin/admin.strings.js:40
 msgid "Kill"
 msgstr "கொல்"
 
-#: admin/admin.strings.js:32
+#: admin/admin.strings.js:41
 msgid "Graphs"
-msgstr ""
+msgstr "வரைபடங்கள்"
 
-#: admin/admin.strings.js:33
+#: admin/admin.strings.js:42
 msgid "Memory Graph"
-msgstr ""
+msgstr "நினைவக வரைபடம்"
 
-#: admin/admin.strings.js:34
+#: admin/admin.strings.js:43
 msgid "CPU Graph"
-msgstr ""
+msgstr "சிபியு வரைபடம்"
 
-#: admin/admin.strings.js:35
+#: admin/admin.strings.js:44
 msgid "Network Graph"
-msgstr ""
+msgstr "பிணைய வரைபடம்"
 
-#: admin/admin.strings.js:36 src/control/Control.Notebookbar.js:264
-#: src/control/Control.NotebookbarCalc.js:102
-#: src/control/Control.NotebookbarDraw.js:20
-#: src/control/Control.NotebookbarDraw.js:137
-#: src/control/Control.NotebookbarImpress.js:20
-#: src/control/Control.NotebookbarImpress.js:159
-#: src/control/Control.NotebookbarWriter.js:115
-#: src/layer/tile/CommentListSection.ts:378
-#: src/layer/tile/CommentSection.ts:114
+#: admin/admin.strings.js:45 src/canvas/sections/CommentListSection.ts:512
+#: src/canvas/sections/CommentSection.ts:161
+#: src/control/Control.Notebookbar.js:272
+#: src/control/Control.NotebookbarCalc.js:112
+#: src/control/Control.NotebookbarDraw.js:29
+#: src/control/Control.NotebookbarDraw.js:153
+#: src/control/Control.NotebookbarImpress.js:30
+#: src/control/Control.NotebookbarImpress.js:177
+#: src/control/Control.NotebookbarWriter.js:155
 msgid "Save"
 msgstr "சேமி"
 
-#: admin/admin.strings.js:37
-msgid "Cache size of memory statistics"
-msgstr ""
-
-#: admin/admin.strings.js:38
-msgid "Time interval of memory statistics (in ms)"
-msgstr ""
-
-#: admin/admin.strings.js:39
-msgid "Cache size of CPU statistics"
-msgstr ""
-
-#: admin/admin.strings.js:40
-msgid "Time interval of CPU statistics (in ms)"
-msgstr ""
-
-#: admin/admin.strings.js:41 admin/src/AdminSocketOverview.js:91
-msgid "Kill session."
-msgstr ""
-
-#: admin/admin.strings.js:42
-msgid "Maximum Document process virtual memory (in MB) - reduce only"
-msgstr ""
-
-#: admin/admin.strings.js:43
-msgid "Maximum Document process stack memory (in KB) - reduce only"
-msgstr ""
-
-#: admin/admin.strings.js:44
-msgid "Maximum file size allowed to write to disk (in MB) - reduce only"
-msgstr ""
-
-#: admin/admin.strings.js:45
-#, fuzzy
-msgid "Documents:"
-msgstr "ஆவணம்"
-
 #: admin/admin.strings.js:46
-msgid "Expired:"
-msgstr ""
+msgid "Cache size of memory statistics"
+msgstr "நினைவக புள்ளிவிவரங்களின் கேச் அளவு"
 
-#: admin/admin.strings.js:47 admin/src/AdminSocketBase.js:53
-#: src/control/Control.Zotero.js:202
-msgid "Refresh"
-msgstr ""
+#: admin/admin.strings.js:47
+msgid "Time interval of memory statistics (in ms)"
+msgstr "நினைவக புள்ளிவிவரங்களின் நேர இடைவெளி (எம்.எச்சில்)"
 
 #: admin/admin.strings.js:48
-msgid "Shutdown Server"
-msgstr ""
+msgid "Cache size of CPU statistics"
+msgstr "சிபியு புள்ளிவிவரங்களின் கேச் அளவு"
 
 #: admin/admin.strings.js:49
-msgid "Server uptime"
-msgstr ""
+msgid "Time interval of CPU statistics (in ms)"
+msgstr "சிபியு புள்ளிவிவரங்களின் நேர இடைவெளி (MS இல்)"
 
-#: admin/admin.strings.js:50
-msgid "Refresh Log"
-msgstr ""
+#: admin/admin.strings.js:50 admin/src/AdminSocketOverview.js:100
+msgid "Kill session."
+msgstr "அமர்வு கொல்லுங்கள்."
 
 #: admin/admin.strings.js:51
-msgid "Channel Filter:"
+msgid "Maximum Document process virtual memory (in MB) - reduce only"
 msgstr ""
+"அதிகபட்ச ஆவண செயல்முறை மெய்நிகர் நினைவகம் (MB இல்) - மட்டும் குறைக்கவும்"
 
-#: admin/admin.strings.js:52 src/control/Control.JSDialogBuilder.js:550
-#: src/control/Control.StatusBar.js:338
+#: admin/admin.strings.js:52
+msgid "Maximum Document process stack memory (in KB) - reduce only"
+msgstr "அதிகபட்ச ஆவண செயல்முறை அடுக்கு நினைவகம் (KB இல்) - மட்டும் குறைக்கவும்"
+
+#: admin/admin.strings.js:53
+msgid "Maximum file size allowed to write to disk (in MB) - reduce only"
+msgstr ""
+"வட்டுக்கு எழுத அனுமதிக்கப்பட்ட அதிகபட்ச கோப்பு அளவு (MB இல்) - மட்டும் "
+"குறைக்கவும்"
+
+#: admin/admin.strings.js:54
+msgid "Documents:"
+msgstr "ஆவணங்கள்:"
+
+#: admin/admin.strings.js:55
+msgid "Expired:"
+msgstr "காலாவதியானது:"
+
+#: admin/admin.strings.js:56 admin/src/AdminSocketBase.js:61
+#: src/control/Control.Zotero.js:209
+msgid "Refresh"
+msgstr "புதுப்பிப்பு"
+
+#: admin/admin.strings.js:57
+msgid "Shutdown Server"
+msgstr "பணிநிறுத்தம் சேவையகம்"
+
+#: admin/admin.strings.js:58
+msgid "Server uptime"
+msgstr "சேவையக அதிக நேரம்"
+
+#: admin/admin.strings.js:59
+msgid "Refresh Log"
+msgstr "பதிவைப் புதுப்பிக்கவும்"
+
+#: admin/admin.strings.js:60
+msgid "Channel Filter:"
+msgstr "சேனல் வடிகட்டி:"
+
+#: admin/admin.strings.js:61 src/control/Control.JSDialogBuilder.js:495
+#: src/control/Control.StatusBar.js:212 src/control/Control.StatusBar.js:217
 msgid "None"
 msgstr "ஏதுமில்லை"
 
-#: admin/admin.strings.js:53
+#: admin/admin.strings.js:62
 msgid "Set Log Levels"
-msgstr ""
+msgstr "பதிவு நிலைகளை அமைக்கவும்"
 
-#: admin/admin.strings.js:54
+#: admin/admin.strings.js:63
 msgid "Log Levels"
-msgstr ""
+msgstr "பதிவு நிலைகள்"
 
-#: admin/admin.strings.js:55 src/control/Control.AlertDialog.js:21
-#: src/control/Control.AlertDialog.js:27 src/control/Control.AlertDialog.js:58
-#: src/control/Control.Zotero.js:182 src/control/Parts.js:440
-#: src/core/Socket.js:1017 src/core/Socket.js:1022
+#: admin/admin.strings.js:64 src/canvas/sections/CommentListSection.ts:164
+#: src/control/Control.AlertDialog.js:32 src/control/Control.AlertDialog.js:38
+#: src/control/Control.AlertDialog.js:101
+#: src/control/Control.AlertDialog.js:108 src/control/Control.Zotero.js:189
+#: src/core/Socket.js:428 src/core/Socket.js:1199 src/core/Socket.js:1204
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.div:51-7
 msgid "Close"
-msgstr ""
+msgstr "மூடு"
 
-#: admin/admin.strings.js:56
+#: admin/admin.strings.js:65
 msgid "Update Log Levels"
-msgstr ""
+msgstr "பதிவு நிலைகளைப் புதுப்பிக்கவும்"
 
-#: admin/admin.strings.js:57
+#: admin/admin.strings.js:66
 msgid "Version Information"
-msgstr ""
-
-#: admin/src/AdminSocketAnalytics.js:205
-msgid "Received"
-msgstr ""
-
-#: admin/src/AdminSocketAnalytics.js:209
-msgid "Sent"
-msgstr ""
-
-#: admin/src/AdminSocketBase.js:54
-msgid "Server has been shut down; please reload the page."
-msgstr ""
-
-#: admin/src/AdminSocketBase.js:55 admin/src/AdminSocketBase.js:66
-#: admin/src/AdminSocketOverview.js:99 admin/src/AdminSocketOverview.js:422
-#: admin/src/AdminSocketSettings.js:36 src/control/Control.AlertDialog.js:43
-#: src/control/Control.DocumentRepair.js:68
-#: src/control/Control.LanguageDialog.js:109 src/control/Control.Tabs.js:303
-#: src/control/Control.Tabs.js:312 src/control/Control.Zotero.js:328
-#: src/control/Control.Zotero.js:366 src/control/Permission.js:76
-#: src/control/Permission.js:86 src/control/Permission.js:136
-#: src/control/Toolbar.js:553 src/control/Toolbar.js:654
-#: src/control/Toolbar.js:761 src/control/Toolbar.js:996
-#: src/core/Socket.js:987 src/core/Socket.js:1062 src/core/Socket.js:1190
-#: src/core/Socket.js:1194 src/main.js:70 src/main.js:73 src/main.js:110
-#: src/map/Clipboard.js:874 src/map/Clipboard.js:925
-#: src/map/handler/Map.Feedback.js:83 src/map/handler/Map.WOPI.js:484
-msgid "OK"
-msgstr ""
-
-#: admin/src/AdminSocketBase.js:64 admin/src/AdminSocketBase.js:65
-msgid "Connection error"
-msgstr "இணைப்புப் பிழை"
-
-#: admin/src/AdminSocketOverview.js:97 admin/src/AdminSocketSettings.js:34
-msgid "Confirmation"
-msgstr ""
-
-#: admin/src/AdminSocketOverview.js:98
-#, fuzzy
-msgid "Are you sure you want to terminate this session?"
-msgstr "உறுதியாக இப்படவில்லையை அழிக்க வேண்டுகிறீரா?"
-
-#: admin/src/AdminSocketOverview.js:100 admin/src/AdminSocketOverview.js:423
-#: admin/src/AdminSocketSettings.js:37
-#: src/control/Control.DocumentRepair.js:62
-#: src/control/Control.LanguageDialog.js:103
-#: src/control/Control.MobileTopBar.js:43 src/control/Control.Zotero.js:323
-#: src/control/Toolbar.js:756 src/core/Socket.js:1215
-#: src/layer/tile/CommentListSection.ts:373
-#: src/layer/tile/CommentSection.ts:113 src/layer/tile/CommentSection.ts:116
-msgid "Cancel"
-msgstr "ரத்து"
-
-#: admin/src/AdminSocketOverview.js:411
-msgid "Failed to set jwt authentication cookie over insecure connection"
-msgstr ""
-
-#: admin/src/AdminSocketOverview.js:415
-msgid "Failed to authenticate this session over protocol %0"
-msgstr ""
-
-#: admin/src/AdminSocketOverview.js:420
-msgid "Warning"
-msgstr ""
-
-#: admin/src/AdminSocketSettings.js:35
-msgid "Are you sure you want to shut down the server?"
-msgstr ""
-
-#: admin/src/Util.js:14
-msgid "kB"
-msgstr "KB"
-
-#: admin/src/Util.js:14
-msgid "MB"
-msgstr "MB"
-
-#: admin/src/Util.js:14
-msgid "GB"
-msgstr "GB"
-
-#: admin/src/Util.js:14
-msgid "TB"
-msgstr "TB"
-
-#: admin/src/Util.js:14
-msgid "PB"
-msgstr ""
-
-#: admin/src/Util.js:14
-msgid "EB"
-msgstr ""
-
-#: admin/src/Util.js:14
-msgid "ZB"
-msgstr ""
-
-#: admin/src/Util.js:14
-msgid "YB"
-msgstr ""
-
-#: admin/src/Util.js:14
-msgid "BB"
-msgstr ""
-
-#: admin/src/Util.js:43 admin/src/Util.js:45
-msgid " hrs"
-msgstr "மணி"
-
-#: admin/src/Util.js:49 admin/src/Util.js:51
-msgid " mins"
-msgstr "நிமி"
-
-#: admin/src/Util.js:54
-msgid " s"
-msgstr "வி"
-
-#: js/w2ui-1.5.rc1.js:2973
-msgid "Recent"
-msgstr ""
-
-#: src/control/ColorPicker.js:122
-msgid "No color"
-msgstr ""
-
-#: src/control/ColorPicker.js:123
-msgid "Automatic color"
-msgstr ""
-
-#: src/control/Control.AlertDialog.js:42
-msgid "External link"
-msgstr ""
-
-#: src/control/Control.AlertDialog.js:43
-msgid "Open link"
-msgstr ""
-
-#: src/control/Control.AlertDialog.js:55
-msgid "The server encountered a %0 error while parsing the %1 command."
-msgstr ""
-
-#: src/control/Control.Command.js:80
-msgid "Unlock"
-msgstr ""
-
-#: src/control/Control.ContextMenu.js:187 src/control/Toolbar.js:995
-msgid "Delete"
-msgstr ""
-
-#: src/control/Control.ContextMenu.js:207
-msgid "Paste Special"
-msgstr "சிறப்பு ஒட்டு"
-
-#: src/control/Control.DocumentNameInput.js:77
-msgid "Path"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:18
-#: src/control/Control.DocumentRepair.js:19
-msgid "Repair Document"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:115
-#: src/control/Control.UserList.js:324
-msgid "You"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:131
-msgid "Type"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:131
-msgid "What?"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:131
-msgid "Who?"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:131
-msgid "When?"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:150
-msgid "You have not done anything to rollback yet..."
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:160
-msgid "Redo"
-msgstr ""
-
-#: src/control/Control.DocumentRepair.js:161
-msgid "Undo"
-msgstr ""
-
-#: src/control/Control.DownloadProgress.js:47
-msgid "Start download"
-msgstr ""
-
-#: src/control/Control.DownloadProgress.js:62
-msgid "Confirm copy to clipboard"
-msgstr ""
-
-#: src/control/Control.FormulaBar.js:45
-msgid "cell address"
-msgstr ""
-
-#: src/control/Control.FormulaBarJSDialog.js:43
-#: src/control/Control.FormulaBarJSDialog.js:91
-#, fuzzy
-msgid "Function Wizard"
-msgstr "செயலாற்றி"
-
-#: src/control/Control.FormulaBarJSDialog.js:54
-msgid "Formula"
-msgstr ""
-
-#: src/control/Control.FormulaBarJSDialog.js:60
-#: src/control/Control.MobileTopBar.js:42
-msgid "Accept"
-msgstr "ஏற்றுக்கொள்"
-
-#: src/control/Control.JSDialogBuilder.js:153
-#: src/control/Control.StatusBar.js:336
-msgid "Sum"
-msgstr "தொகை"
-
-#: src/control/Control.JSDialogBuilder.js:154
-#: src/control/Control.StatusBar.js:331
-msgid "Average"
-msgstr "சராசரி"
-
-#: src/control/Control.JSDialogBuilder.js:155
-msgid "Min"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:156
-msgid "Max"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:157
-#: src/control/Control.StatusBar.js:333
-msgid "Count"
-msgstr "எண்ணிக்கை"
-
-#: src/control/Control.JSDialogBuilder.js:553
-msgid "Solid"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:556
-msgid "Linear"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:559
-msgid "Axial"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:562
-msgid "Radial"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:565
-msgid "Ellipsoid"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:569
-msgid "Quadratic"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:572
-msgid "Square"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:575
-msgid "Fixed size"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:1536
-msgid "From"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:1539
-msgid "To"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:1542
-msgid "Color"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:1649
-#, fuzzy
-msgid "Select range"
-msgstr "தேர்ந்த கலங்களின் வீச்சு"
-
-#: src/control/Control.JSDialogBuilder.js:1703
-#: src/control/Control.NotebookbarBuilder.js:230
-#, fuzzy
-msgid "Font Name"
-msgstr "எழுத்துரு"
-
-#: src/control/Control.JSDialogBuilder.js:1705 src/control/Toolbar.js:123
-#, fuzzy
-msgid "Font Size"
-msgstr "எழுத்துரு"
-
-#: src/control/Control.JSDialogBuilder.js:1707
-#: src/control/Control.TopToolbar.js:499
-msgid "Style"
-msgstr "பாணி"
-
-#: src/control/Control.JSDialogBuilder.js:2149
-msgid "reply"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:2152
-msgid "replies"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:2163
-#: src/layer/tile/CanvasTileLayer.js:5230
-#: src/layer/tile/CanvasTileLayer.js:5241
-#: src/layer/tile/CommentListSection.ts:891
-msgid "Comment"
-msgstr "கருத்துரை"
-
-#: src/control/Control.JSDialogBuilder.js:2227
-msgid "Insert Comment"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:2921
-msgid "Cell borders"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:3036
-msgid "Automatic"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:3153
-#: src/control/Control.Menubar.js:793
-msgid "Rows"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:3154
-#: src/control/Control.Menubar.js:796
-msgid "Columns"
-msgstr ""
-
-#: src/control/Control.JSDialogBuilder.js:3174
-#, fuzzy
-msgid "Insert Table"
-msgstr "அட்டைவணை நுழை"
-
-#: src/control/Control.LanguageDialog.js:54 src/control/Control.Menubar.js:335
-#: src/control/Control.Menubar.js:337 src/control/Control.Menubar.js:339
-#: src/control/Control.Menubar.js:499 src/control/Control.Menubar.js:626
-#: src/control/Control.Menubar.js:873 src/control/Control.StatusBar.js:559
-msgid "None (Do not check spelling)"
-msgstr ""
-
-#: src/control/Control.LanguageDialog.js:72
-msgid "Select language"
-msgstr ""
-
-#: src/control/Control.LanguageDialog.js:93
-msgid "Language"
-msgstr ""
-
-#: src/control/Control.Menubar.js:67 src/control/Control.Menubar.js:80
-#: src/control/Control.Menubar.js:907
-#: src/control/Control.NotebookbarBuilder.js:551
-#: src/control/Control.NotebookbarBuilder.js:645
-msgid "ODF text document (.odt)"
-msgstr "ODF உரை ஆவணம் (.odt)"
-
-#: src/control/Control.Menubar.js:68 src/control/Control.Menubar.js:81
-#: src/control/Control.Menubar.js:908
-#: src/control/Control.NotebookbarBuilder.js:563
-#: src/control/Control.NotebookbarBuilder.js:657
-#: src/control/Control.NotebookbarWriter.js:223
-msgid "Word 2003 Document (.doc)"
-msgstr ""
-
-#: src/control/Control.Menubar.js:69 src/control/Control.Menubar.js:82
-#: src/control/Control.Menubar.js:909
-#: src/control/Control.NotebookbarBuilder.js:559
-#: src/control/Control.NotebookbarBuilder.js:653
-#: src/control/Control.NotebookbarWriter.js:229
-msgid "Word Document (.docx)"
-msgstr ""
-
-#: src/control/Control.Menubar.js:70 src/control/Control.Menubar.js:83
-#: src/control/Control.Menubar.js:910
-#: src/control/Control.NotebookbarBuilder.js:555
-#: src/control/Control.NotebookbarBuilder.js:649
-#: src/control/Control.NotebookbarWriter.js:211
-msgid "Rich Text (.rtf)"
-msgstr ""
-
-#: src/control/Control.Menubar.js:72 src/control/Control.Menubar.js:78
-#: src/control/Control.Menubar.js:373 src/control/Control.Menubar.js:379
-#: src/control/Control.Menubar.js:519 src/control/Control.Menubar.js:526
-#: src/control/Control.Menubar.js:647 src/control/Control.Menubar.js:652
-#: src/control/Control.Menubar.js:894 src/control/Control.Menubar.js:905
-#: src/control/Control.Menubar.js:957 src/control/Control.Menubar.js:966
-#: src/control/Control.Menubar.js:1017 src/control/Control.Menubar.js:1025
-#: src/control/Control.Menubar.js:1067 src/control/Control.Menubar.js:1078
-msgid "Export as"
-msgstr ""
-
-#: src/control/Control.Menubar.js:73 src/control/Control.Menubar.js:79
-#: src/control/Control.Menubar.js:374 src/control/Control.Menubar.js:380
-#: src/control/Control.Menubar.js:520 src/control/Control.Menubar.js:527
-#: src/control/Control.Menubar.js:648 src/control/Control.Menubar.js:653
-#: src/control/Control.Menubar.js:895 src/control/Control.Menubar.js:906
-#: src/control/Control.Menubar.js:958 src/control/Control.Menubar.js:967
-#: src/control/Control.Menubar.js:1018 src/control/Control.Menubar.js:1026
-#: src/control/Control.Menubar.js:1068 src/control/Control.Menubar.js:1079
-#: src/control/Control.NotebookbarBuilder.js:572
-#: src/control/Control.NotebookbarBuilder.js:601
-#: src/control/Control.NotebookbarBuilder.js:625
-#: src/control/Control.NotebookbarBuilder.js:706
-#: src/control/Control.NotebookbarBuilder.js:717
-#: src/control/Control.NotebookbarBuilder.js:724
-#: src/control/Control.NotebookbarBuilder.js:731
-#: src/control/Control.NotebookbarCalc.js:247
-#: src/control/Control.NotebookbarDraw.js:211
-#: src/control/Control.NotebookbarImpress.js:304
-#: src/control/Control.NotebookbarWriter.js:241
-msgid "PDF Document (.pdf)"
-msgstr "PDF ஆவணம் (.pdf)"
-
-#: src/control/Control.Menubar.js:74 src/control/Control.Menubar.js:84
-#: src/control/Control.Menubar.js:896 src/control/Control.Menubar.js:911
-#: src/control/Control.NotebookbarBuilder.js:567
-#: src/control/Control.NotebookbarBuilder.js:710
-msgid "EPUB (.epub)"
-msgstr ""
-
-#: src/control/Control.Menubar.js:76 src/control/Control.Menubar.js:377
-#: src/control/Control.Menubar.js:523 src/control/Control.Menubar.js:650
-#: src/control/Control.Menubar.js:898 src/control/Control.Menubar.js:960
-#: src/control/Control.Menubar.js:1020 src/control/Control.Menubar.js:1070
-msgid "Share..."
-msgstr ""
-
-#: src/control/Control.Menubar.js:77 src/control/Control.Menubar.js:378
-#: src/control/Control.Menubar.js:525 src/control/Control.Menubar.js:651
-#: src/control/Control.Menubar.js:899 src/control/Control.Menubar.js:961
-#: src/control/Control.Menubar.js:1022 src/control/Control.Menubar.js:1071
-msgid "See revision history"
-msgstr ""
-
-#: src/control/Control.Menubar.js:78 src/control/Control.Menubar.js:379
-#: src/control/Control.Menubar.js:526 src/control/Control.Menubar.js:652
-#: src/control/Control.Menubar.js:905 src/control/Control.Menubar.js:966
-#: src/control/Control.Menubar.js:1025 src/control/Control.Menubar.js:1078
-msgid "Download as"
-msgstr "இவ்வாறு பதிவிறக்கு"
-
-#: src/control/Control.Menubar.js:88 src/control/Control.Menubar.js:388
-#: src/control/Control.Menubar.js:532 src/control/Control.Menubar.js:661
-#: src/control/Control.Toolbar.js:1172
-msgid "Close document"
-msgstr "ஆவணத்தை மூடு"
-
-#: src/control/Control.Menubar.js:93 src/control/Control.Menubar.js:393
-#: src/control/Control.Menubar.js:537 src/control/Control.Menubar.js:666
-#: src/control/Control.Menubar.js:916 src/control/Control.Menubar.js:976
-#: src/control/Control.Menubar.js:1032 src/control/Control.Menubar.js:1087
-#: src/control/Control.NotebookbarCalc.js:193
-#: src/control/Control.NotebookbarCalc.js:194
-#: src/control/Control.NotebookbarCalc.js:254
-#: src/control/Control.NotebookbarCalc.js:255
-#: src/control/Control.NotebookbarCalc.js:268
-#: src/control/Control.NotebookbarCalc.js:269
-#: src/control/Control.NotebookbarDraw.js:218
-#: src/control/Control.NotebookbarDraw.js:219
-#: src/control/Control.NotebookbarImpress.js:250
-#: src/control/Control.NotebookbarImpress.js:251
-#: src/control/Control.NotebookbarImpress.js:311
-#: src/control/Control.NotebookbarImpress.js:312
-#: src/control/Control.NotebookbarImpress.js:325
-#: src/control/Control.NotebookbarImpress.js:326
-#: src/control/Control.NotebookbarWriter.js:264
-#: src/control/Control.NotebookbarWriter.js:265
-msgid "Repair"
-msgstr ""
-
-#: src/control/Control.Menubar.js:117 src/control/Control.Menubar.js:123
-#: src/control/Control.Menubar.js:405 src/control/Control.Menubar.js:411
-#: src/control/Control.Menubar.js:549 src/control/Control.Menubar.js:555
-#: src/control/Control.Menubar.js:678 src/control/Control.Menubar.js:684
-#: src/control/Control.NotebookbarCalc.js:1004
-#: src/control/Control.NotebookbarCalc.js:1005
-#: src/control/Control.NotebookbarDraw.js:260
-#: src/control/Control.NotebookbarDraw.js:261
-#: src/control/Control.NotebookbarImpress.js:373
-#: src/control/Control.NotebookbarImpress.js:374
-#: src/control/Control.NotebookbarWriter.js:1079
-#: src/control/Control.NotebookbarWriter.js:1080
-#: src/control/Control.StatusBar.js:212
-msgid "Reset zoom"
-msgstr ""
-
-#: src/control/Control.Menubar.js:126 src/control/Control.Menubar.js:414
-#: src/control/Control.Menubar.js:558 src/control/Control.Menubar.js:687
-#: src/control/Control.NotebookbarCalc.js:1039
-#: src/control/Control.NotebookbarDraw.js:295
-#: src/control/Control.NotebookbarImpress.js:408
-#: src/control/Control.NotebookbarWriter.js:1114
-msgid "Toggle UI Mode"
-msgstr ""
-
-#: src/control/Control.Menubar.js:127 src/control/Control.Menubar.js:415
-#: src/control/Control.NotebookbarWriter.js:1126
-msgid "Show Ruler"
-msgstr ""
-
-#: src/control/Control.Menubar.js:128 src/control/Control.Menubar.js:416
-#: src/control/Control.Menubar.js:562 src/control/Control.Menubar.js:688
-#: src/control/Control.NotebookbarCalc.js:1045
-#: src/control/Control.NotebookbarDraw.js:301
-#: src/control/Control.NotebookbarImpress.js:414
-#: src/control/Control.NotebookbarWriter.js:1137
-msgid "Show Status Bar"
-msgstr ""
-
-#: src/control/Control.Menubar.js:129 src/control/Control.Menubar.js:417
-#: src/control/Control.Menubar.js:559 src/control/Control.Menubar.js:689
-#: src/control/Control.NotebookbarCalc.js:1050
-#: src/control/Control.NotebookbarDraw.js:306
-#: src/control/Control.NotebookbarImpress.js:424
-#: src/control/Control.NotebookbarWriter.js:1147
-msgid "Dark Mode"
-msgstr ""
-
-#: src/control/Control.Menubar.js:137 src/control/Control.Menubar.js:428
-#: src/control/Control.Menubar.js:565 src/control/Control.Menubar.js:699
-#: src/control/Control.Menubar.js:1135 src/control/Control.Menubar.js:1185
-#: src/control/Control.Menubar.js:1199 src/control/Control.Menubar.js:1222
-msgid "Local Image..."
-msgstr ""
-
-#: src/control/Control.Menubar.js:160 src/control/Control.Menubar.js:162
-#: src/control/Control.Menubar.js:1152 src/control/Control.Menubar.js:1154
-msgid "All"
-msgstr ""
-
-#: src/control/Control.Menubar.js:171 src/control/Control.Menubar.js:438
-#: src/control/Control.Menubar.js:572 src/control/Control.Menubar.js:711
-#: src/control/Control.NotebookbarCalc.js:1151
-#: src/control/Control.NotebookbarDraw.js:948
-#: src/control/Control.NotebookbarImpress.js:967
-#: src/control/Control.NotebookbarWriter.js:851
-msgid "Smart Picker"
-msgstr ""
-
-#: src/control/Control.Menubar.js:210
-msgid "Text orientation"
-msgstr ""
-
-#: src/control/Control.Menubar.js:272
-msgid "References"
-msgstr ""
-
-#: src/control/Control.Menubar.js:275
-#: src/control/Control.NotebookbarWriter.js:1443
-msgid "Update Index"
-msgstr ""
-
-#: src/control/Control.Menubar.js:284
-#: src/control/Control.NotebookbarWriter.js:1526
-msgid "Add Citation"
-msgstr ""
-
-#: src/control/Control.Menubar.js:285
-#: src/control/Control.NotebookbarWriter.js:1537
-msgid "Add Citation Note"
-msgstr ""
-
-#: src/control/Control.Menubar.js:286
-#: src/control/Control.NotebookbarWriter.js:1514
-msgid "Add Bibliography"
-msgstr ""
-
-#: src/control/Control.Menubar.js:288
-#: src/control/Control.NotebookbarWriter.js:1554
-msgid "Refresh Citations"
-msgstr ""
-
-#: src/control/Control.Menubar.js:289
-#: src/control/Control.NotebookbarWriter.js:1565
-#: src/control/Control.Zotero.js:1436
-msgid "Unlink Citations"
-msgstr ""
-
-#: src/control/Control.Menubar.js:290
-#: src/control/Control.NotebookbarWriter.js:1576
-msgid "Citation Preferences"
-msgstr ""
-
-#: src/control/Control.Menubar.js:318 src/control/Control.Menubar.js:1174
-msgid "Insert Rich Text"
-msgstr ""
-
-#: src/control/Control.Menubar.js:319 src/control/Control.Menubar.js:1175
-msgid "Insert Checkbox"
-msgstr ""
-
-#: src/control/Control.Menubar.js:320 src/control/Control.Menubar.js:1176
-msgid "Insert Dropdown"
-msgstr ""
-
-#: src/control/Control.Menubar.js:321 src/control/Control.Menubar.js:1177
-msgid "Insert Picture"
-msgstr ""
-
-#: src/control/Control.Menubar.js:322 src/control/Control.Menubar.js:1178
-#, fuzzy
-msgid "Insert Date"
-msgstr "அட்டைவணை நுழை"
-
-#: src/control/Control.Menubar.js:323 src/control/Control.Menubar.js:1179
-#: src/control/Control.NotebookbarCalc.js:282
-#: src/control/Control.NotebookbarDraw.js:232
-#: src/control/Control.NotebookbarImpress.js:339
-#: src/control/Control.NotebookbarWriter.js:277
-#: src/control/Control.NotebookbarWriter.js:1047
-msgid "Properties"
-msgstr ""
-
-#: src/control/Control.Menubar.js:354
-#: src/control/Control.NotebookbarWriter.js:302
-msgid "Forum"
-msgstr ""
-
-#: src/control/Control.Menubar.js:355 src/control/Control.Menubar.js:505
-#: src/control/Control.Menubar.js:629 src/control/Control.Menubar.js:879
-#: src/control/Control.NotebookbarWriter.js:313
-msgid "Online Help"
-msgstr ""
-
-#: src/control/Control.Menubar.js:356 src/control/Control.Menubar.js:506
-#: src/control/Control.Menubar.js:630 src/control/Control.Menubar.js:880
-#: src/control/Control.NotebookbarWriter.js:324
-msgid "Keyboard shortcuts"
-msgstr "விசைப்பலகை குறுக்குவழிகள்"
-
-#: src/control/Control.Menubar.js:357 src/control/Control.Menubar.js:507
-#: src/control/Control.Menubar.js:631 src/control/Control.Menubar.js:881
-#: src/control/Control.NotebookbarWriter.js:341
-msgid "Report an issue"
-msgstr ""
-
-#: src/control/Control.Menubar.js:358 src/control/Control.Menubar.js:508
-#: src/control/Control.Menubar.js:632 src/control/Control.Menubar.js:882
-#: src/control/Control.Menubar.js:947 src/control/Control.Menubar.js:1007
-#: src/control/Control.Menubar.js:1057 src/control/Control.Menubar.js:1127
-#: src/control/Control.NotebookbarWriter.js:353
-msgid "Latest Updates"
-msgstr ""
-
-#: src/control/Control.Menubar.js:359 src/control/Control.Menubar.js:509
-#: src/control/Control.Menubar.js:633 src/control/Control.Menubar.js:883
-#: src/control/Control.Menubar.js:948 src/control/Control.Menubar.js:1008
-#: src/control/Control.Menubar.js:1058 src/control/Control.Menubar.js:1128
-#: src/control/Control.NotebookbarWriter.js:365
-msgid "Send Feedback"
-msgstr ""
-
-#: src/control/Control.Menubar.js:360 src/control/Control.Menubar.js:510
-#: src/control/Control.Menubar.js:634 src/control/Control.Menubar.js:884
-#: src/control/Control.Menubar.js:949 src/control/Control.Menubar.js:1009
-#: src/control/Control.Menubar.js:1059 src/control/Control.Menubar.js:1129
-#: src/control/Control.NotebookbarWriter.js:377
+msgstr "பதிப்பு செய்தி"
+
+#: admin/admin.strings.js:67
+msgid "License"
+msgstr "உரிமம்"
+
+#: admin/admin.strings.js:68 src/control/Control.Menubar.js:390
+#: src/control/Control.Menubar.js:566 src/control/Control.Menubar.js:703
+#: src/control/Control.Menubar.js:990 src/control/Control.Menubar.js:1058
+#: src/control/Control.Menubar.js:1123 src/control/Control.Menubar.js:1178
+#: src/control/Control.Menubar.js:1253
+#: src/control/Control.NotebookbarWriter.js:476
 msgid "About"
 msgstr "பற்றி"
 
-#: src/control/Control.Menubar.js:362 src/control/Control.Menubar.js:512
-#: src/control/Control.Menubar.js:636 src/control/Control.Menubar.js:886
-msgid "Last modification"
+#: admin/src/AdminClusterOverview.js:105
+msgid "CPU History"
+msgstr "சிபியு வரலாறு"
+
+#: admin/src/AdminClusterOverview.js:116
+msgid "Memory History"
+msgstr "நினைவக வரலாறு"
+
+#: admin/src/AdminClusterOverview.js:356
+msgid "Memory"
+msgstr "நினைவகம்"
+
+#: admin/src/AdminClusterOverview.js:540
+msgid "Please wait kubernetes cluster is scaling..."
+msgstr "தயவுசெய்து காத்திருங்கள் குபெர்னெட்ச் கிளச்டர் அளவிடுகிறது ..."
+
+#: admin/src/AdminClusterOverview.js:550 admin/src/AdminSocketOverview.js:420
+msgid "Failed to set jwt authentication cookie over insecure connection"
+msgstr "பாதுகாப்பற்ற இணைப்பில் JWT அங்கீகார குக்கீயை அமைப்பதில் தோல்வி"
+
+#: admin/src/AdminClusterOverview.js:553 admin/src/AdminSocketOverview.js:424
+msgid "Failed to authenticate this session over protocol {0}"
+msgstr "நெறிமுறை {0} வழியாக இந்த அமர்வை அங்கீகரிக்கத் தவறிவிட்டது"
+
+#: admin/src/AdminClusterOverview.js:558 admin/src/AdminSocketOverview.js:429
+msgid "Warning"
+msgstr "எச்சரிக்கை"
+
+#: admin/src/AdminClusterOverview.js:560 admin/src/AdminSocketBase.js:63
+#: admin/src/AdminSocketBase.js:74 admin/src/AdminSocketOverview.js:108
+#: admin/src/AdminSocketOverview.js:431 admin/src/AdminSocketSettings.js:47
+#: src/canvas/sections/CommentListSection.ts:1453
+#: src/canvas/sections/CommentListSection.ts:2369
+#: src/control/Control.AboutDialog.ts:154
+#: src/control/Control.AlertDialog.js:54
+#: src/control/Control.DocumentRepair.js:77
+#: src/control/Control.ESignatureDialog.ts:132
+#: src/control/Control.LanguageDialog.js:119
+#: src/control/Control.ServerAuditDialog.ts:225
+#: src/control/Control.Tabs.js:385 src/control/Control.Tabs.js:394
+#: src/control/Control.Zotero.js:335 src/control/Control.Zotero.js:373
+#: src/control/Parts.js:491 src/control/Permission.js:89
+#: src/control/Permission.js:99 src/control/Permission.js:149
+#: src/control/Toolbar.js:740 src/control/Toolbar.js:837
+#: src/core/Socket.js:705 src/core/Socket.js:1169 src/core/Socket.js:1239
+#: src/core/Socket.js:1390 src/core/Socket.js:1394 src/docdispatcher.ts:495
+#: src/main.js:84 src/main.js:87 src/main.js:140 src/map/Clipboard.js:1269
+#: src/map/handler/Map.Feedback.js:87 src/map/handler/Map.SlideShow.js:56
+#: src/map/handler/Map.SlideShow.js:165 src/map/handler/Map.SlideShow.js:293
+#: src/map/handler/Map.SlideShow.js:304 src/map/handler/Map.WOPI.js:673
+#: src/slideshow/SlideShowPresenter.ts:644
+#: src/slideshow/SlideShowPresenter.ts:659
+#: src/slideshow/SlideShowPresenter.ts:674
+#: src/slideshow/SlideShowPresenter.ts:697
+msgid "OK"
+msgstr "சரி"
+
+#: admin/src/AdminClusterOverview.js:561 admin/src/AdminSocketOverview.js:109
+#: admin/src/AdminSocketOverview.js:432 admin/src/AdminSocketSettings.js:48
+#: src/canvas/sections/CommentListSection.ts:507
+#: src/canvas/sections/CommentSection.ts:160
+#: src/canvas/sections/CommentSection.ts:163
+#: src/control/Control.DocumentRepair.js:71
+#: src/control/Control.DownloadProgress.js:80
+#: src/control/Control.LanguageDialog.js:113
+#: src/control/Control.MobileTopBar.ts:43
+#: src/control/Control.UIManager.js:1313 src/control/Control.UIManager.js:1380
+#: src/control/Control.UIManager.js:1515 src/control/Control.UIManager.js:1674
+#: src/control/Control.Zotero.js:330 src/control/Toolbar.js:832
+#: src/core/Socket.js:1415
+msgid "Cancel"
+msgstr "ரத்து"
+
+#: admin/src/AdminSocketAnalytics.js:247
+msgid "Received"
+msgstr "பெறப்பட்டது"
+
+#: admin/src/AdminSocketAnalytics.js:251
+msgid "Sent"
+msgstr "அனுப்பப்பட்டது"
+
+#: admin/src/AdminSocketAnalytics.js:255
+msgid "Connections"
+msgstr "இணைப்புகள்"
+
+#: admin/src/AdminSocketBase.js:62
+msgid "Server has been shut down; please reload the page."
+msgstr "சேவையகம் மூடப்பட்டுள்ளது; பக்கத்தை மீண்டும் ஏற்றவும்."
+
+#: admin/src/AdminSocketBase.js:72 admin/src/AdminSocketBase.js:73
+msgid "Connection error"
+msgstr "இணைப்புப் பிழை"
+
+#: admin/src/AdminSocketOverview.js:106 admin/src/AdminSocketSettings.js:45
+msgid "Confirmation"
+msgstr "உறுதிப்படுத்தல்"
+
+#: admin/src/AdminSocketOverview.js:107
+msgid "Are you sure you want to terminate this session?"
+msgstr "இந்த அமர்வை நிறுத்த விரும்புகிறீர்களா?"
+
+#: admin/src/AdminSocketSettings.js:46
+msgid "Are you sure you want to shut down the server?"
+msgstr "சேவையகத்தை மூட விரும்புகிறீர்களா?"
+
+#: admin/src/Util.js:26
+msgid "kB"
+msgstr "KB"
+
+#: admin/src/Util.js:26
+msgid "MB"
+msgstr "எம்பி"
+
+#: admin/src/Util.js:26
+msgid "GB"
+msgstr "சிபி"
+
+#: admin/src/Util.js:26
+msgid "TB"
+msgstr "காசநோய்"
+
+#: admin/src/Util.js:26
+msgid "PB"
+msgstr "பிபி"
+
+#: admin/src/Util.js:26
+msgid "EB"
+msgstr "ஈ.பி."
+
+#: admin/src/Util.js:26
+msgid "ZB"
+msgstr "Zb"
+
+#: admin/src/Util.js:26
+msgid "YB"
+msgstr "Yb"
+
+#: admin/src/Util.js:26
+msgid "BB"
+msgstr "பிபி"
+
+#: admin/src/Util.js:86 admin/src/Util.js:88
+msgid " hrs"
+msgstr "மணி"
+
+#: admin/src/Util.js:92 admin/src/Util.js:94
+msgid " mins"
+msgstr "நிமி"
+
+#: admin/src/Util.js:97
+msgid " s"
+msgstr "வி"
+
+#: js/global.js:1476
+msgid "Cluster is scaling, retrying..."
+msgstr "கிளச்டர் அளவிடுதல், மீண்டும் முயற்சிக்கிறது ..."
+
+#: js/global.js:1478
+msgid "Document is migrating to new server, retrying..."
+msgstr "ஆவணம் புதிய சேவையகத்திற்கு இடம்பெயர்கிறது, மீண்டும் முயற்சிக்கிறது ..."
+
+#: js/global.js:1480
+msgid "Failed to get RouteToken from controller"
+msgstr "கட்டுப்பாட்டாளரிடமிருந்து ர"
+
+#: src/canvas/sections/CommentListSection.ts:163
+msgid "A comment is being edited"
+msgstr "ஒரு கருத்து திருத்தப்பட்டு வருகிறது"
+
+#: src/canvas/sections/CommentListSection.ts:164
+msgid "Please save or discard the comment currently being edited."
+msgstr "தற்போது திருத்தப்பட்ட கருத்தை சேமிக்கவும் அல்லது நிராகரிக்கவும்."
+
+#: src/canvas/sections/CommentListSection.ts:1163
+msgid "Modify"
+msgstr "மாற்றவும்"
+
+#: src/canvas/sections/CommentListSection.ts:1169
+#: src/canvas/sections/CommentSection.ts:164
+msgid "Reply"
+msgstr "பதில்"
+
+#: src/canvas/sections/CommentListSection.ts:1175
+msgid "Remove"
+msgstr "அகற்று"
+
+#: src/canvas/sections/CommentListSection.ts:1181
+msgid "Remove Thread"
+msgstr "நூலை அகற்று"
+
+#: src/canvas/sections/CommentListSection.ts:1187
+msgid "Resolve"
+msgstr "தீர்க்க"
+
+#: src/canvas/sections/CommentListSection.ts:1187
+msgid "Unresolve"
+msgstr "தீர்க்கவும்"
+
+#: src/canvas/sections/CommentListSection.ts:1193
+msgid "Unresolve Thread"
+msgstr "நூல் தீர்க்கவும்"
+
+#: src/canvas/sections/CommentListSection.ts:1193
+msgid "Resolve Thread"
+msgstr "நூலைத் தீர்க்கவும்"
+
+#: src/canvas/sections/CommentListSection.ts:1199
+msgid "Promote to top comment"
+msgstr "சிறந்த கருத்துக்கு ஊக்குவிக்கவும்"
+
+#: src/canvas/sections/CommentListSection.ts:1205
+msgid "Show on the side"
+msgstr "பக்கத்தில் காட்டு"
+
+#: src/canvas/sections/CommentListSection.ts:1205
+msgid "Show comment bigger"
+msgstr "கருத்து பெரியதாகக் காட்டு"
+
+#: src/canvas/sections/CommentListSection.ts:1233
+#: src/control/Control.JSDialogBuilder.js:1893
+#: src/layer/tile/CanvasTileLayer.js:3834
+#: src/layer/tile/CanvasTileLayer.js:3845
+msgid "Comment"
+msgstr "கருத்துரை"
+
+#: src/canvas/sections/CommentListSection.ts:1451
+#: src/canvas/sections/CommentListSection.ts:1464
+#: src/canvas/sections/CommentListSection.ts:2367
+msgid "Comments Updated"
+msgstr "கருத்துகள் புதுப்பிக்கப்பட்டன"
+
+#: src/canvas/sections/CommentListSection.ts:1452
+msgid "Another user has removed this comment."
+msgstr "மற்றொரு பயனர் இந்த கருத்தை நீக்கிவிட்டார்."
+
+#: src/canvas/sections/CommentListSection.ts:1465
+msgid ""
+"Another user has updated the comment. Would you like to overwrite those "
+"changes?"
+msgstr ""
+"மற்றொரு பயனர் கருத்தை புதுப்பித்துள்ளார். அந்த மாற்றங்களை மேலெழுத "
+"விரும்புகிறீர்களா?"
+
+#: src/canvas/sections/CommentListSection.ts:1466 src/core/Socket.js:1419
+msgid "Overwrite"
+msgstr "மேலெழுதும்"
+
+#: src/canvas/sections/CommentListSection.ts:1467
+msgid "Update"
+msgstr "புதுப்பிப்பு"
+
+#: src/canvas/sections/CommentListSection.ts:1568
+#: src/canvas/sections/CommentListSection.ts:1640
+msgid "Autosaved"
+msgstr "ஆட்டோசேவ்"
+
+#: src/canvas/sections/CommentListSection.ts:2368
+msgid "Another user has updated comments. Would you like to proceed updating?"
+msgstr ""
+"மற்றொரு பயனர் கருத்துகளைப் புதுப்பித்துள்ளார். புதுப்பிப்பைத் தொடர "
+"விரும்புகிறீர்களா?"
+
+#: src/canvas/sections/CommentSection.ts:306
+msgid "Open menu"
+msgstr "திறந்த பட்டியல்"
+
+#: src/canvas/sections/CommentSection.ts:367
+#: src/canvas/sections/CommentSection.ts:368
+msgid "Accept change"
+msgstr "மாற்றத்தை ஏற்றுக்கொள்ளுங்கள்"
+
+#: src/canvas/sections/CommentSection.ts:374
+#: src/canvas/sections/CommentSection.ts:375
+msgid "Reject change"
+msgstr "மாற்றத்தை நிராகரிக்கவும்"
+
+#: src/canvas/sections/CommentSection.ts:398
+msgid "Resolved"
+msgstr "தீர்க்கப்பட்டது"
+
+#: src/canvas/sections/ShapeHandlesSection.ts:417
+msgid "Document contains unsupported video"
+msgstr "ஆவணத்தில் ஆதரிக்கப்படாத வீடியோ உள்ளது"
+
+#: src/canvas/sections/URLPopUpSection.ts:58
+msgid "Copy link location"
+msgstr "இணைப்பு இருப்பிடத்தை நகலெடுக்கவும்"
+
+#: src/canvas/sections/URLPopUpSection.ts:68
+msgid "Edit link"
+msgstr "இணைப்பைத் திருத்து"
+
+#: src/canvas/sections/URLPopUpSection.ts:78
+msgid "Remove link"
+msgstr "இணைப்பை அகற்று"
+
+#: src/control/ColorPicker.ts:269
+msgid "No color"
+msgstr "நிறம் இல்லை"
+
+#: src/control/ColorPicker.ts:274
+msgid "Automatic color"
+msgstr "தானியங்கி நிறம்"
+
+#: src/control/Control.AboutDialog.ts:111
+msgid "This version of {productname} is powered by"
+msgstr "{productname} இன் இப்பதிப்பை இயக்குவது"
+
+#: src/control/Control.AboutDialog.ts:134
+msgid "\"Slow Proxy\""
+msgstr "\"மெதுவான பதிலாள்\""
+
+#: src/control/Control.AboutDialog.ts:178
+msgid "Copy all version information in English"
+msgstr "அனைத்து பதிப்பு தகவல்களையும் ஆங்கிலத்தில் நகலெடுக்கவும்"
+
+#: src/control/Control.AddressInputField.ts:66
+msgid "cell address"
+msgstr "செல் முகவரி"
+
+#: src/control/Control.AlertDialog.js:53
+msgid "External link"
+msgstr "வெளிப்புற இணைப்பு"
+
+#: src/control/Control.AlertDialog.js:54
+msgid "Open link"
+msgstr "இணைப்பை திற"
+
+#: src/control/Control.AlertDialog.js:66
+msgid "Copied external sources are not allowed"
+msgstr "நகலெடுக்கப்பட்ட வெளிப்புற ஆதாரங்கள் அனுமதிக்கப்படவில்லை"
+
+#: src/control/Control.AlertDialog.js:67
+msgid "It seems you have copied a selection that includes external images."
+msgstr ""
+"வெளிப்புற படங்களை உள்ளடக்கிய ஒரு தேர்வை நீங்கள் நகலெடுத்ததாகத் தெரிகிறது."
+
+#: src/control/Control.AlertDialog.js:68
+msgid ""
+"Downloading external resources is forbidden but pasting images is still "
+"possible. Please right click in the image, choose \"Copy Image\" and paste "
+"it into the document instead."
+msgstr ""
+"வெளிப்புற வளங்களை பதிவிறக்குவது தடைசெய்யப்பட்டுள்ளது, ஆனால் படங்களை ஒட்டுவது "
+"இன்னும் சாத்தியமாகும். தயவுசெய்து படத்தில் வலது சொடுக்கு செய்து, \"படத்தை "
+"நகலெடு\" என்பதைத் தேர்ந்தெடுத்து, அதற்கு பதிலாக ஆவணத்தில் ஒட்டவும்."
+
+#: src/control/Control.AlertDialog.js:72
+msgid "External data source not allowed"
+msgstr "வெளிப்புற தரவு மூல அனுமதிக்கப்படவில்லை"
+
+#: src/control/Control.AlertDialog.js:73
+msgid "It seems you have tried to insert external data."
+msgstr "வெளிப்புற தரவைச் செருக முயற்சித்ததாகத் தெரிகிறது."
+
+#: src/control/Control.AlertDialog.js:74
+msgid ""
+"Selected external data source is forbidden. Please contact the system "
+"administrator."
+msgstr ""
+"தேர்ந்தெடுக்கப்பட்ட வெளிப்புற தரவு மூலமானது தடைசெய்யப்பட்டுள்ளது. கணினி "
+"நிர்வாகியை தொடர்பு கொள்ளவும்."
+
+#: src/control/Control.AlertDialog.js:86
+msgid "Don't show this again"
+msgstr "இதை மீண்டும் காட்ட வேண்டாம்"
+
+#: src/control/Control.AlertDialog.js:105
+msgid "The server encountered a {0} error while parsing the {1} command."
+msgstr "{1} கட்டளையை பாகுபடுத்தும்போது சேவையகம் {0} பிழையை எதிர்கொண்டது."
+
+#: src/control/Control.Command.js:89
+msgid "Unlock"
+msgstr "திறக்க"
+
+#: src/control/Control.ContextMenu.js:249 src/docdispatcher.ts:492
+msgid "Delete"
+msgstr "நீக்கு"
+
+#: src/control/Control.ContextMenu.js:274
+msgid "Paste Special"
+msgstr "சிறப்பு ஒட்டு"
+
+#: src/control/Control.ContextMenu.js:281
+msgid "Copy Cells"
+msgstr "கலங்களை நகலெடுக்கவும்"
+
+#: src/control/Control.ContextMenu.js:286
+msgid "Fill Series"
+msgstr "நிரப்பு தொடர்"
+
+#: src/control/Control.DocumentNameInput.js:113
+msgid "Path"
+msgstr "பாதை"
+
+#: src/control/Control.DocumentRepair.js:27
+#: src/control/Control.DocumentRepair.js:28
+msgid "Repair Document"
+msgstr "பழுதுபார்க்கும் ஆவணம்"
+
+#: src/control/Control.DocumentRepair.js:124
+#: src/control/Control.UserList.ts:385
+msgid "You"
+msgstr "நீங்கள்"
+
+#: src/control/Control.DocumentRepair.js:140
+msgid "Type"
+msgstr "வகை"
+
+#: src/control/Control.DocumentRepair.js:140
+msgid "What?"
+msgstr "என்ன?"
+
+#: src/control/Control.DocumentRepair.js:140
+msgid "Who?"
+msgstr "WHO?"
+
+#: src/control/Control.DocumentRepair.js:140
+msgid "When?"
+msgstr "எப்போது?"
+
+#: src/control/Control.DocumentRepair.js:159
+msgid "You have not done anything to rollback yet..."
+msgstr "நீங்கள் இதுவரை எதுவும் செய்யவில்லை ..."
+
+#: src/control/Control.DocumentRepair.js:169
+msgid "Redo"
+msgstr "மீண்டும்செய்"
+
+#: src/control/Control.DocumentRepair.js:170
+msgid "Undo"
+msgstr "செயல்தவிர்"
+
+#: src/control/Control.DownloadProgress.js:42
+msgid "Download Selection"
+msgstr "தேர்வு பதிவிறக்க"
+
+#: src/control/Control.DownloadProgress.js:47
+msgid ""
+"If you want to share large elements outside of {productname} it's necessary "
+"to first download them."
+msgstr ""
+"{தயாரிப்பு பெயர் பெறுநர் க்கு வெளியே பெரிய கூறுகளைப் பகிர்ந்து கொள்ள "
+"விரும்பினால், அவற்றை முதலில் பதிவிறக்கம் செய்வது தேவை."
+
+#: src/control/Control.DownloadProgress.js:60
+#: src/control/Control.NotebookbarCalc.js:212
+#: src/control/Control.NotebookbarDraw.js:234
+#: src/control/Control.NotebookbarImpress.js:281
+#: src/control/Control.NotebookbarWriter.js:281
+msgid "Download"
+msgstr "பதிவிறக்கம்"
+
+#: src/control/Control.DownloadProgress.js:79
+msgid "Downloading clipboard content"
+msgstr "கிளிப்போர்டு உள்ளடக்கத்தைப் பதிவிறக்குகிறது"
+
+#: src/control/Control.DownloadProgress.js:86
+#: src/control/Control.DownloadProgress.js:111
+#: src/control/Control.PartsPreview.js:288
+msgid "Copy"
+msgstr "நகலெடு"
+
+#: src/control/Control.DownloadProgress.js:109
+msgid "Download completed and ready to be copied to clipboard."
+msgstr ""
+"பதிவிறக்கம் நிறைவு செய்யப்பட்டு கிளிப்போர்டுக்கு நகலெடுக்க தயாராக உள்ளது."
+
+#: src/control/Control.DownloadProgress.js:110
+msgid ""
+"From now on clipboard notifications will discreetly appear at the bottom."
+msgstr "இனிமேல் கிளிப்போர்டு அறிவிப்புகள் புத்திசாலித்தனமாக கீழே தோன்றும்."
+
+#: src/control/Control.DownloadProgress.js:270
+msgid "Content copied to clipboard"
+msgstr "கிளிப்போர்டுக்கு உள்ளடக்கம் நகலெடுக்கப்பட்டது"
+
+#: src/control/Control.DownloadProgress.js:300
+msgid "Download failed"
+msgstr "பதிவிறக்கம் தோல்வியடைந்தது"
+
+#: src/control/Control.ESignature.ts:131
+msgid "Andorra"
 msgstr ""
 
-#: src/control/Control.Menubar.js:369 src/control/Control.Menubar.js:381
-#: src/control/Control.Menubar.js:968
-#: src/control/Control.NotebookbarBuilder.js:609
-#: src/control/Control.NotebookbarBuilder.js:679
+#: src/control/Control.ESignature.ts:132
+msgid "United Arab Emirates"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:133
+msgid "Albania"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:134
+msgid "Armenia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:135
+msgid "Argentina"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:136
+msgid "Austria"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:137
+msgid "Australia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:138
+msgid "Åland Islands"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:139
+msgid "Azerbaijan"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:140
+msgid "Bosnia and Herzegovina"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:141
+msgid "Belgium"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:142
+msgid "Bulgaria"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:143
+msgid "Brazil"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:144
+msgid "Belarus"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:145
+msgid "Canada"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:146
+msgid "Switzerland"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:147
+msgid "Chile"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:148
+msgid "China"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:149
+msgid "Cyprus"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:150
+msgid "Czech Republic"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:151
+msgid "Germany"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:152
+msgid "Denmark"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:153
+msgid "Estonia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:154
+msgid "Spain"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:155
+msgid "Finland"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:156
+msgid "France"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:157
+msgid "United Kingdom"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:158
+msgid "Georgia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:159
+msgid "Guernsey"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:160
+msgid "Greece"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:161
+msgid "Croatia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:162
+msgid "Hungary"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:163
+msgid "Indonesia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:164
+msgid "Ireland"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:165
+msgid "Israel"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:166
+msgid "India"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:167
+msgid "Iceland"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:168
+msgid "Italy"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:169
+msgid "Japan"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:170
+msgid "Kenya"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:171
+msgid "South Korea"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:172
+msgid "Kazakhstan"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:173
+msgid "Liechtenstein"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:174
+msgid "Lithuania"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:175
+msgid "Luxembourg"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:176
+msgid "Latvia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:177
+msgid "Monaco"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:178
+msgid "Moldova, Republic of"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:179
+msgid "Montenegro"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:180
+msgid "North Macedonia, Republic of"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:181
+msgid "Malta"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:182
+msgid "Mexico"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:183
+msgid "Netherlands"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:184
+msgid "Norway"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:185
+msgid "New Zealand"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:186
+msgid "Philippines"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:187
+msgid "Poland"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:188
+msgid "Portugal"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:189
+msgid "Qatar"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:190
+msgid "Romania"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:191
+msgid "Serbia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:192
+msgid "Russian Federation"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:193
+msgid "Saudi Arabia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:194
+msgid "Sweden"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:195
+msgid "Singapore"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:196
+msgid "Slovenia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:197
+msgid "Slovakia"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:198
+msgid "San Marino"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:199
+msgid "Turkey"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:200
+msgid "Taiwan, Province of China"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:201
+msgid "Ukraine"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:202
+msgid "United States of America"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:203
+msgid "Holy See (Vatican City State)"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:204
+msgid "Kosovo"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:205
+msgid "South Africa"
+msgstr ""
+
+#: src/control/Control.ESignature.ts:339
+msgid "The document is being signed and will be availably shortly"
+msgstr ""
+
+#: src/control/Control.ESignatureDialog.ts:91
+msgid "Country:"
+msgstr ""
+
+#: src/control/Control.ESignatureDialog.ts:120
+msgid "Provider:"
+msgstr ""
+
+#: src/control/Control.ESignatureDialog.ts:175
+#: src/control/Control.ESignatureDialog.ts:176
+msgid "Insert Electronic Signature"
+msgstr ""
+
+#: src/control/Control.FormulaBarJSDialog.js:63
+#: src/control/Control.FormulaBarJSDialog.js:117
+msgid "Function Wizard"
+msgstr "செயல்பாடு வழிகாட்டி"
+
+#: src/control/Control.FormulaBarJSDialog.js:75
+msgid "Formula"
+msgstr "தேற்றம்"
+
+#: src/control/Control.FormulaBarJSDialog.js:81
+#: src/control/Control.MobileTopBar.ts:42
+msgid "Accept"
+msgstr "ஏற்றுக்கொள்"
+
+#: src/control/Control.IdleHandler.ts:42
+msgid "Idle document - please click to reload and resume editing"
+msgstr ""
+"செயலற்ற ஆவணம் - தயவுசெய்து மீண்டும் ஏற்றவும், திருத்துதல் மீண்டும் தொடங்கவும்"
+" சொடுக்கு செய்க"
+
+#: src/control/Control.IdleHandler.ts:44
+msgid "Idle document - please tap to reload and resume editing"
+msgstr ""
+"செயலற்ற ஆவணம் - தயவுசெய்து மீண்டும் ஏற்றவும், திருத்துதல் மீண்டும் தொடங்கவும்"
+
+#: src/control/Control.JSDialog.js:283
+msgid "Close dialog"
+msgstr "உரையாடலை மூடு"
+
+#: src/control/Control.JSDialogBuilder.js:498
+msgid "Solid"
+msgstr "திடமான"
+
+#: src/control/Control.JSDialogBuilder.js:501
+msgid "Linear"
+msgstr "நேரியல்"
+
+#: src/control/Control.JSDialogBuilder.js:504
+msgid "Axial"
+msgstr "அச்சு"
+
+#: src/control/Control.JSDialogBuilder.js:507
+msgid "Radial"
+msgstr "ஆரவாட்டு"
+
+#: src/control/Control.JSDialogBuilder.js:510
+msgid "Ellipsoid"
+msgstr "நீள்வட்ட"
+
+#: src/control/Control.JSDialogBuilder.js:514
+msgid "Quadratic"
+msgstr "இருபடி"
+
+#: src/control/Control.JSDialogBuilder.js:517
+msgid "Square"
+msgstr "நாற்கை"
+
+#: src/control/Control.JSDialogBuilder.js:520
+msgid "Fixed size"
+msgstr "நிலையான அளவு"
+
+#: src/control/Control.JSDialogBuilder.js:1432
+msgid "From"
+msgstr "இருந்து"
+
+#: src/control/Control.JSDialogBuilder.js:1435
+msgid "To"
+msgstr "பெறுநர்"
+
+#: src/control/Control.JSDialogBuilder.js:1438
+msgid "Color"
+msgstr "நிறம்"
+
+#: src/control/Control.JSDialogBuilder.js:1514
+msgid "Select range"
+msgstr "வரம்பைத் தேர்ந்தெடுக்கவும்"
+
+#: src/control/Control.JSDialogBuilder.js:1624
+#: src/control/Control.NotebookbarBuilder.js:156
+msgid "Font Name"
+msgstr "எழுத்துரு பெயர்"
+
+#: src/control/Control.JSDialogBuilder.js:1626 src/control/Toolbar.js:134
+msgid "Font Size"
+msgstr "எழுத்துரு அளவு"
+
+#: src/control/Control.JSDialogBuilder.js:1628
+#: src/control/Control.TopToolbar.js:460
+msgid "Style"
+msgstr "பாணி"
+
+#: src/control/Control.JSDialogBuilder.js:1879
+msgid "reply"
+msgstr "பதில்"
+
+#: src/control/Control.JSDialogBuilder.js:1882
+msgid "replies"
+msgstr "பதில்கள்"
+
+#: src/control/Control.JSDialogBuilder.js:1957
+msgid "Insert Comment"
+msgstr "கருத்தைச் செருகவும்"
+
+#: src/control/Control.JSDialogBuilder.js:2729
+#: src/control/Control.Menubar.js:892
+msgid "Rows"
+msgstr "வரிசைகள்"
+
+#: src/control/Control.JSDialogBuilder.js:2730
+#: src/control/Control.Menubar.js:895
+msgid "Columns"
+msgstr "நெடுவரிசைகள்"
+
+#: src/control/Control.JSDialogBuilder.js:2750
+msgid "Insert Table"
+msgstr "அட்டவணையைச் செருகவும்"
+
+#: src/control/Control.LanguageDialog.js:64 src/control/Control.Menubar.js:362
+#: src/control/Control.Menubar.js:364 src/control/Control.Menubar.js:366
+#: src/control/Control.Menubar.js:554 src/control/Control.Menubar.js:694
+#: src/control/Control.Menubar.js:977 src/control/Control.StatusBar.js:538
+msgid "None (Do not check spelling)"
+msgstr "எதுவுமில்லை (எழுத்துப்பிழை சரிபார்க்க வேண்டாம்)"
+
+#: src/control/Control.LanguageDialog.js:82
+msgid "Select language"
+msgstr "மொழியைத் தேர்ந்தெடுக்கவும்"
+
+#: src/control/Control.LanguageDialog.js:103
+msgid "Language"
+msgstr "மொழி"
+
+#: src/control/Control.Menubar.js:76 src/control/Control.Menubar.js:91
+#: src/control/Control.Menubar.js:1012
+#: src/control/Control.NotebookbarBuilder.js:348
+#: src/control/Control.NotebookbarBuilder.js:561
+msgid "ODF text document (.odt)"
+msgstr "ODF உரை ஆவணம் (.odt)"
+
+#: src/control/Control.Menubar.js:77 src/control/Control.Menubar.js:92
+#: src/control/Control.Menubar.js:1013
+#: src/control/Control.NotebookbarBuilder.js:360
+#: src/control/Control.NotebookbarBuilder.js:573
+msgid "Word 2003 Document (.doc)"
+msgstr "வேர்ட் 2003 ஆவணம் (.doc)"
+
+#: src/control/Control.Menubar.js:78 src/control/Control.Menubar.js:93
+#: src/control/Control.Menubar.js:1014
+#: src/control/Control.NotebookbarBuilder.js:356
+#: src/control/Control.NotebookbarBuilder.js:569
+msgid "Word Document (.docx)"
+msgstr "சொல் ஆவணம் (.docx)"
+
+#: src/control/Control.Menubar.js:79 src/control/Control.Menubar.js:94
+#: src/control/Control.Menubar.js:1015
+#: src/control/Control.NotebookbarBuilder.js:352
+#: src/control/Control.NotebookbarBuilder.js:565
+msgid "Rich Text (.rtf)"
+msgstr "பணக்கார உரை (.rtf)"
+
+#: src/control/Control.Menubar.js:81 src/control/Control.Menubar.js:88
+#: src/control/Control.Menubar.js:403 src/control/Control.Menubar.js:409
+#: src/control/Control.Menubar.js:575 src/control/Control.Menubar.js:582
+#: src/control/Control.Menubar.js:716 src/control/Control.Menubar.js:721
+#: src/control/Control.Menubar.js:1000 src/control/Control.Menubar.js:1009
+#: src/control/Control.Menubar.js:1066 src/control/Control.Menubar.js:1074
+#: src/control/Control.Menubar.js:1131 src/control/Control.Menubar.js:1138
+#: src/control/Control.Menubar.js:1186 src/control/Control.Menubar.js:1196
+msgid "Export as"
+msgstr "ஏற்றுமதி"
+
+#: src/control/Control.Menubar.js:82 src/control/Control.Menubar.js:89
+#: src/control/Control.Menubar.js:404 src/control/Control.Menubar.js:410
+#: src/control/Control.Menubar.js:576 src/control/Control.Menubar.js:583
+#: src/control/Control.Menubar.js:717 src/control/Control.Menubar.js:722
+#: src/control/Control.Menubar.js:1001 src/control/Control.Menubar.js:1010
+#: src/control/Control.Menubar.js:1067 src/control/Control.Menubar.js:1075
+#: src/control/Control.Menubar.js:1132 src/control/Control.Menubar.js:1139
+#: src/control/Control.Menubar.js:1187 src/control/Control.Menubar.js:1197
+#: src/control/Control.NotebookbarBuilder.js:369
+#: src/control/Control.NotebookbarBuilder.js:407
+#: src/control/Control.NotebookbarBuilder.js:443
+#: src/control/Control.NotebookbarBuilder.js:622
+#: src/control/Control.NotebookbarBuilder.js:633
+#: src/control/Control.NotebookbarBuilder.js:640
+#: src/control/Control.NotebookbarBuilder.js:647
+#: src/control/Control.NotebookbarDraw.js:248
+msgid "PDF Document (.pdf)"
+msgstr "PDF ஆவணம் (.pdf)"
+
+#: src/control/Control.Menubar.js:83 src/control/Control.Menubar.js:95
+#: src/control/Control.Menubar.js:1002 src/control/Control.Menubar.js:1016
+#: src/control/Control.NotebookbarBuilder.js:364
+#: src/control/Control.NotebookbarBuilder.js:626
+msgid "EPUB (.epub)"
+msgstr "Epub (.epub)"
+
+#: src/control/Control.Menubar.js:85 src/control/Control.UIManager.js:223
+msgid "Rename Document"
+msgstr "ஆவணத்தை மறுபெயரிடுங்கள்"
+
+#: src/control/Control.Menubar.js:86 src/control/Control.Menubar.js:407
+#: src/control/Control.Menubar.js:579 src/control/Control.Menubar.js:719
+#: src/control/Control.Menubar.js:1004 src/control/Control.Menubar.js:1069
+#: src/control/Control.Menubar.js:1134 src/control/Control.Menubar.js:1189
+msgid "Share..."
+msgstr "பங்கு ..."
+
+#: src/control/Control.Menubar.js:87 src/control/Control.Menubar.js:408
+#: src/control/Control.Menubar.js:581 src/control/Control.Menubar.js:720
+#: src/control/Control.Menubar.js:1005 src/control/Control.Menubar.js:1070
+#: src/control/Control.Menubar.js:1136 src/control/Control.Menubar.js:1190
+msgid "See revision history"
+msgstr "திருத்த வரலாற்றைக் காண்க"
+
+#: src/control/Control.Menubar.js:88 src/control/Control.Menubar.js:409
+#: src/control/Control.Menubar.js:582 src/control/Control.Menubar.js:721
+#: src/control/Control.Menubar.js:1009 src/control/Control.Menubar.js:1074
+#: src/control/Control.Menubar.js:1138 src/control/Control.Menubar.js:1196
+msgid "Download as"
+msgstr "இவ்வாறு பதிவிறக்கு"
+
+#: src/control/Control.Menubar.js:90 src/control/Control.Menubar.js:411
+#: src/control/Control.Menubar.js:584 src/control/Control.Menubar.js:723
+#: src/control/Control.Menubar.js:1011 src/control/Control.Menubar.js:1076
+#: src/control/Control.Menubar.js:1140 src/control/Control.Menubar.js:1198
+#: src/control/Control.NotebookbarBuilder.js:379
+#: src/control/Control.NotebookbarBuilder.js:413
+#: src/control/Control.NotebookbarBuilder.js:455
+msgid "PDF Document (.pdf) as..."
+msgstr "PDF ஆவணம் (.pdf) என ..."
+
+#: src/control/Control.Menubar.js:96 src/control/Control.Menubar.js:728
+msgid "HTML file (.html)"
+msgstr "உஉகுமொ கோப்பு (.html)"
+
+#: src/control/Control.Menubar.js:101 src/control/Control.Menubar.js:430
+#: src/control/Control.Menubar.js:590 src/control/Control.Menubar.js:736
+#: src/control/Control.Toolbar.js:1121
+msgid "Close document"
+msgstr "ஆவணத்தை மூடு"
+
+#: src/control/Control.Menubar.js:106 src/control/Control.Menubar.js:435
+#: src/control/Control.Menubar.js:595 src/control/Control.Menubar.js:741
+#: src/control/Control.Menubar.js:1021 src/control/Control.Menubar.js:1085
+#: src/control/Control.Menubar.js:1146 src/control/Control.Menubar.js:1206
+#: src/control/Control.NotebookbarCalc.js:225
+#: src/control/Control.NotebookbarDraw.js:276
+#: src/control/Control.NotebookbarImpress.js:294
+#: src/control/Control.NotebookbarWriter.js:294
+msgid "Repair"
+msgstr "பழுது"
+
+#: src/control/Control.Menubar.js:134 src/control/Control.Menubar.js:140
+#: src/control/Control.Menubar.js:447 src/control/Control.Menubar.js:453
+#: src/control/Control.Menubar.js:607 src/control/Control.Menubar.js:613
+#: src/control/Control.Menubar.js:753 src/control/Control.Menubar.js:759
+#: src/control/Control.NotebookbarCalc.js:1180
+#: src/control/Control.NotebookbarDraw.js:349
+#: src/control/Control.NotebookbarImpress.js:389
+#: src/control/Control.NotebookbarWriter.js:1446
+#: src/control/Control.StatusBar.js:273
+msgid "Reset zoom"
+msgstr "பெரிதாக்கு மீட்டமைக்கவும்"
+
+#: src/control/Control.Menubar.js:143 src/control/Control.Menubar.js:459
+#: src/control/Control.Menubar.js:619 src/control/Control.Menubar.js:762
+msgid "Toggle UI Mode"
+msgstr "இடைமுகம் பயன்முறையை மாற்றவும்"
+
+#: src/control/Control.Menubar.js:144 src/control/Control.Menubar.js:460
+msgid "Show Ruler"
+msgstr "ஆட்சியாளரைக் காட்டு"
+
+#: src/control/Control.Menubar.js:145 src/control/Control.Menubar.js:461
+#: src/control/Control.Menubar.js:624 src/control/Control.Menubar.js:763
+msgid "Show Status Bar"
+msgstr "நிலை பட்டியைக் காட்டு"
+
+#: src/control/Control.Menubar.js:146 src/control/Control.Menubar.js:463
+#: src/control/Control.Menubar.js:625 src/control/Control.Menubar.js:764
+msgid "Hide Menu Bar"
+msgstr "பட்டியல் பட்டியை மறைக்கவும்"
+
+#: src/control/Control.Menubar.js:147 src/control/Control.Menubar.js:464
+#: src/control/Control.Menubar.js:620 src/control/Control.Menubar.js:765
+#: src/control/Control.Menubar.js:1042 src/control/Control.Menubar.js:1095
+#: src/control/Control.Menubar.js:1156 src/control/Control.Menubar.js:1216
+#: src/control/Control.NotebookbarCalc.js:1254
+#: src/control/Control.NotebookbarDraw.js:449
+#: src/control/Control.NotebookbarImpress.js:504
+#: src/control/Control.NotebookbarWriter.js:1526
+msgid "Dark Mode"
+msgstr "இருண்ட முறை"
+
+#: src/control/Control.Menubar.js:148 src/control/Control.Menubar.js:465
+#: src/control/Control.Menubar.js:621 src/control/Control.Menubar.js:766
+#: src/control/Control.Menubar.js:1043 src/control/Control.Menubar.js:1096
+#: src/control/Control.Menubar.js:1157 src/control/Control.Menubar.js:1217
+#: src/control/Control.NotebookbarCalc.js:1261
+#: src/control/Control.NotebookbarDraw.js:456
+#: src/control/Control.NotebookbarImpress.js:511
+#: src/control/Control.NotebookbarWriter.js:1533
+msgid "Invert Background"
+msgstr "தலைகீழ் பின்னணி"
+
+#: src/control/Control.Menubar.js:157 src/control/Control.Menubar.js:476
+#: src/control/Control.Menubar.js:628 src/control/Control.Menubar.js:778
+#: src/control/Control.Menubar.js:1259 src/control/Control.Menubar.js:1309
+#: src/control/Control.Menubar.js:1323 src/control/Control.Menubar.js:1346
+msgid "Local Image..."
+msgstr "உள்ளக படம் ..."
+
+#: src/control/Control.Menubar.js:181 src/control/Control.Menubar.js:183
+#: src/control/Control.Menubar.js:1276 src/control/Control.Menubar.js:1278
+msgid "All"
+msgstr "அனைத்தும்"
+
+#: src/control/Control.Menubar.js:192 src/control/Control.Menubar.js:487
+#: src/control/Control.Menubar.js:635 src/control/Control.Menubar.js:790
+#: src/control/Control.NotebookbarCalc.js:1385
+#: src/control/Control.NotebookbarDraw.js:1277
+#: src/control/Control.NotebookbarImpress.js:1277
+#: src/control/Control.NotebookbarWriter.js:1129
+msgid "Smart Picker"
+msgstr "அறிவுள்ள பிக்கர்"
+
+#: src/control/Control.Menubar.js:193 src/control/Control.Menubar.js:488
+#: src/control/Control.Menubar.js:636 src/control/Control.Menubar.js:791
+msgid "AI Assistant"
+msgstr ""
+
+#: src/control/Control.Menubar.js:234
+msgid "Text orientation"
+msgstr "உரை நோக்குநிலை"
+
+#: src/control/Control.Menubar.js:299
+#: src/control/Control.NotebookbarWriter.js:61
+msgid "References"
+msgstr "குறிப்புகள்"
+
+#: src/control/Control.Menubar.js:302
+#: src/control/Control.NotebookbarWriter.js:1893
+msgid "Update Index"
+msgstr "புதுப்பிப்பு அட்டவணை"
+
+#: src/control/Control.Menubar.js:311
+#: src/control/Control.NotebookbarWriter.js:1989
+msgid "Add Citation"
+msgstr "மேற்கோள் சேர்க்கவும்"
+
+#: src/control/Control.Menubar.js:312
+#: src/control/Control.NotebookbarWriter.js:2001
+msgid "Add Citation Note"
+msgstr "மேற்கோள் குறிப்பைச் சேர்க்கவும்"
+
+#: src/control/Control.Menubar.js:313
+#: src/control/Control.NotebookbarWriter.js:1976
+msgid "Add Bibliography"
+msgstr "நூலியல் சேர்க்கவும்"
+
+#: src/control/Control.Menubar.js:315
+#: src/control/Control.NotebookbarWriter.js:2019
+msgid "Refresh Citations"
+msgstr "மேற்கோள்களைப் புதுப்பிக்கவும்"
+
+#: src/control/Control.Menubar.js:316
+#: src/control/Control.NotebookbarWriter.js:2031
+#: src/control/Control.Zotero.js:1445
+msgid "Unlink Citations"
+msgstr "மேற்கோள்களை அவிழ்த்து விடுங்கள்"
+
+#: src/control/Control.Menubar.js:317
+#: src/control/Control.NotebookbarWriter.js:2043
+msgid "Citation Preferences"
+msgstr "மேற்கோள் விருப்பத்தேர்வுகள்"
+
+#: src/control/Control.Menubar.js:345 src/control/Control.Menubar.js:1298
+msgid "Insert Rich Text"
+msgstr "பணக்கார உரையைச் செருகவும்"
+
+#: src/control/Control.Menubar.js:346 src/control/Control.Menubar.js:1299
+msgid "Insert Checkbox"
+msgstr "தேர்வுப்பெட்டியைச் செருகவும்"
+
+#: src/control/Control.Menubar.js:347 src/control/Control.Menubar.js:1300
+msgid "Insert Dropdown"
+msgstr "கீழ்தோன்றும் செருகவும்"
+
+#: src/control/Control.Menubar.js:348 src/control/Control.Menubar.js:1301
+msgid "Insert Picture"
+msgstr "படத்தைச் செருகவும்"
+
+#: src/control/Control.Menubar.js:349 src/control/Control.Menubar.js:1302
+msgid "Insert Date"
+msgstr "தேதியைச் செருகவும்"
+
+#: src/control/Control.Menubar.js:350 src/control/Control.Menubar.js:1303
+#: src/control/Control.NotebookbarCalc.js:240
+#: src/control/Control.NotebookbarDraw.js:290
+#: src/control/Control.NotebookbarImpress.js:309
+#: src/control/Control.NotebookbarWriter.js:309
+#: src/control/Control.NotebookbarWriter.js:1409
+msgid "Properties"
+msgstr "பண்புகள்"
+
+#: src/control/Control.Menubar.js:370 src/control/Control.Menubar.js:1047
+#: src/control/Control.NotebookbarWriter.js:414
+msgid "Screen Reading"
+msgstr "திரை வாசிப்பு"
+
+#: src/control/Control.Menubar.js:383
+#: src/control/Control.NotebookbarWriter.js:380
+msgid "Forum"
+msgstr "மன்றம்"
+
+#: src/control/Control.Menubar.js:384 src/control/Control.Menubar.js:560
+#: src/control/Control.Menubar.js:697 src/control/Control.Menubar.js:984
+#: src/control/Control.NotebookbarWriter.js:392
+msgid "Online Help"
+msgstr "நிகழ்நிலை உதவி"
+
+#: src/control/Control.Menubar.js:385 src/control/Control.Menubar.js:561
+#: src/control/Control.Menubar.js:698 src/control/Control.Menubar.js:985
+#: src/control/Control.NotebookbarWriter.js:404
+msgid "Keyboard shortcuts"
+msgstr "விசைப்பலகை குறுக்குவழிகள்"
+
+#: src/control/Control.Menubar.js:386 src/control/Control.Menubar.js:562
+#: src/control/Control.Menubar.js:699 src/control/Control.Menubar.js:986
+#: src/control/Control.NotebookbarWriter.js:439
+msgid "Report an issue"
+msgstr "ஒரு சிக்கலைப் புகாரளிக்கவும்"
+
+#: src/control/Control.Menubar.js:387 src/control/Control.Menubar.js:563
+#: src/control/Control.Menubar.js:700 src/control/Control.Menubar.js:987
+#: src/control/Control.Menubar.js:1056 src/control/Control.Menubar.js:1121
+#: src/control/Control.Menubar.js:1176 src/control/Control.Menubar.js:1251
+#: src/control/Control.NotebookbarWriter.js:452
+msgid "Latest Updates"
+msgstr "அண்மைக் கால புதுப்பிப்புகள்"
+
+#: src/control/Control.Menubar.js:388 src/control/Control.Menubar.js:564
+#: src/control/Control.Menubar.js:701 src/control/Control.Menubar.js:988
+#: src/control/Control.Menubar.js:1057 src/control/Control.Menubar.js:1122
+#: src/control/Control.Menubar.js:1177 src/control/Control.Menubar.js:1252
+#: src/control/Control.NotebookbarWriter.js:464
+msgid "Send Feedback"
+msgstr "கருத்துக்களை அனுப்பவும்"
+
+#: src/control/Control.Menubar.js:389 src/control/Control.Menubar.js:565
+#: src/control/Control.Menubar.js:702 src/control/Control.Menubar.js:989
+#: src/control/Control.NotebookbarWriter.js:429
+#: src/control/Control.ServerAuditDialog.ts:186
+#: src/control/Control.ServerAuditDialog.ts:187
+msgid "Server audit"
+msgstr "சேவையக தணிக்கை"
+
+#: src/control/Control.Menubar.js:392 src/control/Control.Menubar.js:568
+#: src/control/Control.Menubar.js:705 src/control/Control.Menubar.js:992
+msgid "Last modification"
+msgstr "கடைசி மாற்றம்"
+
+#: src/control/Control.Menubar.js:399 src/control/Control.Menubar.js:412
+#: src/control/Control.Menubar.js:1077
+#: src/control/Control.NotebookbarBuilder.js:421
+#: src/control/Control.NotebookbarBuilder.js:595
 msgid "ODF presentation (.odp)"
 msgstr "ODF வழங்கல் (.odp)"
 
-#: src/control/Control.Menubar.js:370 src/control/Control.Menubar.js:382
-#: src/control/Control.Menubar.js:969
-#: src/control/Control.NotebookbarBuilder.js:621
-#: src/control/Control.NotebookbarBuilder.js:687
-#: src/control/Control.NotebookbarImpress.js:285
+#: src/control/Control.Menubar.js:400 src/control/Control.Menubar.js:413
+#: src/control/Control.Menubar.js:1078
+#: src/control/Control.NotebookbarBuilder.js:433
+#: src/control/Control.NotebookbarBuilder.js:603
 msgid "PowerPoint 2003 Presentation (.ppt)"
-msgstr ""
+msgstr "பவர்பாயிண்ட் 2003 விளக்கக்காட்சி (.பிபிடி)"
 
-#: src/control/Control.Menubar.js:371 src/control/Control.Menubar.js:383
-#: src/control/Control.Menubar.js:970
-#: src/control/Control.NotebookbarBuilder.js:617
-#: src/control/Control.NotebookbarBuilder.js:683
-#: src/control/Control.NotebookbarImpress.js:291
+#: src/control/Control.Menubar.js:401 src/control/Control.Menubar.js:414
+#: src/control/Control.Menubar.js:1079
+#: src/control/Control.NotebookbarBuilder.js:429
+#: src/control/Control.NotebookbarBuilder.js:599
 msgid "PowerPoint Presentation (.pptx)"
-msgstr ""
+msgstr "பவர்பாயிண்ட் விளக்கக்காட்சி (.pptx)"
 
-#: src/control/Control.Menubar.js:376 src/control/Control.Menubar.js:522
-#, fuzzy
+#: src/control/Control.Menubar.js:406 src/control/Control.Menubar.js:578
 msgid "Save Comments"
-msgstr "கருத்துரை"
+msgstr "கருத்துகளைச் சேமிக்கவும்"
+
+#: src/control/Control.Menubar.js:415
+#: src/control/Control.NotebookbarBuilder.js:437
+msgid "HTML Document (.html)"
+msgstr "உஉகுமொ ஆவணம் (.html)"
+
+#: src/control/Control.Menubar.js:416
+#: src/control/Control.NotebookbarBuilder.js:468
+msgid "Shockwave Flash (.swf)"
+msgstr "சாக்வேவ் ஃபிளாச் (.swf)"
+
+#: src/control/Control.Menubar.js:417
+#: src/control/Control.NotebookbarBuilder.js:480
+msgid "Scalable Vector Graphics (.svg)"
+msgstr "அளவிடக்கூடிய திசையன் கிராபிக்ச் (.svg)"
 
 #: src/control/Control.Menubar.js:418
-#: src/control/Control.NotebookbarImpress.js:418
-msgid "Master View"
-msgstr ""
+#: src/control/Control.NotebookbarBuilder.js:492
+msgid "Current slide as Bitmap (.bmp)"
+msgstr "PITMAP (.BMP) ஆக தற்போதைய ச்லைடு"
 
-#: src/control/Control.Menubar.js:492 src/control/Control.Menubar.js:1005
-#: src/control/Control.PresentationBar.js:64
+#: src/control/Control.Menubar.js:419
+#: src/control/Control.NotebookbarBuilder.js:504
+msgid "Current slide as Graphics Interchange Format (.gif)"
+msgstr "கிராபிக்ச் பரிமாற்ற வடிவமாக தற்போதைய ச்லைடு (.gif)"
+
+#: src/control/Control.Menubar.js:420
+#: src/control/Control.NotebookbarBuilder.js:516
+msgid "Current slide as Portable Network Graphics (.png)"
+msgstr "போர்ட்டபிள் பிணையம் கிராபிக்ச் (.png) ஆக தற்போதைய ச்லைடு"
+
+#: src/control/Control.Menubar.js:421
+#: src/control/Control.NotebookbarBuilder.js:528
+msgid "Current slide as Tag Image File Format (.tiff)"
+msgstr "டேக் பட கோப்பு வடிவமாக தற்போதைய ச்லைடு (.tiff)"
+
+#: src/control/Control.Menubar.js:427
+#: src/control/Control.NotebookbarBuilder.js:666
+msgid "Full Page Slides"
+msgstr "முழு பக்க ச்லைடுகள்"
+
+#: src/control/Control.Menubar.js:428
+#: src/control/Control.NotebookbarBuilder.js:670
+msgid "Notes Pages"
+msgstr "குறிப்புகள் பக்கங்கள்"
+
+#: src/control/Control.Menubar.js:462
+#: src/control/Control.NotebookbarImpress.js:470
+msgid "Notes View"
+msgstr "குறிப்புகள் பார்வை"
+
+#: src/control/Control.Menubar.js:466
+#: src/control/Control.NotebookbarImpress.js:476
+msgid "Master View"
+msgstr "முதன்மை பார்வை"
+
+#: src/control/Control.Menubar.js:478
+msgid "Local Multimedia..."
+msgstr "உள்ளக மல்டிமீடியா ..."
+
+#: src/control/Control.Menubar.js:545 src/control/Control.Menubar.js:1120
+#: src/control/Control.PresentationBar.js:127
 msgid "Fullscreen presentation"
 msgstr "முழுத்திரை வழங்கல்"
 
-#: src/control/Control.Menubar.js:493
+#: src/control/Control.Menubar.js:546
 msgid "Present current slide"
-msgstr ""
+msgstr "தற்போதைய தற்போதைய ச்லைடு"
 
-#: src/control/Control.Menubar.js:528 src/control/Control.Menubar.js:971
-#: src/control/Control.Menubar.js:1027
-#: src/control/Control.NotebookbarBuilder.js:613
-#: src/control/Control.NotebookbarDraw.js:192
-#: src/control/Control.NotebookbarImpress.js:272
-#, fuzzy
+#: src/control/Control.Menubar.js:547
+msgid "Present in new window"
+msgstr "புதிய சாளரத்தில் உள்ளது"
+
+#: src/control/Control.Menubar.js:548
+#: src/control/Control.NotebookbarImpress.js:374
+#: src/slideshow/PresenterConsole.js:229
+msgid "Presenter Console"
+msgstr "தொகுப்பாளர் கன்சோல்"
+
+#: src/control/Control.Menubar.js:585 src/control/Control.Menubar.js:1080
+#: src/control/Control.Menubar.js:1141
+#: src/control/Control.NotebookbarBuilder.js:425
+#: src/control/Control.NotebookbarBuilder.js:538
 msgid "ODF Drawing (.odg)"
-msgstr "ODF வழங்கல் (.odp)"
+msgstr "ODF வரைதல் (.odg)"
 
-#: src/control/Control.Menubar.js:643 src/control/Control.Menubar.js:654
-#: src/control/Control.Menubar.js:1080
-#: src/control/Control.NotebookbarBuilder.js:585
-#: src/control/Control.NotebookbarBuilder.js:664
+#: src/control/Control.Menubar.js:712 src/control/Control.Menubar.js:724
+#: src/control/Control.Menubar.js:1199
+#: src/control/Control.NotebookbarBuilder.js:387
+#: src/control/Control.NotebookbarBuilder.js:580
 msgid "ODF spreadsheet (.ods)"
 msgstr "ODF விரிதாள் (.ods)"
 
-#: src/control/Control.Menubar.js:644 src/control/Control.Menubar.js:655
-#: src/control/Control.Menubar.js:1081
-#: src/control/Control.NotebookbarBuilder.js:593
-#: src/control/Control.NotebookbarBuilder.js:672
-#: src/control/Control.NotebookbarCalc.js:228
+#: src/control/Control.Menubar.js:713 src/control/Control.Menubar.js:725
+#: src/control/Control.Menubar.js:1200
+#: src/control/Control.NotebookbarBuilder.js:395
+#: src/control/Control.NotebookbarBuilder.js:588
 msgid "Excel 2003 Spreadsheet (.xls)"
-msgstr ""
+msgstr "எக்செல் 2003 விரிதாள் (.xls)"
 
-#: src/control/Control.Menubar.js:645 src/control/Control.Menubar.js:656
-#: src/control/Control.Menubar.js:1082
-#: src/control/Control.NotebookbarBuilder.js:589
-#: src/control/Control.NotebookbarBuilder.js:668
-#: src/control/Control.NotebookbarCalc.js:234
+#: src/control/Control.Menubar.js:714 src/control/Control.Menubar.js:726
+#: src/control/Control.Menubar.js:1201
+#: src/control/Control.NotebookbarBuilder.js:391
+#: src/control/Control.NotebookbarBuilder.js:584
 msgid "Excel Spreadsheet (.xlsx)"
-msgstr ""
+msgstr "எக்செல் விரிதாள் (.xlsx)"
 
-#: src/control/Control.Menubar.js:657
+#: src/control/Control.Menubar.js:727
 msgid "CSV file (.csv)"
-msgstr ""
+msgstr "காபிம கோப்பு (.csv)"
 
-#: src/control/Control.Menubar.js:890 src/control/Control.Menubar.js:953
-#: src/control/Control.Menubar.js:1013 src/control/Control.Menubar.js:1063
-#: src/control/Control.StatusBar.js:197 src/control/Control.Zotero.js:211
-#, fuzzy
+#: src/control/Control.Menubar.js:733
+#: src/control/jsdialog/Definitions.Menu.ts:111
+msgid "Active sheet"
+msgstr "செயலில் தாள்"
+
+#: src/control/Control.Menubar.js:734 src/control/Control.TopToolbar.js:109
+#: src/control/jsdialog/Definitions.Menu.ts:112
+msgid "All Sheets"
+msgstr "அனைத்து தாள்களும்"
+
+#: src/control/Control.Menubar.js:864
+#: src/control/jsdialog/Definitions.Menu.ts:291
+msgid "Highlight cells with..."
+msgstr "உடன் கலங்களை முன்னிலைப்படுத்தவும் ..."
+
+#: src/control/Control.Menubar.js:865
+#: src/control/jsdialog/Definitions.Menu.ts:294
+msgid "Values greater than..."
+msgstr "மதிப்புகளை விட பெரியது ..."
+
+#: src/control/Control.Menubar.js:866
+#: src/control/jsdialog/Definitions.Menu.ts:298
+msgid "Values less than..."
+msgstr "மதிப்புகள் குறைவாக ..."
+
+#: src/control/Control.Menubar.js:867
+#: src/control/jsdialog/Definitions.Menu.ts:302
+msgid "Values equal to..."
+msgstr "மதிப்புகள் சமமாக ..."
+
+#: src/control/Control.Menubar.js:868
+#: src/control/jsdialog/Definitions.Menu.ts:306
+msgid "Values between..."
+msgstr "இடையில் மதிப்புகள் ..."
+
+#: src/control/Control.Menubar.js:869
+#: src/control/jsdialog/Definitions.Menu.ts:310
+msgid "Values duplicate..."
+msgstr "மதிப்புகள் நகல் ..."
+
+#: src/control/Control.Menubar.js:870
+#: src/control/jsdialog/Definitions.Menu.ts:314
+msgid "Containing text..."
+msgstr "உரை கொண்ட ..."
+
+#: src/control/Control.Menubar.js:872 src/control/Control.Menubar.js:882
+#: src/control/jsdialog/Definitions.Menu.ts:318
+#: src/control/jsdialog/Definitions.Menu.ts:349
+msgid "More highlights..."
+msgstr "மேலும் சிறப்பம்சங்கள் ..."
+
+#: src/control/Control.Menubar.js:874
+#: src/control/jsdialog/Definitions.Menu.ts:322
+msgid "Top/Bottom Rules..."
+msgstr "மேல்/கீழ் விதிகள் ..."
+
+#: src/control/Control.Menubar.js:875
+#: src/control/jsdialog/Definitions.Menu.ts:325
+msgid "Top N elements..."
+msgstr "சிறந்த n கூறுகள் ..."
+
+#: src/control/Control.Menubar.js:876
+#: src/control/jsdialog/Definitions.Menu.ts:329
+msgid "Top N percent..."
+msgstr "சிறந்த n விழுக்காடு ..."
+
+#: src/control/Control.Menubar.js:877
+#: src/control/jsdialog/Definitions.Menu.ts:333
+msgid "Bottom N elements..."
+msgstr "கீழே n கூறுகள் ..."
+
+#: src/control/Control.Menubar.js:878
+#: src/control/jsdialog/Definitions.Menu.ts:337
+msgid "Bottom N percent..."
+msgstr "கீழே n விழுக்காடு ..."
+
+#: src/control/Control.Menubar.js:879
+#: src/control/jsdialog/Definitions.Menu.ts:341
+msgid "Above Average..."
+msgstr "சராசரிக்கு மேல் ..."
+
+#: src/control/Control.Menubar.js:880
+#: src/control/jsdialog/Definitions.Menu.ts:345
+msgid "Below Average..."
+msgstr "சராசரிக்கு கீழே ..."
+
+#: src/control/Control.Menubar.js:996 src/control/Control.Menubar.js:1062
+#: src/control/Control.Menubar.js:1127 src/control/Control.Menubar.js:1182
+#: src/control/Control.MobileSearchBar.ts:29
+#: src/control/Control.NotebookbarCalc.js:840
+#: src/control/Control.NotebookbarDraw.js:989
+#: src/control/Control.NotebookbarImpress.js:1053
+#: src/control/Control.NotebookbarWriter.js:894
+#: src/control/Control.StatusBar.js:246 src/control/Control.Zotero.js:218
+#: src/control/Toolbar.js:575
 msgid "Search"
-msgstr "தேடு:"
+msgstr "தேடல்"
 
-#: src/control/Control.Menubar.js:940
+#: src/control/Control.Menubar.js:1049
 msgid "Page Setup"
-msgstr ""
+msgstr "பக்கம் அமைப்பு"
 
-#: src/control/Control.Menubar.js:1074
+#: src/control/Control.Menubar.js:1193
 msgid "Define print area"
-msgstr ""
+msgstr "அச்சு பகுதியை வரையறுக்கவும்"
 
-#: src/control/Control.Menubar.js:1075
+#: src/control/Control.Menubar.js:1194
 msgid "Remove print area"
-msgstr ""
+msgstr "அச்சு பகுதியை அகற்று"
 
-#: src/control/Control.Menubar.js:1348 src/control/Control.StatusBar.js:558
+#: src/control/Control.Menubar.js:1484 src/control/Control.StatusBar.js:537
 msgid "Reset to Default Language"
-msgstr ""
+msgstr "இயல்புநிலை மொழிக்கு மீட்டமைக்கவும்"
 
-#: src/control/Control.Menubar.js:1379 src/control/Control.Menubar.js:1380
-#: src/control/Control.Menubar.js:1381 src/control/Control.StatusBar.js:580
-#: src/control/Control.Toolbar.js:241 src/control/Control.Toolbar.js:269
+#: src/control/Control.Menubar.js:1515 src/control/Control.Menubar.js:1516
+#: src/control/Control.Menubar.js:1517 src/control/Control.Toolbar.js:140
+#: src/control/Control.Toolbar.js:206
 msgid "More..."
-msgstr ""
+msgstr "மேலும் ..."
 
-#: src/control/Control.Menubar.js:1682
+#: src/control/Control.Menubar.js:1824
 msgid "Use Compact view"
-msgstr ""
+msgstr "சிறிய பார்வையைப் பயன்படுத்தவும்"
 
-#: src/control/Control.Menubar.js:1684
+#: src/control/Control.Menubar.js:1826
 msgid "Use Tabbed view"
-msgstr ""
+msgstr "தாவல் பார்வையைப் பயன்படுத்தவும்"
 
-#: src/control/Control.Menubar.js:1735 src/control/Control.Menubar.js:1748
+#: src/control/Control.Menubar.js:1907
 msgid "Read-only mode"
-msgstr ""
+msgstr "படிக்க மட்டும் பயன்முறை"
 
-#: src/control/Control.Menubar.js:1769
-#, fuzzy
+#: src/control/Control.Menubar.js:1952
 msgid "Insert Shape"
-msgstr "அட்டைவணை நுழை"
+msgstr "வடிவத்தை செருகவும்"
 
-#: src/control/Control.Menubar.js:1978
-msgid "file type icon"
+#: src/control/Control.Menubar.js:2025
+msgid "The signature line can now be moved or resized as needed."
 msgstr ""
+
+#: src/control/Control.Menubar.js:2027
+msgid "Finish electronic signing"
+msgstr ""
+
+#: src/control/Control.Menubar.js:2203
+msgid "file type icon"
+msgstr "கோப்பு வகை படவுரு"
 
 #: src/control/Control.MobileBottomBar.js:28
-#: src/control/Control.MobileBottomBar.js:130
-#: src/control/Control.MobileBottomBar.js:197
-#, fuzzy
+#: src/control/Control.MobileBottomBar.js:129
+#: src/control/Control.MobileBottomBar.js:196
 msgid "Show the search bar"
-msgstr "தேடலை ரத்துசெய்"
+msgstr "தேடல் பட்டியைக் காட்டு"
 
 #: src/control/Control.MobileBottomBar.js:37
-#: src/control/Control.TopToolbar.js:159
+#: src/control/Control.TopToolbar.js:139
 msgid "Borders"
-msgstr ""
+msgstr "எல்லைகள்"
 
-#: src/control/Control.MobileTopBar.js:31 src/control/Control.StatusBar.js:462
-msgid "Read-only"
-msgstr ""
+#: src/control/Control.MobileSearchBar.ts:27
+msgid "Hide the search bar"
+msgstr "தேடல் பட்டியை மறைக்கவும்"
 
-#: src/control/Control.MobileWizardBuilder.js:511
+#: src/control/Control.MobileSearchBar.ts:47
+msgid "Clear the search field"
+msgstr "தேடல் புலத்தை அழிக்கவும்"
+
+#: src/control/Control.MobileWizardBuilder.js:538
 msgid "Background Color"
-msgstr ""
+msgstr "பின்னணி நிறம்"
 
-#: src/control/Control.MobileWizardBuilder.js:513
+#: src/control/Control.MobileWizardBuilder.js:540
 msgid "Gradient Start"
-msgstr ""
+msgstr "சாய்வு தொடக்க"
 
-#: src/control/Control.MobileWizardBuilder.js:515
+#: src/control/Control.MobileWizardBuilder.js:542
 msgid "Gradient End"
-msgstr ""
+msgstr "சாய்வு முடிவு"
 
-#: src/control/Control.NotebookbarBuilder.js:344
+#: src/control/Control.NotebookbarBuilder.js:226
 msgid "Tap to expand"
-msgstr ""
+msgstr "விரிவாக்க தட்டவும்"
 
-#: src/control/Control.NotebookbarBuilder.js:345
-#: src/control/Control.NotebookbarBuilder.js:387
+#: src/control/Control.NotebookbarBuilder.js:227
+#: src/control/Control.NotebookbarBuilder.js:272
 msgid "Tap to collapse"
-msgstr ""
+msgstr "வீழ்ச்சியடைய தட்டவும்"
 
-#: src/control/Control.NotebookbarBuilder.js:577
-#, fuzzy
-msgid "PDF Document (.pdf) as..."
-msgstr "PDF ஆவணம் (.pdf)"
+#: src/control/Control.NotebookbarBuilder.js:374
+#: src/control/Control.NotebookbarBuilder.js:403
+msgid "HTML File (.html)"
+msgstr "உஉகுமொ கோப்பு (.html)"
 
-#: src/control/Control.NotebookbarBuilder.js:597
-#: src/control/Control.NotebookbarCalc.js:215
+#: src/control/Control.NotebookbarBuilder.js:399
 msgid "CSV File (.csv)"
-msgstr ""
+msgstr "காபிம கோப்பு (.csv)"
 
-#: src/control/Control.NotebookbarBuilder.js:909
-#: src/control/Control.TopToolbar.js:226
-msgid "Insert Local Image"
-msgstr ""
-
-#: src/control/Control.NotebookbarBuilder.js:1000
-msgid "Very Tight"
-msgstr ""
-
-#: src/control/Control.NotebookbarBuilder.js:1001
-msgid "Tight"
-msgstr ""
-
-#: src/control/Control.NotebookbarBuilder.js:1002
-msgid "Normal"
-msgstr ""
-
-#: src/control/Control.NotebookbarBuilder.js:1003
-msgid "Loose"
-msgstr ""
-
-#: src/control/Control.NotebookbarBuilder.js:1004
-msgid "Very Loose"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:12
-#: src/control/Control.NotebookbarDraw.js:49
-#: src/control/Control.NotebookbarImpress.js:61
-#: src/control/Control.NotebookbarWriter.js:12
-msgid "~File"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:17
-#: src/control/Control.NotebookbarDraw.js:54
-#: src/control/Control.NotebookbarImpress.js:66
-#: src/control/Control.NotebookbarWriter.js:17
-msgid "Hom~e"
-msgstr ""
+#: src/control/Control.NotebookbarBuilder.js:542
+msgid "Image (.png)"
+msgstr "படம் (.png)"
 
 #: src/control/Control.NotebookbarCalc.js:23
-#: src/control/Control.NotebookbarDraw.js:60
-#: src/control/Control.NotebookbarImpress.js:72
-#: src/control/Control.NotebookbarWriter.js:23
-#, fuzzy
-msgid "~Insert"
-msgstr "அட்டைவணை நுழை"
+#: src/control/Control.NotebookbarDraw.js:62
+#: src/control/Control.NotebookbarImpress.js:78
+#: src/control/Control.NotebookbarWriter.js:36
+msgid "File"
+msgstr "கோப்பு"
 
-#: src/control/Control.NotebookbarCalc.js:28
-#: src/control/Control.NotebookbarDraw.js:65
-#: src/control/Control.NotebookbarImpress.js:77
-#: src/control/Control.NotebookbarWriter.js:28
-msgid "~Layout"
-msgstr ""
+#: src/control/Control.NotebookbarCalc.js:29
+#: src/control/Control.NotebookbarDraw.js:68
+#: src/control/Control.NotebookbarImpress.js:84
+#: src/control/Control.NotebookbarWriter.js:42
+msgid "Home"
+msgstr "வீடு"
 
-#: src/control/Control.NotebookbarCalc.js:33
-msgid "~Data"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:38
-#: src/control/Control.NotebookbarDraw.js:70
-#: src/control/Control.NotebookbarImpress.js:82
-#: src/control/Control.NotebookbarWriter.js:38
-msgid "~Review"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:43
+#: src/control/Control.NotebookbarCalc.js:36
 #: src/control/Control.NotebookbarDraw.js:75
-#: src/control/Control.NotebookbarImpress.js:87
-#: src/control/Control.NotebookbarWriter.js:43
-msgid "F~ormat"
-msgstr ""
+#: src/control/Control.NotebookbarImpress.js:91
+#: src/control/Control.NotebookbarWriter.js:49
+msgid "Insert"
+msgstr "செருகவும்"
+
+#: src/control/Control.NotebookbarCalc.js:42
+#: src/control/Control.NotebookbarDraw.js:81
+#: src/control/Control.NotebookbarImpress.js:97
+#: src/control/Control.NotebookbarWriter.js:55
+msgid "Layout"
+msgstr "மனையமைவு"
 
 #: src/control/Control.NotebookbarCalc.js:48
-#: src/control/Control.NotebookbarDraw.js:86
-#: src/control/Control.NotebookbarWriter.js:59
-msgid "Dra~w"
-msgstr ""
+msgid "Data"
+msgstr "தகவல்கள்"
 
 #: src/control/Control.NotebookbarCalc.js:54
-#: src/control/Control.NotebookbarDraw.js:92
-#: src/control/Control.NotebookbarImpress.js:110
-#: src/control/Control.NotebookbarWriter.js:65
-msgid "~View"
-msgstr ""
+#: src/control/Control.NotebookbarDraw.js:87
+#: src/control/Control.NotebookbarImpress.js:103
+#: src/control/Control.NotebookbarWriter.js:67
+msgid "Review"
+msgstr "சீராய்வு"
 
-#: src/control/Control.NotebookbarCalc.js:59
-#: src/control/Control.NotebookbarDraw.js:97
-#: src/control/Control.NotebookbarImpress.js:115
-#: src/control/Control.NotebookbarWriter.js:70
-msgid "~Help"
-msgstr ""
+#: src/control/Control.NotebookbarCalc.js:60
+#: src/control/Control.NotebookbarDraw.js:93
+#: src/control/Control.NotebookbarImpress.js:109
+#: src/control/Control.NotebookbarWriter.js:73
+msgid "Format"
+msgstr "வடிவம்"
 
-#: src/control/Control.NotebookbarCalc.js:114
-#: src/control/Control.NotebookbarImpress.js:171
-#: src/control/Control.NotebookbarWriter.js:127
+#: src/control/Control.NotebookbarCalc.js:66
+#: src/control/Control.NotebookbarDraw.js:106
+#: src/control/Control.NotebookbarWriter.js:92
+msgid "Draw"
+msgstr "டிரா"
+
+#: src/control/Control.NotebookbarCalc.js:73
+#: src/control/Control.NotebookbarDraw.js:113
+#: src/control/Control.NotebookbarImpress.js:136
+#: src/control/Control.NotebookbarWriter.js:99
+msgid "View"
+msgstr "பார்வை"
+
+#: src/control/Control.NotebookbarCalc.js:79
+#: src/control/Control.NotebookbarDraw.js:119
+#: src/control/Control.NotebookbarImpress.js:142
+#: src/control/Control.NotebookbarWriter.js:105
+#: src/control/Control.ServerAuditDialog.ts:213
+msgid "Help"
+msgstr "உதவி"
+
+#: src/control/Control.NotebookbarCalc.js:127
+#: src/control/Control.NotebookbarImpress.js:193
+#: src/control/Control.NotebookbarWriter.js:169
+#: src/control/Control.NotebookbarWriter.js:281
 msgid "Save As"
-msgstr ""
+msgstr "என சேமி"
 
-#: src/control/Control.NotebookbarCalc.js:130
-#: src/control/Control.NotebookbarDraw.js:153
-#: src/control/Control.NotebookbarImpress.js:187
-#: src/control/Control.NotebookbarWriter.js:143
+#: src/control/Control.NotebookbarCalc.js:146
+#: src/control/Control.NotebookbarDraw.js:180
+#: src/control/Control.NotebookbarImpress.js:213
+#: src/control/Control.NotebookbarWriter.js:189
 msgid "Export As"
-msgstr ""
+msgstr "ஏற்றுமதி"
 
-#: src/control/Control.NotebookbarCalc.js:143
-#: src/control/Control.NotebookbarDraw.js:163
-#: src/control/Control.NotebookbarImpress.js:200
-#: src/control/Control.NotebookbarWriter.js:155
+#: src/control/Control.NotebookbarCalc.js:161
+#: src/control/Control.NotebookbarDraw.js:196
+#: src/control/Control.NotebookbarImpress.js:228
+#: src/control/Control.NotebookbarWriter.js:203
+#: src/control/Control.NotebookbarWriter.js:227
 msgid "Share"
-msgstr ""
+msgstr "பங்கு"
 
-#: src/control/Control.NotebookbarCalc.js:151
-#: src/control/Control.NotebookbarDraw.js:171
-#: src/control/Control.NotebookbarImpress.js:208
-#: src/control/Control.NotebookbarWriter.js:163
+#: src/control/Control.NotebookbarCalc.js:171
+#: src/control/Control.NotebookbarDraw.js:206
+#: src/control/Control.NotebookbarImpress.js:238
+#: src/control/Control.NotebookbarWriter.js:211
+#: src/control/Control.NotebookbarWriter.js:241
 msgid "See history"
-msgstr ""
+msgstr "வரலாற்றைக் காண்க"
 
-#: src/control/Control.NotebookbarCalc.js:183
-#: src/control/Control.NotebookbarImpress.js:240
-#: src/control/Control.NotebookbarWriter.js:195
-msgid "Download"
-msgstr ""
+#: src/control/Control.NotebookbarCalc.js:253
+#: src/control/Control.NotebookbarDraw.js:304
+#: src/control/Control.NotebookbarImpress.js:321
+#: src/control/Control.NotebookbarWriter.js:322
+msgid "Signature"
+msgstr "கையொப்பம்"
 
-#: src/control/Control.NotebookbarCalc.js:209
-#, fuzzy
-msgid "ODF Spreadsheet (.ods)"
-msgstr "ODF விரிதாள் (.ods)"
+#: src/control/Control.NotebookbarCalc.js:268
+#: src/control/Control.NotebookbarDraw.js:320
+#: src/control/Control.NotebookbarImpress.js:336
+#: src/control/Control.NotebookbarWriter.js:337
+#: src/control/Control.UIManager.js:223
+msgid "Rename"
+msgstr "மறுபெயரிடுங்கள்"
 
-#: src/control/Control.NotebookbarCalc.js:554
+#: src/control/Control.NotebookbarCalc.js:607
 msgid "General"
-msgstr ""
+msgstr "பொது"
 
-#: src/control/Control.NotebookbarCalc.js:555
+#: src/control/Control.NotebookbarCalc.js:608
 msgid "Number"
-msgstr ""
+msgstr "எண்"
 
-#: src/control/Control.NotebookbarCalc.js:556
+#: src/control/Control.NotebookbarCalc.js:609
 msgid "Percent"
-msgstr ""
+msgstr "விழுக்காடு"
 
-#: src/control/Control.NotebookbarCalc.js:557
+#: src/control/Control.NotebookbarCalc.js:610
 msgid "Currency"
-msgstr ""
+msgstr "நாணயம்"
 
-#: src/control/Control.NotebookbarCalc.js:558
-#: src/control/Control.NotebookbarWriter.js:1042
-#: src/control/Control.Zotero.js:1073 src/control/Control.Zotero.js:1509
+#: src/control/Control.NotebookbarCalc.js:611
+#: src/control/Control.NotebookbarWriter.js:1402
+#: src/control/Control.Zotero.js:1080 src/control/Control.Zotero.js:1518
 msgid "Date"
-msgstr ""
+msgstr "திகதி"
 
-#: src/control/Control.NotebookbarCalc.js:559
+#: src/control/Control.NotebookbarCalc.js:612
 msgid "Time"
-msgstr ""
+msgstr "நேரம்"
 
-#: src/control/Control.NotebookbarCalc.js:560
+#: src/control/Control.NotebookbarCalc.js:613
 msgid "Scientific"
-msgstr ""
+msgstr "அறிவியல்"
 
-#: src/control/Control.NotebookbarCalc.js:561
+#: src/control/Control.NotebookbarCalc.js:614
 msgid "Fraction"
-msgstr ""
+msgstr "பின்னம்"
 
-#: src/control/Control.NotebookbarCalc.js:562
+#: src/control/Control.NotebookbarCalc.js:615
 msgid "Boolean Value"
-msgstr ""
+msgstr "பூலியன் மதிப்பு"
 
-#: src/control/Control.NotebookbarCalc.js:563 src/control/Toolbar.js:728
+#: src/control/Control.NotebookbarCalc.js:616 src/control/Toolbar.js:804
 msgid "Text"
-msgstr ""
+msgstr "உரை"
 
-#: src/control/Control.NotebookbarCalc.js:697
+#: src/control/Control.NotebookbarCalc.js:780
 msgid "Default"
-msgstr ""
+msgstr "இயல்புநிலை"
 
-#: src/control/Control.NotebookbarCalc.js:703
+#: src/control/Control.NotebookbarCalc.js:787
 msgid "Heading 1"
-msgstr ""
+msgstr "தலைப்பு 1"
 
-#: src/control/Control.NotebookbarCalc.js:709
+#: src/control/Control.NotebookbarCalc.js:794
 msgid "Heading 2"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:721
-msgid "Good"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:727
-msgid "Neutral"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:733
-msgid "Bad"
-msgstr ""
-
-#: src/control/Control.NotebookbarCalc.js:801
-msgid "Row Height"
-msgstr ""
+msgstr "தலைப்பு 2"
 
 #: src/control/Control.NotebookbarCalc.js:807
+msgid "Good"
+msgstr "நல்லது"
+
+#: src/control/Control.NotebookbarCalc.js:814
+msgid "Neutral"
+msgstr "நடுநிலை"
+
+#: src/control/Control.NotebookbarCalc.js:821
+msgid "Bad"
+msgstr "மோசமான"
+
+#: src/control/Control.NotebookbarCalc.js:851
+#: src/control/Control.NotebookbarDraw.js:1000
+#: src/control/Control.NotebookbarImpress.js:1064
+#: src/control/Control.NotebookbarWriter.js:905
+msgid "Replace"
+msgstr ""
+
+#: src/control/Control.NotebookbarCalc.js:926
+msgid "Row Height"
+msgstr "வரிசை உயரம்"
+
+#: src/control/Control.NotebookbarCalc.js:934
 msgid "Column Width"
-msgstr ""
+msgstr "நெடுவரிசை அகலம்"
 
-#: src/control/Control.NotebookbarCalc.js:818
-#, fuzzy
+#: src/control/Control.NotebookbarCalc.js:947
 msgid "Insert Rows Above"
-msgstr "அட்டைவணை நுழை"
+msgstr "மேலே வரிசைகளைச் செருகவும்"
 
-#: src/control/Control.NotebookbarCalc.js:823
-#, fuzzy
+#: src/control/Control.NotebookbarCalc.js:954
 msgid "Insert Columns Before"
-msgstr "தாளை இதன்முன் நுழை"
+msgstr "முன் நெடுவரிசைகளைச் செருகவும்"
 
-#: src/control/Control.NotebookbarCalc.js:828
-#, fuzzy
+#: src/control/Control.NotebookbarCalc.js:961
 msgid "Delete Rows"
-msgstr "அட்டைவணை நுழை"
+msgstr "வரிசைகளை நீக்கு"
 
-#: src/control/Control.NotebookbarCalc.js:838
+#: src/control/Control.NotebookbarCalc.js:973
 msgid "Insert Rows Below"
-msgstr ""
+msgstr "கீழே வரிசைகளைச் செருகவும்"
 
-#: src/control/Control.NotebookbarCalc.js:843
-#, fuzzy
+#: src/control/Control.NotebookbarCalc.js:980
 msgid "Insert Columns After"
-msgstr "தாளை இதன்பின் நுழை"
+msgstr "பிறகு நெடுவரிசைகளைச் செருகவும்"
 
-#: src/control/Control.NotebookbarCalc.js:848
+#: src/control/Control.NotebookbarCalc.js:987
 msgid "Delete Columns"
-msgstr ""
+msgstr "நெடுவரிசைகளை நீக்கு"
 
-#: src/control/Control.NotebookbarCalc.js:992
-#: src/control/Control.NotebookbarDraw.js:248
-#: src/control/Control.NotebookbarImpress.js:355
-#: src/control/Control.NotebookbarWriter.js:1062
+#: src/control/Control.NotebookbarCalc.js:1166
+#: src/control/Control.NotebookbarDraw.js:335
+#: src/control/Control.NotebookbarImpress.js:351
+#: src/control/Control.NotebookbarWriter.js:1425
 msgid "Read mode"
-msgstr ""
+msgstr "பயன்முறையைப் படியுங்கள்"
 
-#: src/control/Control.NotebookbarCalc.js:1038
-#: src/control/Control.NotebookbarDraw.js:294
-#: src/control/Control.NotebookbarImpress.js:407
-#: src/control/Control.NotebookbarWriter.js:1113
+#: src/control/Control.NotebookbarCalc.js:1217
+#: src/control/Control.NotebookbarDraw.js:386
+#: src/control/Control.NotebookbarImpress.js:426
+#: src/control/Control.NotebookbarWriter.js:1483
 msgid "Compact view"
-msgstr ""
+msgstr "சிறிய பார்வை"
 
-#: src/control/Control.NotebookbarCalc.js:1044
-#: src/control/Control.NotebookbarDraw.js:300
-#: src/control/Control.NotebookbarImpress.js:413
-#: src/control/Control.NotebookbarWriter.js:1136
+#: src/control/Control.NotebookbarCalc.js:1230
+#: src/control/Control.NotebookbarDraw.js:423
+#: src/control/Control.NotebookbarImpress.js:463
+#: src/control/Control.NotebookbarWriter.js:1520
+msgid "Collapse Tabs"
+msgstr "தாவல்கள் சரிவு"
+
+#: src/control/Control.NotebookbarCalc.js:1242
+#: src/control/Control.NotebookbarDraw.js:411
+#: src/control/Control.NotebookbarImpress.js:451
+#: src/control/Control.NotebookbarWriter.js:1508
 msgid "Status Bar"
-msgstr ""
+msgstr "நிலை பட்டி"
 
-#: src/control/Control.NotebookbarCalc.js:1111
+#: src/control/Control.NotebookbarCalc.js:1335
 msgid "Sparkline"
+msgstr "ச்பார்க்லைன்"
+
+#: src/control/Control.NotebookbarCalc.js:1393
+#: src/control/Control.NotebookbarDraw.js:1285
+#: src/control/Control.NotebookbarImpress.js:1297
+#: src/control/Control.NotebookbarWriter.js:1149
+msgid "Assistant"
 msgstr ""
 
-#: src/control/Control.NotebookbarCalc.js:1222
-#: src/control/Control.NotebookbarCalc.js:1874
-#: src/control/Control.NotebookbarDraw.js:638
-#: src/control/Control.NotebookbarDraw.js:1015
-#: src/control/Control.NotebookbarImpress.js:751
-#: src/control/Control.NotebookbarImpress.js:1034
-#: src/control/Control.NotebookbarImpress.js:1886
-#: src/control/Control.NotebookbarWriter.js:934
-#: src/control/Control.NotebookbarWriter.js:2337
+#: src/control/Control.NotebookbarCalc.js:1477
+#: src/control/Control.NotebookbarCalc.js:2376
+#: src/control/Control.NotebookbarDraw.js:869
+#: src/control/Control.NotebookbarDraw.js:1371
+#: src/control/Control.NotebookbarImpress.js:925
+#: src/control/Control.NotebookbarImpress.js:1390
+#: src/control/Control.NotebookbarImpress.js:2449
+#: src/control/Control.NotebookbarWriter.js:1085
+#: src/control/Control.NotebookbarWriter.js:2886
 msgid "Shapes"
+msgstr "வடிவங்கள்"
+
+#: src/control/Control.NotebookbarCalc.js:2024
+#: src/control/Control.NotebookbarWriter.js:945
+msgid "Style list"
 msgstr ""
 
-#: src/control/Control.NotebookbarDraw.js:80
-#: src/control/Control.NotebookbarImpress.js:92
-#: src/control/Control.NotebookbarWriter.js:53
-msgid "~Table"
-msgstr ""
+#: src/control/Control.NotebookbarDraw.js:99
+#: src/control/Control.NotebookbarImpress.js:115
+#: src/control/Control.NotebookbarWriter.js:85
+msgid "Table"
+msgstr "அட்டவணை"
 
-#: src/control/Control.NotebookbarDraw.js:198
-msgid "Image (.png)"
-msgstr ""
+#: src/control/Control.NotebookbarDraw.js:257
+msgid "PDF Document (.pdf) - Expert"
+msgstr "PDF ஆவணம் (.pdf) - வல்லுநர்"
 
-#: src/control/Control.NotebookbarImpress.js:104
-msgid "~Master"
-msgstr ""
-
-#: src/control/Control.NotebookbarImpress.js:266
-#, fuzzy
-msgid "ODF Presentation (.odp)"
-msgstr "ODF வழங்கல் (.odp)"
-
-#: src/control/Control.NotebookbarImpress.js:361
-#: src/control/Control.NotebookbarImpress.js:839
-msgid "Presentation"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:33
-msgid "Reference~s"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:48
-msgid "For~m"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:205
-#, fuzzy
-msgid "ODF Text Document (.odt)"
-msgstr "ODF உரை ஆவணம் (.odt)"
-
-#: src/control/Control.NotebookbarWriter.js:248
-msgid "EPUB Document (.epub)"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:1022
-msgid "Rich Text"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:1027
-msgid "Checkbox"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:1032
-msgid "Dropdown"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:1037
-msgid "Picture"
-msgstr ""
-
-#: src/control/Control.NotebookbarWriter.js:1125
+#: src/control/Control.NotebookbarDraw.js:399
+#: src/control/Control.NotebookbarImpress.js:439
+#: src/control/Control.NotebookbarWriter.js:1496
 msgid "Ruler"
-msgstr ""
+msgstr "ஆட்சியாளர்"
 
-#: src/control/Control.PartsPreview.js:185
+#: src/control/Control.NotebookbarDraw.js:1070
+msgid "Page Layout"
+msgstr "பக்க தளவமைப்பு"
+
+#: src/control/Control.NotebookbarImpress.js:129
+msgid "Master"
+msgstr "மாச்டர்"
+
+#: src/control/Control.NotebookbarImpress.js:358
+#: src/control/Control.NotebookbarImpress.js:1039
+msgid "Presentation"
+msgstr "விளக்கக்காட்சி"
+
+#: src/control/Control.NotebookbarImpress.js:366
+msgid "Present in Window"
+msgstr "சாளரத்தில் உள்ளது"
+
+#: src/control/Control.NotebookbarImpress.js:486
+msgid "Show Grid"
+msgstr "கட்டத்தைக் காட்டு"
+
+#: src/control/Control.NotebookbarImpress.js:493
+msgid "Snap to Grid"
+msgstr "கட்டத்திற்கு ச்னாப்"
+
+#: src/control/Control.NotebookbarWriter.js:79
+msgid "Form"
+msgstr "வடிவம்"
+
+#: src/control/Control.NotebookbarWriter.js:351
+msgid "Go Online"
+msgstr "ஆன்லைனில் செல்லுங்கள்"
+
+#: src/control/Control.NotebookbarWriter.js:351
+msgid "Go Offline"
+msgstr "ஆஃப்லைனில் செல்லுங்கள்"
+
+#: src/control/Control.NotebookbarWriter.js:1374
+msgid "Rich Text"
+msgstr "பணக்கார உரை"
+
+#: src/control/Control.NotebookbarWriter.js:1381
+msgid "Checkbox"
+msgstr "தேர்வுப்பெட்டி"
+
+#: src/control/Control.NotebookbarWriter.js:1388
+msgid "Dropdown"
+msgstr "கீழ்தோன்றும்"
+
+#: src/control/Control.NotebookbarWriter.js:1395
+msgid "Picture"
+msgstr "படம்"
+
+#: src/control/Control.PartsPreview.js:189
 msgid "preview of page "
-msgstr ""
+msgstr "பக்கத்தின் முன்னோட்டம் "
 
-#: src/control/Control.PartsPreview.js:237
+#: src/control/Control.PartsPreview.js:254
 msgid "Paste Slide"
-msgstr ""
+msgstr "ச்லைடு ஒட்டவும்"
 
-#: src/control/Control.PartsPreview.js:264
-msgid "Copy"
-msgstr ""
-
-#: src/control/Control.PartsPreview.js:273
+#: src/control/Control.PartsPreview.js:297
 msgid "Paste"
-msgstr ""
+msgstr "ஒட்டு"
 
-#: src/control/Control.Scroll.Annotation.js:10
+#: src/control/Control.SaveState.ts:37
+msgid "Saving"
+msgstr "சேமிப்பு"
+
+#: src/control/Control.SaveState.ts:52
+msgid "Saved"
+msgstr "சேமிக்கப்பட்டது"
+
+#: src/control/Control.Scroll.Annotation.js:19
 msgid "Scroll up annotations"
-msgstr ""
+msgstr "சிறுகுறிப்புகளை உருட்டவும்"
 
-#: src/control/Control.Scroll.Annotation.js:12
+#: src/control/Control.Scroll.Annotation.js:21
 msgid "Scroll down annotations"
+msgstr "சிறுகுறிப்புகளை உருட்டவும்"
+
+#: src/control/Control.ServerAuditDialog.ts:50
+msgid "The IsAdminUser property is not set by integration"
+msgstr "ISADMINUSER சொத்து ஒருங்கிணைப்பால் அமைக்கப்படவில்லை"
+
+#: src/control/Control.ServerAuditDialog.ts:56
+msgid ""
+"Used deprecated is_admin field, integration should use IsAdminUser property "
+"instead"
 msgstr ""
+"பயன்படுத்தப்பட்ட நீக்கப்பட்ட is_admin புலம், ஒருங்கிணைப்பு அதற்கு பதிலாக "
+"isadminuser சொத்தை பயன்படுத்த வேண்டும்"
 
-#: src/control/Control.SearchBar.js:20
-#, fuzzy
-msgid "Hide the search bar"
-msgstr "தேடலை ரத்துசெய்"
+#: src/control/Control.ServerAuditDialog.ts:62
+msgid "The IsAdminUser user property is set by integration"
+msgstr "ISADMINUSER பயனர் சொத்து ஒருங்கிணைப்பால் அமைக்கப்பட்டுள்ளது"
 
-#: src/control/Control.SearchBar.js:31
-#, fuzzy
-msgid "Clear the search field"
-msgstr "தேடலை ரத்துசெய்"
+#: src/control/Control.ServerAuditDialog.ts:69
+msgid "Your WOPI server is not secure: SSL verification failed"
+msgstr "உங்கள் WOPI சேவையகம் பாதுகாப்பாக இல்லை: SSL சரிபார்ப்பு தோல்வியடைந்தது"
 
-#: src/control/Control.SheetsBar.js:27
+#: src/control/Control.ServerAuditDialog.ts:74
+msgid "No problems with SSL verification detected"
+msgstr "எச்எச்எல் சரிபார்ப்பில் எந்த சிக்கலும் கண்டறியப்படவில்லை"
+
+#: src/control/Control.ServerAuditDialog.ts:81
+msgid "PostMessage API is initialized"
+msgstr "போச்ட்மெசேச் பநிஇ துவக்கப்பட்டது"
+
+#: src/control/Control.ServerAuditDialog.ts:86
+msgid "Integrator is not ready for PostMessage calls"
+msgstr "போச்ட்மெசேச் அழைப்புகளுக்கு ஒருங்கிணைப்பாளர் தயாராக இல்லை"
+
+#: src/control/Control.ServerAuditDialog.ts:94
+msgid ""
+"Your server is configured with insufficient hardware resources, which may "
+"lead to poor performance."
+msgstr ""
+"உங்கள் சேவையகம் போதுமான வன்பொருள் வளங்களுடன் கட்டமைக்கப்பட்டுள்ளது, இது மோசமா"
+"ன செயல்திறனுக்கு வழிவகுக்கும்."
+
+#: src/control/Control.ServerAuditDialog.ts:100
+msgid "Hardware resources are sufficient for optimal performance"
+msgstr "உகந்த செயல்திறனுக்கு வன்பொருள் வளங்கள் போதுமானவை"
+
+#: src/control/Control.ServerAuditDialog.ts:205
+msgid "No issues found"
+msgstr "பிரச்சினைகள் எதுவும் கிடைக்கவில்லை"
+
+#: src/control/Control.ServerAuditDialog.ts:212
+msgid "Status"
+msgstr "நிலை"
+
+#: src/control/Control.ServerAuditDialog.ts:262
+msgid "Check security warnings of your server"
+msgstr "உங்கள் சேவையகத்தின் பாதுகாப்பு எச்சரிக்கைகளை சரிபார்க்கவும்"
+
+#: src/control/Control.ServerAuditDialog.ts:263
+msgid "OPEN"
+msgstr "திற"
+
+#: src/control/Control.SheetsBar.js:48
 msgid "Scroll to the first sheet"
-msgstr ""
+msgstr "முதல் தாளில் உருட்டவும்"
 
-#: src/control/Control.SheetsBar.js:28
+#: src/control/Control.SheetsBar.js:55
 msgid "Scroll left"
-msgstr ""
+msgstr "உருள் இடது"
 
-#: src/control/Control.SheetsBar.js:29
+#: src/control/Control.SheetsBar.js:63
 msgid "Scroll right"
-msgstr ""
+msgstr "வலதுபுறம் உருட்டவும்"
 
-#: src/control/Control.SheetsBar.js:30
+#: src/control/Control.SheetsBar.js:71
 msgid "Scroll to the last sheet"
+msgstr "கடைசி தாளில் உருட்டவும்"
+
+#: src/control/Control.SheetsBar.js:78
+msgid "Insert sheet"
+msgstr "தாள் செருகவும்"
+
+#: src/control/Control.StatusBar.js:177
+msgid "On"
 msgstr ""
 
-#: src/control/Control.SheetsBar.js:31
-#, fuzzy
-msgid "Insert sheet"
-msgstr "அட்டைவணை நுழை"
+#: src/control/Control.StatusBar.js:179
+msgid "Off"
+msgstr ""
 
-#: src/control/Control.StatusBar.js:203
-msgid "Cancel the search"
-msgstr "தேடலை ரத்துசெய்"
+#: src/control/Control.StatusBar.js:205
+#: src/control/jsdialog/Definitions.Menu.ts:23
+msgid "Average"
+msgstr "சராசரி"
 
-#: src/control/Control.StatusBar.js:303
-msgid "Number of Sheets"
-msgstr "தாள் எண்ணிக்கை"
-
-#: src/control/Control.StatusBar.js:308
-msgid "Selected range of cells"
-msgstr "தேர்ந்த கலங்களின் வீச்சு"
-
-#: src/control/Control.StatusBar.js:313 src/control/Control.StatusBar.js:366
-msgid "Entering text mode"
-msgstr "உரை முறையில் நுழைகிறது"
-
-#: src/control/Control.StatusBar.js:322 src/control/Control.StatusBar.js:371
-msgid "Selection Mode"
-msgstr "தேர்வு முறை"
-
-#: src/control/Control.StatusBar.js:327
-msgid "Choice of functions"
-msgstr "செயலாற்றிகளின் தேர்வு"
-
-#: src/control/Control.StatusBar.js:332
+#: src/control/Control.StatusBar.js:206
 msgid "CountA"
-msgstr "CountA"
+msgstr "கவுன்"
 
-#: src/control/Control.StatusBar.js:334
+#: src/control/Control.StatusBar.js:207
+#: src/control/jsdialog/Definitions.Menu.ts:26
+msgid "Count"
+msgstr "எண்ணிக்கை"
+
+#: src/control/Control.StatusBar.js:208
 msgid "Maximum"
 msgstr "கூடியபட்சம்"
 
-#: src/control/Control.StatusBar.js:335
+#: src/control/Control.StatusBar.js:209
 msgid "Minimum"
 msgstr "குறைந்தபட்சம்"
 
-#: src/control/Control.StatusBar.js:337
+#: src/control/Control.StatusBar.js:210
+#: src/control/jsdialog/Definitions.Menu.ts:22
+msgid "Sum"
+msgstr "தொகை"
+
+#: src/control/Control.StatusBar.js:211
 msgid "Selection count"
 msgstr "தேர்வு எண்ணிக்கை"
 
-#: src/control/Control.StatusBar.js:356 src/control/Control.StatusBar.js:412
-msgid "Number of Pages"
-msgstr "பக்கங்களின் எண்ணிக்கை"
+#: src/control/Control.StatusBar.js:249
+msgid "Cancel the search"
+msgstr "தேடலை ரத்துசெய்"
 
-#: src/control/Control.StatusBar.js:361
-msgid "Word Counter"
-msgstr "சொல் எண்ணி"
-
-#: src/control/Control.StatusBar.js:392
-msgid "Number of Slides"
-msgstr "படவில்லைகளின் எண்ணிக்கை"
-
-#: src/control/Control.StatusBar.js:462 src/control/Control.StatusBar.js:463
-msgid "Permission Mode"
+#: src/control/Control.StatusBar.js:413
+msgid ""
+"To prevent accidental changes, the author has set this file to open as view-"
+"only"
 msgstr ""
+"தற்செயலான மாற்றங்களைத் தடுக்க, ஆசிரியர் இந்த கோப்பை பார்வைக்கு மட்டும் திறக்"
+"க அமைத்துள்ளார்"
 
 #: src/control/Control.StatusBar.js:463
-msgid "Edit"
-msgstr "தொகு"
-
-#: src/control/Control.StatusBar.js:501
 msgid "Select multiple cells"
-msgstr ""
+msgstr "பல கலங்களைத் தேர்ந்தெடுக்கவும்"
 
-#: src/control/Control.StatusBar.js:504
+#: src/control/Control.StatusBar.js:466
 msgid "Insert mode: inactive"
-msgstr ""
+msgstr "செருகு பயன்முறை: செயலற்றது"
 
-#: src/control/Control.StatusBar.js:517
+#: src/control/Control.StatusBar.js:477
 msgid "Selection mode: inactive"
-msgstr ""
+msgstr "தேர்வு முறை: செயலற்றது"
 
-#: src/control/Control.Tabs.js:54
+#: src/control/Control.StatusBar.js:554
+msgid "Set Language for All text"
+msgstr "அனைத்து உரைக்கும் மொழியை அமைக்கவும்"
+
+#: src/control/Control.StatusBar.js:557
+msgid "Set Language for Paragraph"
+msgstr "பத்திக்கு மொழியை அமைக்கவும்"
+
+#: src/control/Control.StatusBar.js:558
+msgid "Set Language for Selection"
+msgstr "தேர்வுக்கு மொழியை அமைக்கவும்"
+
+#: src/control/Control.Tabs.js:52
 msgid "Insert sheet before this"
 msgstr "தாளை இதன்முன் நுழை"
 
-#: src/control/Control.Tabs.js:57
+#: src/control/Control.Tabs.js:55
 msgid "Insert sheet after this"
 msgstr "தாளை இதன்பின் நுழை"
 
-#: src/control/Control.Tabs.js:81
+#: src/control/Control.Tabs.js:88
 msgid "Move Sheet Left"
-msgstr ""
+msgstr "தாள் இடது"
 
-#: src/control/Control.Tabs.js:86
+#: src/control/Control.Tabs.js:93
 msgid "Move Sheet Right"
-msgstr ""
+msgstr "தாளை சரியாக நகர்த்தவும்"
 
-#: src/control/Control.Tabs.js:102
+#: src/control/Control.Tabs.js:103
 msgid "Copy Sheet..."
-msgstr ""
+msgstr "நகல் தாள் ..."
 
-#: src/control/Control.Tabs.js:301
-#, fuzzy
-msgid "Are you sure you want to delete sheet, %sheet%?"
-msgstr "உறுதியாக இத்தாளை அழிக்க வேண்டுகிறீரா?"
+#: src/control/Control.Tabs.js:383
+msgid "Are you sure you want to delete sheet, {sheet}?"
+msgstr "நீங்கள் தாளை நீக்க விரும்புகிறீர்களா, {sheet}?"
 
-#: src/control/Control.Tabs.js:312
+#: src/control/Control.Tabs.js:394
 msgid "Rename sheet"
-msgstr ""
+msgstr "தாள் மறுபெயரிடுதல்"
 
-#: src/control/Control.Tabs.js:312
+#: src/control/Control.Tabs.js:394
 msgid "Enter new sheet name"
 msgstr "புதிய தாளின் பெயரை உள்ளிடுக"
 
-#: src/control/Control.Toolbar.js:965
-msgid "Previous slide"
-msgstr "முந்தைய படவில்லை"
-
-#: src/control/Control.Toolbar.js:966
-msgid "Next slide"
-msgstr "அடுத்த படவில்லை"
-
-#: src/control/Control.Toolbar.js:1027
+#: src/control/Control.Toolbar.js:983
 msgid ""
 "Conflict Undo/Redo with multiple users. Please use document repair to "
 "resolve"
 msgstr ""
+"பல பயனர்களுடன் மோதல் செயல்தவிர்க்க/மீண்டும் செய்யவும். தீர்க்க ஆவண பழுது "
+"பயன்படுத்தவும்"
 
-#: src/control/Control.TopToolbar.js:105
+#: src/control/Control.TopToolbar.js:108
+msgid "Active Sheet"
+msgstr "செயலில் தாள்"
+
+#: src/control/Control.TopToolbar.js:120
 msgid "Default Style"
-msgstr ""
+msgstr "இயல்புநிலை நடை"
 
-#: src/control/Control.TopToolbar.js:222
+#: src/control/Control.TopToolbar.js:182
 msgid "Insert table"
 msgstr "அட்டைவணை நுழை"
 
-#: src/control/Control.TopToolbar.js:230
-#, fuzzy
+#: src/control/Control.TopToolbar.js:185
 msgid "Insert shapes"
-msgstr "அட்டைவணை நுழை"
+msgstr "வடிவங்களை செருகவும்"
 
-#: src/control/Control.TopToolbar.js:232
+#: src/control/Control.TopToolbar.js:187
 msgid "Insert connectors"
-msgstr ""
+msgstr "இணைப்பிகளைச் செருகவும்"
 
-#: src/control/Control.UserList.js:11
-msgid "%user has joined"
-msgstr ""
+#: src/control/Control.TopToolbar.js:201 src/control/Control.UIManager.js:843
+msgid "Hide Menu"
+msgstr "மெனுவை மறைக்கவும்"
 
-#: src/control/Control.UserList.js:12
-msgid "%user has left"
-msgstr ""
+#: src/control/Control.UIManager.js:223
+msgid "Enter new name"
+msgstr "புதிய பெயரை உள்ளிடவும்"
 
-#: src/control/Control.UserList.js:35
+#: src/control/Control.UIManager.js:866
+msgid "Show Menu"
+msgstr "மெனுவைக் காட்டு"
+
+#: src/control/Control.UserList.ts:54
+msgid "{user} has joined"
+msgstr "{user} இணைந்தார்"
+
+#: src/control/Control.UserList.ts:55
+msgid "{user} has left"
+msgstr "{user} வெளியேறிவிட்டார்"
+
+#: src/control/Control.UserList.ts:56
+msgid "Following {user}"
+msgstr "பின்வரும் {user}"
+
+#: src/control/Control.UserList.ts:57
+msgid "Following the editor"
+msgstr "எடிட்டரைத் தொடர்ந்து"
+
+#: src/control/Control.UserList.ts:58
+msgid "Stop following"
+msgstr "பின்தொடர்வதை நிறுத்துங்கள்"
+
+#: src/control/Control.UserList.ts:59
+msgid "Avatar for {user}"
+msgstr "{பயனருக்கான அவதார்"
+
+#: src/control/Control.UserList.ts:79
 msgid "%n users"
-msgstr ""
+msgstr "%n பயனர்கள்"
 
-#: src/control/Control.UserList.js:36
+#: src/control/Control.UserList.ts:80
 msgid "1 user"
-msgstr ""
+msgstr "1 பயனர்"
 
-#: src/control/Control.UserList.js:37
+#: src/control/Control.UserList.ts:81
 msgid "0 users"
-msgstr ""
+msgstr "0 பயனர்கள்"
 
-#: src/control/Control.UserList.js:188
+#: src/control/Control.UserList.ts:85
+msgid "User List Summary"
+msgstr "பயனர் பட்டியல் சுருக்கம்"
+
+#: src/control/Control.UserList.ts:493
 msgid "Following"
-msgstr ""
+msgstr "பின்வருமாறு"
 
-#: src/control/Control.UserList.js:216 src/control/Control.UserList.js:382
+#: src/control/Control.UserList.ts:550
 msgid "Always follow the editor"
-msgstr ""
+msgstr "எப்போதும் எடிட்டரைப் பின்பற்றுங்கள்"
 
-#: src/control/Control.UserList.js:330
-msgid "Readonly"
-msgstr ""
-
-#: src/control/Control.UserList.js:385
-msgid "Current"
-msgstr ""
-
-#: src/control/Control.Zotero.js:129
+#: src/control/Control.Zotero.js:139
 msgid "Zotero API key is not configured"
-msgstr ""
+msgstr "சோட்டெரோ பநிஇ விசை கட்டமைக்கப்படவில்லை"
 
-#: src/control/Control.Zotero.js:153
+#: src/control/Control.Zotero.js:160
 msgid "Zotero API key is incorrect"
-msgstr ""
+msgstr "சோட்டெரோ பநிஇ விசை தவறானது"
 
-#: src/control/Control.Zotero.js:180
+#: src/control/Control.Zotero.js:187
 msgid "Zotero Warning"
-msgstr ""
+msgstr "சோட்டெரோ எச்சரிக்கை"
 
-#: src/control/Control.Zotero.js:181
+#: src/control/Control.Zotero.js:188
 msgid ""
 "The document contains some citations which may be unreachable through web "
 "API. It may cause some problems while editing citations or bibliography."
 msgstr ""
+"ஆவணத்தில் சில மேற்கோள்கள் உள்ளன, அவை வலை பநிஇ மூலம் அணுக முடியாதவை. "
+"மேற்கோள்கள் அல்லது நூலியல் திருத்தும் போது இது சில சிக்கல்களை "
+"ஏற்படுத்தக்கூடும்."
 
-#: src/control/Control.Zotero.js:237 src/core/Socket.js:1069
+#: src/control/Control.Zotero.js:244 src/core/Socket.js:1339
 msgid "Loading..."
 msgstr "ஏற்றப்படுகிறது..."
 
-#: src/control/Control.Zotero.js:255
+#: src/control/Control.Zotero.js:262
 msgid "Language:"
-msgstr ""
+msgstr "மொழி:"
 
-#: src/control/Control.Zotero.js:270
+#: src/control/Control.Zotero.js:277
 msgid "Store as:"
-msgstr ""
+msgstr "சேமிக்கவும்:"
 
-#: src/control/Control.Zotero.js:276 src/control/Control.Zotero.js:400
+#: src/control/Control.Zotero.js:283 src/control/Control.Zotero.js:407
 msgid "Fields"
-msgstr ""
+msgstr "புலங்கள்"
 
-#: src/control/Control.Zotero.js:277 src/control/Control.Zotero.js:400
+#: src/control/Control.Zotero.js:284 src/control/Control.Zotero.js:407
 msgid "Bookmarks"
-msgstr ""
+msgstr "புக்மார்க்குகள்"
 
-#: src/control/Control.Zotero.js:398
+#: src/control/Control.Zotero.js:405
 msgid "Footnotes"
-msgstr ""
+msgstr "அடிக்குறிப்புகள்"
 
-#: src/control/Control.Zotero.js:398
+#: src/control/Control.Zotero.js:405
 msgid "Endnotes"
-msgstr ""
-
-#: src/control/Control.Zotero.js:462
-msgid "My Publications"
-msgstr ""
-
-#: src/control/Control.Zotero.js:468 src/control/Control.Zotero.js:693
-msgid "My Library"
-msgstr ""
+msgstr "இறுதி குறிப்புகள்"
 
 #: src/control/Control.Zotero.js:469
+msgid "My Publications"
+msgstr "எனது வெளியீடுகள்"
+
+#: src/control/Control.Zotero.js:475 src/control/Control.Zotero.js:702
+msgid "My Library"
+msgstr "எனது நூலகம்"
+
+#: src/control/Control.Zotero.js:476
 msgid "Group Libraries"
-msgstr ""
+msgstr "குழு நூலகங்கள்"
 
-#: src/control/Control.Zotero.js:709
+#: src/control/Control.Zotero.js:718
 msgid "Failed to load groups"
-msgstr ""
+msgstr "குழுக்களை ஏற்றுவதில் தோல்வி"
 
-#: src/control/Control.Zotero.js:727 src/control/Control.Zotero.js:1045
+#: src/control/Control.Zotero.js:736 src/control/Control.Zotero.js:1052
 msgid "Failed to load collections"
-msgstr ""
+msgstr "சேகரிப்புகளை ஏற்றுவதில் தோல்வி"
 
-#: src/control/Control.Zotero.js:741
+#: src/control/Control.Zotero.js:750
 msgid "Citation Style"
-msgstr ""
+msgstr "மேற்கோள் நடை"
 
-#: src/control/Control.Zotero.js:746
-#, fuzzy
+#: src/control/Control.Zotero.js:755
 msgid "Styles"
-msgstr "பாணி"
+msgstr "பாணிகள்"
 
-#: src/control/Control.Zotero.js:746
+#: src/control/Control.Zotero.js:755
 msgid "An error occurred while fetching style list"
-msgstr ""
+msgstr "பாணி பட்டியலைப் பெறும்போது பிழை ஏற்பட்டது"
 
-#: src/control/Control.Zotero.js:754
+#: src/control/Control.Zotero.js:763
 msgid "Failed to load styles"
-msgstr ""
+msgstr "பாணிகளை ஏற்றுவதில் தோல்வி"
 
-#: src/control/Control.Zotero.js:1073 src/control/Control.Zotero.js:1509
+#: src/control/Control.Zotero.js:1080 src/control/Control.Zotero.js:1518
 msgid "Title"
-msgstr ""
+msgstr "தலைப்பு"
 
-#: src/control/Control.Zotero.js:1073 src/control/Control.Zotero.js:1509
+#: src/control/Control.Zotero.js:1080 src/control/Control.Zotero.js:1518
 msgid "Creator(s)"
-msgstr ""
+msgstr "உருவாக்கியவர் (கள்)"
 
-#: src/control/Control.Zotero.js:1073 src/control/Control.Zotero.js:1509
+#: src/control/Control.Zotero.js:1080 src/control/Control.Zotero.js:1518
 msgid "Your library is empty"
-msgstr ""
+msgstr "உங்கள் நூலகம் காலியாக உள்ளது"
 
-#: src/control/Control.Zotero.js:1084
+#: src/control/Control.Zotero.js:1091
 msgid "Failed to load items"
-msgstr ""
+msgstr "உருப்படிகளை ஏற்றுவதில் தோல்வி"
 
-#: src/control/Control.Zotero.js:1134
+#: src/control/Control.Zotero.js:1143
 msgid "Citation warning"
-msgstr ""
+msgstr "மேற்கோள் எச்சரிக்கை"
 
-#: src/control/Control.Zotero.js:1135
+#: src/control/Control.Zotero.js:1144
 msgid ""
 "Once citations are entered their storage and display type can not be "
 "changed."
 msgstr ""
+"மேற்கோள்கள் உள்ளிட்டதும் அவற்றின் சேமிப்பிடம் மற்றும் காட்சி வகையை மாற்ற "
+"முடியாது."
 
-#: src/control/Control.Zotero.js:1136 src/control/Control.Zotero.js:1438
+#: src/control/Control.Zotero.js:1145 src/control/Control.Zotero.js:1447
 msgid "Confirm"
-msgstr ""
+msgstr "உறுதிப்படுத்தவும்"
 
-#: src/control/Control.Zotero.js:1242
+#: src/control/Control.Zotero.js:1251
 msgid "Add Note"
-msgstr ""
+msgstr "குறிப்பைச் சேர்க்கவும்"
 
-#: src/control/Control.Zotero.js:1245
+#: src/control/Control.Zotero.js:1254 src/slideshow/PresenterConsole.js:33
 msgid "Notes"
-msgstr ""
+msgstr "குறிப்புகள்"
 
-#: src/control/Control.Zotero.js:1245
+#: src/control/Control.Zotero.js:1254
 msgid "An error occurred while fetching notes"
-msgstr ""
+msgstr "குறிப்புகளைப் பெறும்போது பிழை ஏற்பட்டது"
 
-#: src/control/Control.Zotero.js:1376
+#: src/control/Control.Zotero.js:1385
 msgid "Updated citations"
-msgstr ""
+msgstr "புதுப்பிக்கப்பட்ட மேற்கோள்கள்"
 
-#: src/control/Control.Zotero.js:1378
+#: src/control/Control.Zotero.js:1387
 msgid "Citations update failed"
-msgstr ""
+msgstr "மேற்கோள்கள் புதுப்பிப்பு தோல்வியடைந்தது"
 
-#: src/control/Control.Zotero.js:1382
+#: src/control/Control.Zotero.js:1391
 msgid "Updating citations"
-msgstr ""
+msgstr "மேற்கோள்களைப் புதுப்பித்தல்"
 
-#: src/control/Control.Zotero.js:1437
+#: src/control/Control.Zotero.js:1446
 msgid ""
 "Unlinking citations will prevent Collabora Online from updating citations "
 "and bibliography in this document."
 msgstr ""
+"இந்த ஆவணத்தில் மேற்கோள்கள் மற்றும் நூலியல் புதுப்பிப்பதை ஆன்லைனில் "
+"ஒத்துழைப்பதைத் தடுக்கும் மேற்கோள்கள்."
 
-#: src/control/Permission.js:72
+#: src/control/Parts.js:491
+msgid "Show sheets"
+msgstr ""
+
+#: src/control/Permission.js:27 src/control/Permission.js:28
+msgid "Edit document"
+msgstr "ஆவணத்தைத் திருத்து"
+
+#: src/control/Permission.js:85
 msgid "The document could not be locked, and is opened in read-only mode."
 msgstr ""
+"ஆவணத்தை பூட்ட முடியவில்லை, மேலும் வாசிப்பு மட்டும் பயன்முறையில் "
+"திறக்கப்படுகிறது."
 
-#: src/control/Permission.js:74 src/control/Permission.js:84
+#: src/control/Permission.js:87 src/control/Permission.js:97
 msgid "Server returned this reason:"
-msgstr ""
+msgstr "சேவையகம் இந்த காரணத்தை திரும்பியது:"
 
-#: src/control/Permission.js:82
+#: src/control/Permission.js:95
 msgid "The document could not be locked."
-msgstr ""
+msgstr "ஆவணத்தை பூட்ட முடியவில்லை."
 
-#: src/control/Permission.js:136
+#: src/control/Permission.js:149
 msgid "Enter a file name"
-msgstr ""
+msgstr "கோப்பு பெயரை உள்ளிடவும்"
 
-#: src/control/Permission.js:155
+#: src/control/Permission.js:168
 msgid "Save as ODF format"
-msgstr ""
-
-#: src/control/Permission.js:156
-msgid "Continue editing"
-msgstr ""
-
-#: src/control/Permission.js:156
-msgid "Continue read only"
-msgstr ""
+msgstr "ODF வடிவமாக சேமிக்கவும்"
 
 #: src/control/Permission.js:169
+msgid "Continue editing"
+msgstr "திருத்துதல் தொடரவும்"
+
+#: src/control/Permission.js:169
+msgid "Continue read only"
+msgstr "மட்டும் படிக்கவும்"
+
+#: src/control/Permission.js:182
 msgid ""
 "This document may contain formatting or content that cannot be saved in the "
 "current file format."
 msgstr ""
+"இந்த ஆவணத்தில் தற்போதைய கோப்பு வடிவத்தில் சேமிக்க முடியாத வடிவமைப்பு அல்லது "
+"உள்ளடக்கம் இருக்கலாம்."
 
-#: src/control/Ruler.js:364
-msgid "Left Margin"
-msgstr ""
+#: src/control/Signing.js:21
+msgid "The document is not signed."
+msgstr "ஆவணம் கையொப்பமிடப்படவில்லை."
 
-#: src/control/Ruler.js:365
-msgid "Right Margin"
-msgstr ""
-
-#: src/control/Ruler.js:626
-#, fuzzy
-msgid "Insert tabstop"
-msgstr "அட்டைவணை நுழை"
-
-#: src/control/Ruler.js:633
-#, fuzzy
-msgid "Delete tabstop"
-msgstr "அட்டைவணை நுழை"
-
-#: src/control/Signing.js:18
+#: src/control/Signing.js:32
 msgid "This document is digitally signed and the signature is valid."
 msgstr ""
+"இந்த ஆவணம் டிசிட்டல் முறையில் கையொப்பமிடப்பட்டு கையொப்பம் செல்லுபடியாகும்."
 
-#: src/control/Signing.js:22
+#: src/control/Signing.js:36
 msgid "This document has an invalid signature."
-msgstr ""
+msgstr "இந்த ஆவணத்தில் தவறான கையொப்பம் உள்ளது."
 
-#: src/control/Signing.js:26
+#: src/control/Signing.js:40
 msgid "The signature was valid, but the document has been modified."
-msgstr ""
+msgstr "கையொப்பம் செல்லுபடியாகும், ஆனால் ஆவணம் மாற்றியமைக்கப்பட்டுள்ளது."
 
-#: src/control/Signing.js:30
+#: src/control/Signing.js:44
 msgid "The signature is OK, but the certificate could not be validated."
-msgstr ""
+msgstr "கையொப்பம் சரி, ஆனால் சான்றிதழை சரிபார்க்க முடியவில்லை."
 
-#: src/control/Signing.js:34
+#: src/control/Signing.js:48
 msgid "The signature is OK, but the document is only partially signed."
-msgstr ""
+msgstr "கையொப்பம் சரி, ஆனால் ஆவணம் ஓரளவு மட்டுமே கையொப்பமிடப்பட்டுள்ளது."
 
-#: src/control/Signing.js:38
+#: src/control/Signing.js:52
 msgid ""
 "The signature is OK, but the certificate could not be validated and the "
 "document is only partially signed."
 msgstr ""
+"கையொப்பம் சரி, ஆனால் சான்றிதழை சரிபார்க்க முடியவில்லை மற்றும் ஆவணம் ஓரளவு "
+"மட்டுமே கையொப்பமிடப்பட்டுள்ளது."
 
-#: src/control/Toolbar.js:45
+#: src/control/Toolbar.js:56
 msgid "Font"
 msgstr "எழுத்துரு"
 
-#: src/control/Toolbar.js:240 src/control/Toolbar.js:253
+#: src/control/Toolbar.js:251 src/control/Toolbar.js:264
 msgid "Downloading..."
 msgstr "பதிவிறக்குகிறது..."
 
-#: src/control/Toolbar.js:269
+#: src/control/Toolbar.js:280 src/control/jsdialog/Widget.HTMLContent.ts:128
 msgid "Saving..."
 msgstr "சேமிக்கிறது..."
 
-#: src/control/Toolbar.js:288
+#: src/control/Toolbar.js:299
 msgid "Renaming..."
-msgstr ""
+msgstr "மறுபெயரிடுதல் ..."
 
-#: src/control/Toolbar.js:636
-msgid "This version of %productName is powered by"
-msgstr "%productName இன் இப்பதிப்பை இயக்குவது"
-
-#: src/control/Toolbar.js:648
-msgid "\"Slow Proxy\""
-msgstr ""
-
-#: src/control/Toolbar.js:667
-msgid "Copy all version information in English"
-msgstr ""
-
-#: src/control/Toolbar.js:721
+#: src/control/Toolbar.js:792
 msgid "Insert hyperlink"
-msgstr ""
+msgstr "ஐப்பர்லிங்கை செருகவும்"
 
-#: src/control/Toolbar.js:740
+#: src/control/Toolbar.js:816
 msgid "Link"
+msgstr "இணைப்பு"
+
+#: src/control/VRuler.ts:343
+msgid "Top Margin"
+msgstr "மேல் விளிம்பு"
+
+#: src/control/VRuler.ts:344
+msgid "Bottom Margin"
+msgstr "கீழ் விளிம்பு"
+
+#: src/control/HRuler.ts:590
+msgid "Left Margin"
+msgstr "இடது விளிம்பு"
+
+#: src/control/HRuler.ts:591
+msgid "Right Margin"
+msgstr "வலது விளிம்பு"
+
+#: src/control/HRuler.ts:876
+msgid "Insert tabstop"
+msgstr "TABSTOP ஐ செருகவும்"
+
+#: src/control/HRuler.ts:883
+msgid "Delete tabstop"
+msgstr "TABSTOP ஐ நீக்கு"
+
+#: src/control/jsdialog/Definitions.Menu.ts:24
+msgid "Min"
+msgstr "மணித்துளி"
+
+#: src/control/jsdialog/Definitions.Menu.ts:25
+msgid "Max"
+msgstr "அதிகபட்சம்"
+
+#: src/control/jsdialog/Definitions.Menu.ts:259
+msgid "Insert Local Image"
+msgstr "உள்ளக படத்தை செருகவும்"
+
+#: src/control/jsdialog/Definitions.Menu.ts:264
+msgid "Insert Local Multimedia"
+msgstr "உள்ளக மல்டிமீடியாவை செருகவும்"
+
+#: src/control/jsdialog/Definitions.Menu.ts:269
+msgid "Very Tight"
+msgstr "மிகவும் இறுக்கமான"
+
+#: src/control/jsdialog/Definitions.Menu.ts:270
+msgid "Tight"
+msgstr "இறுக்கமான"
+
+#: src/control/jsdialog/Definitions.Menu.ts:271
+msgid "Normal"
+msgstr "சாதாரண"
+
+#: src/control/jsdialog/Definitions.Menu.ts:272
+msgid "Loose"
+msgstr "தளர்வான"
+
+#: src/control/jsdialog/Definitions.Menu.ts:273
+msgid "Very Loose"
+msgstr "மிகவும் தளர்வான"
+
+#: src/control/jsdialog/Definitions.Menu.ts:417
+msgid "From Beginning"
+msgstr "ஆரம்பத்தில் இருந்து"
+
+#: src/control/jsdialog/Definitions.Menu.ts:421
+msgid "From Current Slide"
+msgstr "தற்போதைய ச்லைடில் இருந்து"
+
+#: src/control/jsdialog/Util.SnackbarController.ts:118
+msgid "Dismiss"
+msgstr "தள்ளுபடி"
+
+#: src/control/jsdialog/Widget.ColorPicker.ts:182
+msgid "No fill"
+msgstr "நிரப்பு இல்லை"
+
+#: src/control/jsdialog/Widget.ColorPicker.ts:182
+msgid "Automatic"
+msgstr "தானியங்கி"
+
+#: src/control/jsdialog/Widget.ColorPicker.ts:358
+msgid "Recent"
+msgstr "அண்மைக் கால"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:45
+#: src/control/jsdialog/Widget.HTMLContent.ts:52
+msgid "Permission Mode"
+msgstr "இசைவு முறை"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:46
+msgid "Read-only"
+msgstr "படிக்க மட்டும்"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:53
+msgid "Edit mode"
 msgstr ""
 
-#: src/control/Toolbar.js:990
-msgid "Are you sure you want to delete this slide?"
-msgstr "உறுதியாக இப்படவில்லையை அழிக்க வேண்டுகிறீரா?"
+#: src/control/jsdialog/Widget.HTMLContent.ts:72
+#: src/control/jsdialog/Widget.HTMLContent.ts:118
+msgid "Number of Pages"
+msgstr "பக்கங்களின் எண்ணிக்கை"
 
-#: src/control/Toolbar.js:993
-msgid "Are you sure you want to delete this page?"
-msgstr "உறுதியாக இப்பக்கத்தை அழிக்க வேண்டுகிறீரா?"
+#: src/control/jsdialog/Widget.HTMLContent.ts:78
+msgid "Word Counter"
+msgstr "சொல் எண்ணி"
 
-#: src/control/jsdialog/Widget.TreeView.js:481
-msgid "Headings and objects that you add to the document will appear here"
-msgstr ""
+#: src/control/jsdialog/Widget.HTMLContent.ts:82
+msgid "Number of Sheets"
+msgstr "தாள் எண்ணிக்கை"
 
-#: src/core/Socket.js:55
-msgid "Oops, there is a problem connecting to %productName: "
-msgstr ""
+#: src/control/jsdialog/Widget.HTMLContent.ts:86
+msgid "Entering text mode"
+msgstr "உரை முறையில் நுழைகிறது"
 
-#: src/core/Socket.js:563
+#: src/control/jsdialog/Widget.HTMLContent.ts:92
+msgid "Selection Mode"
+msgstr "தேர்வு முறை"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:100
+msgid "Selected range of cells"
+msgstr "தேர்ந்த கலங்களின் வீச்சு"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:108
+msgid "Choice of functions"
+msgstr "செயலாற்றிகளின் தேர்வு"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:114
+msgid "Number of Slides"
+msgstr "படவில்லைகளின் எண்ணிக்கை"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:124
+#: src/control/jsdialog/Widget.HTMLContent.ts:132
+msgid "Your changes have been saved"
+msgstr "உங்கள் மாற்றங்கள் சேமிக்கப்பட்டுள்ளன"
+
+#: src/control/jsdialog/Widget.HTMLContent.ts:141
+#, fuzzy
+msgid "Show Comments"
+msgstr "கருத்துகள் இல்லை"
+
+#: src/control/jsdialog/Widget.MobileBorderSelector.js:96
+msgid "Cell borders"
+msgstr "செல் எல்லைகள்"
+
+#: src/control/jsdialog/Widget.SidebarContainers.ts:73
+msgid "More options for {name}"
+msgstr "{பெயர் க்கு க்கான கூடுதல் விருப்பங்கள்"
+
+#: src/core/Debug.js:54
+msgid "Debug Tools"
+msgstr "பிழைத்திருத்த கருவிகள்"
+
+#: src/core/Debug.js:56
+msgid "Ctrl+Shift+Alt+D to exit"
+msgstr "CTRL+SHIFT+ALT+D வெளியேற"
+
+#: src/core/Socket.js:68
+msgid "Oops, there is a problem connecting to {productname}: "
+msgstr "அச்சச்சோ, {productname} உடன் இணைக்கும் சிக்கல் உள்ளது: "
+
+#: src/core/Socket.js:686
 msgid "Server is now reachable. We have to refresh the page now."
 msgstr ""
+"சேவையகம் இப்போது அடையக்கூடியது. நாம் இப்போது பக்கத்தை புதுப்பிக்க வேண்டும்."
 
-#: src/core/Socket.js:565
+#: src/core/Socket.js:688
 msgid "Server is now reachable..."
-msgstr ""
+msgstr "சேவையகம் இப்போது அடையக்கூடியது ..."
 
-#: src/core/Socket.js:569
+#: src/core/Socket.js:692
 msgid "RELOAD"
-msgstr ""
+msgstr "ஏற்றவும்"
 
-#: src/core/Socket.js:577
+#: src/core/Socket.js:705
+msgid "Cluster configuration warning"
+msgstr "கிளச்டர் உள்ளமைவு எச்சரிக்கை"
+
+#: src/core/Socket.js:708
+msgid "Wrong server, reconnecting..."
+msgstr "தவறான சேவையகம், மீண்டும் இணைக்க ..."
+
+#: src/core/Socket.js:717
 msgid "COOLWSD version:"
-msgstr ""
+msgstr "கூல் டபிள்யூஎச்டி பதிப்பு:"
 
-#: src/core/Socket.js:589
+#: src/core/Socket.js:742
 msgid "Served by:"
-msgstr ""
+msgstr "வழங்கியவர்:"
 
-#: src/core/Socket.js:595
+#: src/core/Socket.js:748
 msgid "Unsupported server version."
 msgstr "ஆதரிக்கப்படாத சேவையகப் பதிப்பு."
 
-#: src/core/Socket.js:599
-msgid "LOKit version:"
-msgstr ""
-
-#: src/core/Socket.js:709
-msgid "Document is getting migrated..."
-msgstr ""
-
-#: src/core/Socket.js:736
-msgid "Session terminated by document owner"
-msgstr ""
-
-#: src/core/Socket.js:741
-msgid "Idle document - please click to reload and resume editing"
-msgstr ""
-
-#: src/core/Socket.js:743
-msgid "Idle document - please tap to reload and resume editing"
-msgstr ""
-
 #: src/core/Socket.js:752
+msgid "LOKit version:"
+msgstr "லோகிட் பதிப்பு:"
+
+#: src/core/Socket.js:876
+msgid "Document is getting migrated"
+msgstr "ஆவணம் இடம்பெயர்ந்து வருகிறது"
+
+#: src/core/Socket.js:903
+msgid "Session terminated by document owner"
+msgstr "அமர்வு ஆவண உரிமையாளரால் நிறுத்தப்பட்டது"
+
+#: src/core/Socket.js:914
 msgid "Server is shutting down for maintenance (auto-saving)"
-msgstr ""
+msgstr "பராமரிப்புக்காக சேவையகம் மூடப்படுகிறது (தானாக சேமிப்பு)"
 
-#: src/core/Socket.js:756
+#: src/core/Socket.js:920
 msgid "Oops, there is a problem connecting the document"
-msgstr ""
+msgstr "அச்சச்சோ, ஆவணத்தை இணைப்பதில் சிக்கல் உள்ளது"
 
-#: src/core/Socket.js:760
+#: src/core/Socket.js:924
 msgid "Server is down, restarting automatically. Please wait."
 msgstr ""
+"சேவையகம் கீழே உள்ளது, தானாக மறுதொடக்கம் செய்கிறது. தயவுசெய்து காத்திருங்கள்."
 
-#: src/core/Socket.js:787
+#: src/core/Socket.js:951
 msgid ""
 "Document has changed in storage. Loading the new document. Your version is "
 "available as revision."
 msgstr ""
+"ஆவணத்தில் ஆவணம் மாறிவிட்டது. புதிய ஆவணத்தை ஏற்றுகிறது. உங்கள் பதிப்பு "
+"திருத்தமாக கிடைக்கிறது."
 
-#: src/core/Socket.js:793
+#: src/core/Socket.js:957
 msgid ""
 "Restoring older revision. Any unsaved changes will be available in version "
 "history"
 msgstr ""
+"பழைய திருத்தத்தை மீட்டமைக்கிறது. சேமிக்கப்படாத மாற்றங்கள் பதிப்பு வரலாற்றில் "
+"கிடைக்கும்"
 
-#: src/core/Socket.js:799
+#: src/core/Socket.js:963
 msgid "Reloading the document after rename"
-msgstr ""
+msgstr "மறுபெயரிட்ட பிறகு ஆவணத்தை மீண்டும் ஏற்றுகிறது"
 
-#: src/core/Socket.js:939
+#: src/core/Socket.js:1121
 msgid "Document requires password to view."
 msgstr "ஆவணத்தைப் பார்க்க கடவுச்சொல் தேவை."
 
-#: src/core/Socket.js:942
+#: src/core/Socket.js:1124
 msgid "Document requires password to modify."
 msgstr "ஆவணத்தை மாற்றியமைக்க கடவுச்சொல் தேவை."
 
-#: src/core/Socket.js:944
+#: src/core/Socket.js:1126
 msgid "Hit Cancel to open in view-only mode."
 msgstr "பார்க்கமட்டுமான முறையில் திறக்க ரத்தை அழுத்துக."
 
-#: src/core/Socket.js:948
+#: src/core/Socket.js:1130
 msgid "Wrong password provided. Please try again."
 msgstr "தவறான கடவுச்சொல். மீண்டும் முயல்க."
 
-#: src/core/Socket.js:986
+#: src/core/Socket.js:1168
 msgid "Only the document owner can change the password."
-msgstr ""
+msgstr "ஆவண உரிமையாளர் மட்டுமே கடவுச்சொல்லை மாற்ற முடியும்."
 
-#: src/core/Socket.js:1017 src/core/Socket.js:1022
+#: src/core/Socket.js:1199 src/core/Socket.js:1204
 msgid "Missing Fonts"
-msgstr ""
+msgstr "எழுத்துருக்களைக் காணவில்லை"
 
-#: src/core/Socket.js:1059
+#: src/core/Socket.js:1236
 msgid "Someone"
-msgstr ""
+msgstr "யாரோ"
 
-#: src/core/Socket.js:1060
-msgid "%userName saved this document as %fileName. Do you want to join?"
+#: src/core/Socket.js:1237
+msgid "{username} saved this document as {filename}. Do you want to join?"
 msgstr ""
+"{பயனர்பெயர் this இந்த ஆவணத்தை {கோப்பு பெயர் அச் என சேமித்தது. நீங்கள் சேர "
+"விரும்புகிறீர்களா?"
 
-#: src/core/Socket.js:1069
-msgid "Connecting..."
-msgstr ""
-
-#: src/core/Socket.js:1086
+#: src/core/Socket.js:1254
 msgid "The document is being renamed and will reload shortly"
-msgstr ""
+msgstr "ஆவணம் மறுபெயரிடப்படுகிறது, விரைவில் மீண்டும் ஏற்றப்படும்"
 
-#: src/core/Socket.js:1190
+#: src/core/Socket.js:1257
+msgid "The document is switching to Offline mode and will reload shortly"
+msgstr ""
+"ஆவணம் இணைப்பில்லாத பயன்முறைக்கு மாறுகிறது, விரைவில் மீண்டும் ஏற்றப்படும்"
+
+#: src/core/Socket.js:1339
+msgid "Connecting..."
+msgstr "இணைத்தல் ..."
+
+#: src/core/Socket.js:1354
+msgid "Server is shutting down"
+msgstr "சேவையகம் மூடப்படுகிறது"
+
+#: src/core/Socket.js:1390
 msgid "Exported to storage"
-msgstr ""
+msgstr "சேமிப்பிற்கு ஏற்றுமதி செய்யப்பட்டது"
 
-#: src/core/Socket.js:1190
+#: src/core/Socket.js:1390
 msgid "Successfully exported: "
-msgstr ""
+msgstr "வெற்றிகரமாக ஏற்றுமதி செய்யப்பட்டது: "
 
-#: src/core/Socket.js:1218
+#: src/core/Socket.js:1418
 msgid "Discard"
-msgstr ""
+msgstr "நிராகரிக்கவும்"
 
-#: src/core/Socket.js:1219
-msgid "Overwrite"
-msgstr ""
-
-#: src/core/Socket.js:1230
+#: src/core/Socket.js:1430
 msgid "Save to new file"
-msgstr ""
+msgstr "புதிய கோப்பில் சேமிக்கவும்"
 
-#: src/core/Socket.js:1240
+#: src/core/Socket.js:1440
 msgid "Document has been changed"
-msgstr ""
+msgstr "ஆவணம் மாற்றப்பட்டுள்ளது"
 
-#: src/core/Socket.js:1241
+#: src/core/Socket.js:1441
 msgid ""
 "Document has been changed in storage. What would you like to do with your "
 "unsaved changes?"
 msgstr ""
+"ஆவணத்தில் ஆவணம் மாற்றப்பட்டுள்ளது. உங்கள் சேமிக்கப்படாத மாற்றங்களை நீங்கள் "
+"என்ன செய்ய விரும்புகிறீர்கள்?"
 
-#: src/core/Socket.js:1541
+#: src/core/Socket.js:1694
 msgid ""
 "Well, this is embarrassing, we cannot connect to your document. Please try "
 "again."
@@ -2081,380 +3078,668 @@ msgstr ""
 "வெட்கப்படுகிறோம். எங்களால் உங்கள் ஆவணத்துடன் இணைய முடியவில்லை. மீண்டும் "
 "முயல்க."
 
-#: src/core/Socket.js:1558
+#: src/core/Socket.js:1711
 msgid "Reconnecting..."
-msgstr ""
+msgstr "மீண்டும் இணைத்தல் ..."
 
-#: src/core/Socket.js:1568
+#: src/core/Socket.js:1721
 msgid "The server has been disconnected."
-msgstr ""
+msgstr "சேவையகம் துண்டிக்கப்பட்டுள்ளது."
 
-#: src/errormessages.js:13
+#: src/docdispatcher.ts:485
+msgid "Are you sure you want to delete this slide?"
+msgstr "உறுதியாக இப்படவில்லையை அழிக்க வேண்டுகிறீரா?"
+
+#: src/docdispatcher.ts:488
+msgid "Are you sure you want to delete this page?"
+msgstr "உறுதியாக இப்பக்கத்தை அழிக்க வேண்டுகிறீரா?"
+
+#: src/docstate.js:99
+msgid "Standard"
+msgstr "தரநிலை"
+
+#: src/docstate.js:112
+msgid "Theme colors"
+msgstr "கருப்பொருள் வண்ணங்கள்"
+
+#: src/docstate.js:113
+msgid "Document colors"
+msgstr "ஆவண வண்ணங்கள்"
+
+#: src/docstatefunctions.js:181
+msgid ", cluster configuration error: mis-matching serverid"
+msgstr ", கிளச்டர் உள்ளமைவு பிழை: தவறாக பொருந்தக்கூடிய ServerID"
+
+#: src/dom/NotebookbarAccessibility.js:240
+msgid "{0} tab selected"
+msgstr "{0} தாவல் தேர்ந்தெடுக்கப்பட்டது"
+
+#: src/errormessages.js:22
 msgid "No disk space left on server."
-msgstr ""
+msgstr "சேவையகத்தில் வட்டு இடம் இல்லை."
 
-#: src/errormessages.js:14
+#: src/errormessages.js:23
 msgid ""
 "The host URL is empty. The coolwsd server is probably misconfigured, please "
 "contact the administrator."
 msgstr ""
+"புரவலன் முகவரி காலியாக உள்ளது. COOLWSD சேவையகம் தவறாக "
+"கட்டமைக்கப்பட்டிருக்கலாம், தயவுசெய்து நிர்வாகியை தொடர்பு கொள்ளவும்."
 
-#: src/errormessages.js:15
+#: src/errormessages.js:24
 msgid ""
 "This is an unsupported version of {productname}. To avoid the impression "
 "that it is suitable for deployment in enterprises, this message appears "
 "when more than {docs} documents or {connections} connections are in use "
 "concurrently."
 msgstr ""
+"இது {தயாரிப்பு பெயர் of இன் ஆதரிக்கப்படாத பதிப்பாகும். நிறுவனங்களில் "
+"வரிசைப்படுத்துவதற்கு இது ஏற்றது என்ற எண்ணத்தைத் தவிர்க்க, {productname} "
+"ஆவணங்கள் அல்லது {docs} இணைப்புகள் ஒரே நேரத்தில் பயன்பாட்டில் இருக்கும்போது "
+"இந்த செய்தி தோன்றும்."
 
-#: src/errormessages.js:16
+#: src/errormessages.js:25
 msgid "More information and support"
-msgstr ""
+msgstr "மேலும் செய்தி மற்றும் உதவி"
 
-#: src/errormessages.js:17
+#: src/errormessages.js:26
 msgid ""
-"This service is limited to %0 documents, and %1 connections total by the "
+"This service is limited to {0} documents, and {1} connections total by the "
 "admin. This limit has been reached. Please try again later."
 msgstr ""
+"இந்த பணி {0} ஆவணங்களுக்கும், நிர்வாகியால் மொத்த {1} இணைப்புகளுக்கும் மட்டுமே"
+". இந்த வரம்பு எட்டப்பட்டுள்ளது. தயவுசெய்து பின்னர் மீண்டும் முயற்சிக்கவும்."
 
-#: src/errormessages.js:18
+#: src/errormessages.js:27
 msgid ""
 "Service is unavailable. Please try again later and report to your "
 "administrator if the issue persists."
 msgstr ""
+"பணி கிடைக்கவில்லை. தயவுசெய்து மீண்டும் முயற்சிக்கவும், சிக்கல் தொடர்ந்தால் "
+"உங்கள் நிர்வாகியிடம் புகாரளிக்கவும்."
 
-#: src/errormessages.js:19
+#: src/errormessages.js:28
 msgid ""
 "Unauthorized WOPI host. Please try again later and report to your "
 "administrator if the issue persists."
 msgstr ""
+"அங்கீகரிக்கப்படாத வோபி புரவலன். தயவுசெய்து மீண்டும் முயற்சிக்கவும், சிக்கல் "
+"தொடர்ந்தால் உங்கள் நிர்வாகியிடம் புகாரளிக்கவும்."
 
-#: src/errormessages.js:20
+#: src/errormessages.js:29
+msgid "Authorization error was: '{errormessage}'."
+msgstr "அங்கீகார பிழை: '{errormessage}'."
+
+#: src/errormessages.js:30
 msgid "Wrong or missing WOPISrc parameter, please contact support."
 msgstr ""
+"WOPISRC அளவுருவை தவறாக அல்லது காணவில்லை, தயவுசெய்து ஆதரவைத் தொடர்பு "
+"கொள்ளவும்."
 
-#: src/errormessages.js:21
+#: src/errormessages.js:31
 msgid ""
-"Your session will expire in %time. Please save your work and refresh the "
+"Your session will expire in {time}. Please save your work and refresh the "
 "session (or webpage) to continue. You might need to login again."
 msgstr ""
+"உங்கள் அமர்வு {time} இல் காலாவதியாகும். தொடர உங்கள் வேலையைச் சேமித்து, தொடர "
+"அமர்வை (அல்லது வலைப்பக்கத்தை) புதுப்பிக்கவும். நீங்கள் மீண்டும் உள்நுழைய "
+"வேண்டியிருக்கலாம்."
 
-#: src/errormessages.js:22
+#: src/errormessages.js:32
 msgid ""
 "Your session has expired. Further changes to the document might not be "
 "saved. Please refresh the session (or webpage) to continue. You might need "
 "to login again."
 msgstr ""
+"உங்கள் அமர்வு காலாவதியானது. ஆவணத்தில் மேலும் மாற்றங்கள் சேமிக்கப்படாது. தொடர "
+"அமர்வை (அல்லது வலைப்பக்கத்தை) புதுப்பிக்கவும். நீங்கள் மீண்டும் உள்நுழைய "
+"வேண்டியிருக்கலாம்."
 
-#: src/errormessages.js:23
+#: src/errormessages.js:33
 msgid ""
 "Failed to load the document. Please ensure the file type is supported and "
 "not corrupted, and try again."
 msgstr ""
+"ஆவணத்தை ஏற்றுவதில் தோல்வி. கோப்பு வகை ஆதரிக்கப்படுவதை உறுதிசெய்து, "
+"சிதைக்கப்படவில்லை என்பதை உறுதிப்படுத்தவும், மீண்டும் முயற்சிக்கவும்."
 
-#: src/errormessages.js:24
-msgid "Invalid link: '%url'"
-msgstr ""
+#: src/errormessages.js:34
+msgid "Invalid link: '{url}'"
+msgstr "தவறான இணைப்பு: '{url}'"
 
-#: src/errormessages.js:25
+#: src/errormessages.js:35
 msgid ""
 "You are leaving the document. The following web page will open in a new "
 "tab: "
 msgstr ""
+"நீங்கள் ஆவணத்தை விட்டு வெளியேறுகிறீர்கள். பின்வரும் வலைப்பக்கம் புதிய தாவலில்"
+" திறக்கப்படும்: "
 
-#: src/errormessages.js:26
+#: src/errormessages.js:36
 msgid ""
 "Failed to load the document. This document is either malformed or is taking "
 "more resources than allowed. Please contact the administrator."
 msgstr ""
+"ஆவணத்தை ஏற்றுவதில் தோல்வி. இந்த ஆவணம் தவறாக அல்லது அனுமதிக்கப்பட்டதை விட அதி"
+"க வளங்களை எடுத்துக்கொள்கிறது. நிர்வாகியை தொடர்பு கொள்ளவும்."
 
-#: src/errormessages.js:27
+#: src/errormessages.js:37
 msgid "Cleaning up the document from the last session."
-msgstr ""
+msgstr "கடைசி அமர்விலிருந்து ஆவணத்தை தூய்மை செய்தல்."
 
-#: src/errormessages.js:28
+#: src/errormessages.js:38
 msgid ""
 "We are in the process of cleaning up this document from the last session, "
 "please try again later."
 msgstr ""
+"கடைசி அமர்விலிருந்து இந்த ஆவணத்தை தூய்மை செய்யும் பணியில் நாங்கள் இருக்கிறோம்"
+", தயவுசெய்து பின்னர் முயற்சிக்கவும்."
 
-#: src/errormessages.js:32
-msgid "Failed to load document."
+#: src/errormessages.js:39
+msgid ""
+"Your {productname} cluster appear to be mis-configured or scaling rapidly - "
+"please contact your system administrator. Continuing with editing may "
+"result in multiple users not seeing each other, conflicts in the document "
+"storage and/or copy/paste problems. Expected serverId {0} for routeToken "
+"{1} but connected to serverId {2}"
 msgstr ""
+"உங்கள் {productname} கிளச்டர் தவறாக கட்டமைக்கப்பட்டதாகவோ அல்லது விரைவாக "
+"அளவிடப்படுவதாகவோ தோன்றுகிறது - தயவுசெய்து உங்கள் கணினி நிர்வாகியை தொடர்பு "
+"கொள்ளவும். திருத்துதல் தொடர்வது பல பயனர்கள் ஒருவருக்கொருவர் பார்க்கவில்லை, "
+"ஆவண சேமிப்பகத்தில் மோதல்கள் மற்றும்/அல்லது சிக்கல்களை நகலெடுக்கலாம். ரூட் "
+"டோகன் {1} க்கு எதிர்பார்க்கப்படும் சேவையகம் {0} ஆனால் சேவையகத்துடன் "
+"இணைக்கப்பட்டுள்ளது {2}"
 
-#: src/errormessages.js:33
+#: src/errormessages.js:40
+msgid ""
+"Failed to establish socket connection or socket connection closed "
+"unexpectedly. The reverse proxy might be misconfigured, please contact the "
+"administrator. For more info on proxy configuration please checkout https://"
+"sdk.collaboraonline.com/docs/installation/Proxy_settings.html"
+msgstr ""
+"சாக்கெட் இணைப்பு அல்லது சாக்கெட் இணைப்பை நிறுவுவதில் தோல்வி எதிர்பாராத விதமா"
+"க மூடப்பட்டது. தலைகீழ் பதிலாள் தவறாக கட்டமைக்கப்படலாம், தயவுசெய்து நிர்வாகியை"
+" தொடர்பு கொள்ளவும். பதிலாள் உள்ளமைவு பற்றிய கூடுதல் தகவலுக்கு, தயவுசெய்து "
+"https://sdk.collaboraonline.com/docs/installation/proxy_settings.html ஐப் "
+"பாருங்கள்"
+
+#: src/errormessages.js:41
+msgid ""
+"Failed to establish socket connection or socket connection closed "
+"unexpectedly."
+msgstr ""
+"சாக்கெட் இணைப்பு அல்லது சாக்கெட் இணைப்பை நிறுவுவதில் தோல்வி எதிர்பாராத விதமா"
+"க மூடப்பட்டது."
+
+#: src/errormessages.js:44
+msgid "Failed to load document."
+msgstr "ஆவணத்தை ஏற்றுவதில் தோல்வி."
+
+#: src/errormessages.js:45
 msgid "Save failed due to no disk space left. Document will now be read-only."
 msgstr ""
+"வட்டு இடம் எஞ்சியிருப்பதால் தோல்வியுற்றது. ஆவணம் இப்போது படிக்க மட்டுமே "
+"இருக்கும்."
 
-#: src/errormessages.js:34
+#: src/errormessages.js:46
 msgid ""
 "The document is too large or no disk space left to save. Document will now "
 "be read-only."
 msgstr ""
+"ஆவணம் மிகப் பெரியது அல்லது சேமிக்க வட்டு இடம் இல்லை. ஆவணம் இப்போது படிக்க "
+"மட்டுமே இருக்கும்."
 
-#: src/errormessages.js:35 src/errormessages.js:44
-msgid "Document cannot be saved due to expired or invalid access token."
+#: src/errormessages.js:47
+msgid ""
+"Document cannot be saved due to expired session, please reopen the document "
+"to continue."
 msgstr ""
+"காலாவதியான அமர்வு காரணமாக ஆவணத்தை சேமிக்க முடியாது, தொடர ஆவணத்தை மீண்டும் "
+"திறக்கவும்."
 
-#: src/errormessages.js:36
+#: src/errormessages.js:48
 msgid "Document cannot be saved."
-msgstr ""
+msgstr "ஆவணத்தை சேமிக்க முடியாது."
 
-#: src/errormessages.js:37
+#: src/errormessages.js:49
 msgid "Document cannot be renamed."
-msgstr ""
+msgstr "ஆவணத்தை மறுபெயரிட முடியாது."
 
-#: src/errormessages.js:41
+#: src/errormessages.js:53
 msgid ""
 "Failed to read document from storage, please try to load the document again."
 msgstr ""
+"சேமிப்பகத்திலிருந்து ஆவணத்தைப் படிக்கத் தவறிவிட்டது, தயவுசெய்து ஆவணத்தை "
+"மீண்டும் ஏற்ற முயற்சிக்கவும்."
 
-#: src/errormessages.js:42
+#: src/errormessages.js:54
 msgid ""
 "Save failed due to no storage space left. Document will now be read-only. "
 "Please make sure enough disk space is available and try to save again."
 msgstr ""
+"சேமிப்பு இடம் இல்லாததால் சேமி தோல்வியுற்றது. ஆவணம் இப்போது படிக்க மட்டுமே "
+"இருக்கும். போதுமான வட்டு இடம் கிடைப்பதை உறுதிசெய்து மீண்டும் சேமிக்க "
+"முயற்சிக்கவும்."
 
-#: src/errormessages.js:43
+#: src/errormessages.js:55
 msgid ""
 "Save failed because the document is too large or exceeds the remaining "
 "storage space. The document will now be read-only but you may still "
 "download it now to preserve a copy locally."
 msgstr ""
+"சேமிக்க தோல்வியுற்றது, ஏனெனில் ஆவணம் மிகப் பெரியது அல்லது மீதமுள்ள சேமிப்பக "
+"இடத்தை மீறுகிறது. ஆவணம் இப்போது படிக்க மட்டுமே இருக்கும், ஆனால் உள்நாட்டில் "
+"ஒரு நகலைப் பாதுகாக்க இப்போது அதை பதிவிறக்கம் செய்யலாம்."
 
-#: src/errormessages.js:45
+#: src/errormessages.js:56
+msgid ""
+"Document cannot be saved due to expired session, please reload the page to "
+"continue."
+msgstr ""
+"காலாவதியான அமர்வு காரணமாக ஆவணத்தை சேமிக்க முடியாது, தொடர பக்கத்தை மீண்டும் "
+"ஏற்றவும்."
+
+#: src/errormessages.js:57
 msgid "Document cannot be saved, please check your permissions."
-msgstr ""
+msgstr "ஆவணத்தை சேமிக்க முடியாது, தயவுசெய்து உங்கள் அனுமதிகளை சரிபார்க்கவும்."
 
-#: src/errormessages.js:46
+#: src/errormessages.js:58
 msgid "Document cannot be renamed, please check your permissions."
-msgstr ""
+msgstr "ஆவணத்தை மறுபெயரிட முடியாது, தயவுசெய்து உங்கள் அனுமதிகளை சரிபார்க்கவும்."
 
-#: src/errormessages.js:47
+#: src/errormessages.js:59
 msgid "Document cannot be exported. Please try again."
-msgstr ""
+msgstr "ஆவணத்தை ஏற்றுமதி செய்ய முடியாது. மீண்டும் முயற்சிக்கவும்."
 
-#: src/errormessages.js:52
+#: src/errormessages.js:64
 msgid "Uploading file to server failed, file not found."
-msgstr ""
+msgstr "சேவையகத்தில் கோப்பைப் பதிவேற்றுவது தோல்வியுற்றது, கோப்பு கிடைக்கவில்லை."
 
-#: src/errormessages.js:53
+#: src/errormessages.js:65
 msgid "Uploading file to server failed, the file is too large."
-msgstr ""
+msgstr "சேவையகத்தில் கோப்பைப் பதிவேற்றுவது தோல்வியுற்றது, கோப்பு மிகப் பெரியது."
 
-#: src/layer/tile/CanvasTileLayer.js:1933
-#, fuzzy
+#: src/layer/marker/A11yTextInput.js:226
+msgid "Out of table"
+msgstr "மேசைக்கு வெளியே"
+
+#: src/layer/marker/A11yTextInput.js:229
+msgid "Table with {0} rows and {1} columns"
+msgstr "{0} வரிசைகள் மற்றும் {1} நெடுவரிசைகளுடன் அட்டவணை"
+
+#: src/layer/marker/A11yTextInput.js:234
+msgid "Row {0} through {1}"
+msgstr "வரிசை {0} மூலம் {1}"
+
+#: src/layer/marker/A11yTextInput.js:237
+msgid "Row {0}"
+msgstr "வரிசை {0}"
+
+#: src/layer/marker/A11yTextInput.js:245
+msgid "Column {0} through {1}"
+msgstr "நெடுவரிசை {0} மூலம் {1}"
+
+#: src/layer/marker/A11yTextInput.js:248
+msgid "Column {0}"
+msgstr "நெடுவரிசை {0}"
+
+#: src/layer/marker/A11yTextInput.js:276
+msgid "Editing activated. "
+msgstr "திருத்துதல் செயல்படுத்தப்பட்டது. "
+
+#: src/layer/marker/A11yTextInput.js:295
+msgid "{0} selected"
+msgstr "{0} தேர்ந்தெடுக்கப்பட்டது"
+
+#: src/layer/marker/A11yTextInput.js:297
+msgid "Has text: "
+msgstr "உரை உள்ளது: "
+
+#: src/layer/marker/A11yTextInput.js:302
+msgid "{0} unselected"
+msgstr "{0} தேர்வு செய்யப்படாதது"
+
+#: src/layer/marker/A11yTextInput.js:306
+msgid "{0} deleted"
+msgstr "{0} நீக்கப்பட்டது"
+
+#: src/layer/marker/TextInput.js:439
+msgid "Screen reader support for text content is disabled. "
+msgstr "உரை உள்ளடக்கத்திற்கான திரை வாசகர் உதவி முடக்கப்பட்டுள்ளது. "
+
+#: src/layer/marker/TextInput.js:440
+msgid "You need to enable it both at server level and in the UI. "
+msgstr "நீங்கள் அதை சேவையக மட்டத்திலும் இடைமுகம் ஐயும் இயக்க வேண்டும். "
+
+#: src/layer/marker/TextInput.js:441
+msgid "Look for the accessibility section in coolwsd.xml for server setting. "
+msgstr "சேவையக அமைப்பிற்கு CoolWSD.xml இல் அணுகல் பிரிவைப் பாருங்கள். "
+
+#: src/layer/marker/TextInput.js:442
+msgid "Also check the voice over toggle under {parentControl}."
+msgstr ""
+"{பெற்றோர் கன்ட்ரோல் onder இன் கீழ் குரல் ஓவர் மாற்றுவதையும் சரிபார்க்கவும்."
+
+#: src/layer/marker/TextInput.js:444
+msgid "the Help tab"
+msgstr "உதவி தாவல்"
+
+#: src/layer/marker/TextInput.js:444
+msgid "the View menu"
+msgstr "காட்சி பட்டியல்"
+
+#: src/layer/tile/CanvasTileLayer.js:1878
 msgid "Functions"
-msgstr "செயலாற்றி"
+msgstr "செயல்பாடுகள்"
 
-#: src/layer/tile/CanvasTileLayer.js:2501
-msgid "Copy link location"
-msgstr ""
+#: src/layer/tile/CanvasTileLayer.js:2143
+msgid "Named Range"
+msgstr "வரம்பு பெயரிடப்பட்டது"
 
-#: src/layer/tile/CanvasTileLayer.js:2509
-msgid "Edit link"
-msgstr ""
-
-#: src/layer/tile/CanvasTileLayer.js:2517
-msgid "Remove link"
-msgstr ""
-
-#: src/layer/tile/CanvasTileLayer.js:5258
+#: src/layer/tile/CanvasTileLayer.js:3862
 msgid "No Comments"
-msgstr ""
+msgstr "கருத்துகள் இல்லை"
 
-#: src/layer/tile/CommentListSection.ts:834
-msgid "Modify"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:840
-#: src/layer/tile/CommentSection.ts:117
-msgid "Reply"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:846
-msgid "Remove"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:852
-msgid "Remove Thread"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:858
-msgid "Resolve"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:858
-msgid "Unresolve"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:864
-msgid "Unresolve Thread"
-msgstr ""
-
-#: src/layer/tile/CommentListSection.ts:864
-msgid "Resolve Thread"
-msgstr ""
-
-#: src/layer/tile/CommentSection.ts:245
-msgid "Open menu"
-msgstr ""
-
-#: src/layer/tile/CommentSection.ts:263 src/layer/tile/CommentSection.ts:264
-msgid "Accept change"
-msgstr ""
-
-#: src/layer/tile/CommentSection.ts:270 src/layer/tile/CommentSection.ts:271
-msgid "Reject change"
-msgstr ""
-
-#: src/layer/tile/CommentSection.ts:294
-msgid "Resolved"
-msgstr ""
-
-#: src/main.js:110
+#: src/main.js:139
 msgid "Warning! The browser you are using is not supported."
-msgstr ""
+msgstr "எச்சரிக்கை! நீங்கள் பயன்படுத்தும் உலாவி ஆதரிக்கப்படவில்லை."
 
-#: src/map/Clipboard.js:125
+#: src/map/Clipboard.js:176
 msgid ""
-"To paste outside %productName, please first click the 'download' button"
+"To paste outside {productname}, please first click the 'download' button"
 msgstr ""
+"{productname} க்கு வெளியே ஒட்ட, முதலில் 'பதிவிறக்கு' பொத்தானைக் சொடுக்கு "
+"செய்க"
 
-#: src/map/Clipboard.js:135
+#: src/map/Clipboard.js:184
 msgid "Copying from the document disabled"
-msgstr ""
+msgstr "ஆவணத்திலிருந்து நகலெடுப்பது முடக்கப்பட்டுள்ளது"
 
-#: src/map/Clipboard.js:296
+#: src/map/Clipboard.js:285
+msgid "warning: copy/paste request timed out"
+msgstr "எச்சரிக்கை: நகல்/பேச்ட் கோரிக்கை நேரம் முடிந்தது"
+
+#: src/map/Clipboard.js:329
 msgid "Failed to download clipboard, please re-copy"
-msgstr ""
+msgstr "கிளிப்போர்டைப் பதிவிறக்குவதில் தோல்வி, தயவுசெய்து மீண்டும் நகல்"
 
-#: src/map/Clipboard.js:867
-msgid "<p>Please use the copy/paste buttons on your on-screen keyboard.</p>"
+#: src/map/Clipboard.js:1276
+msgid "Please use the paste buttons on your on-screen keyboard."
 msgstr ""
+"உங்கள் திரையில் உள்ள விசைப்பலகையில் பேச்ட் பொத்தான்களைப் பயன்படுத்தவும்."
 
-#: src/map/Clipboard.js:869
+#: src/map/Clipboard.js:1332
 msgid ""
-"<p>Your browser has very limited access to the clipboard, so use these "
-"keyboard shortcuts:</p><table class=\"warn-copy-paste\"><tr><td><kbd>Ctrl</"
-"kbd><span class=\"kbd--plus\">+</span><kbd>C</kbd></td><td><kbd>Ctrl</"
-"kbd><span class=\"kbd--plus\">+</span><kbd>X</kbd></td><td><kbd>Ctrl</"
-"kbd><span class=\"kbd--plus\">+</span><kbd>V</kbd></td></tr><tr><td>Copy</"
-"td><td>Cut</td><td>Paste</td></tr></table>"
+"A download due to a large copy/paste operation has already started. Please, "
+"wait for the current download or cancel it before starting a new one"
 msgstr ""
+"ஒரு பெரிய நகல்/பேச்ட் செயல்பாட்டின் காரணமாக பதிவிறக்கம் ஏற்கனவே "
+"தொடங்கப்பட்டுள்ளது. தயவுசெய்து, தற்போதைய பதிவிறக்கத்திற்காக காத்திருங்கள் "
+"அல்லது புதியதைத் தொடங்குவதற்கு முன் அதை ரத்துசெய்"
 
-#: src/map/Clipboard.js:890
-msgid ""
-"<p>If you would like to share larger elements of your document with other "
-"applications it is necessary to first download them onto your device. To do "
-"that press the \"Start download\" button below, and when complete click "
-"\"Confirm copy to clipboard\".</p><p>If you are copy and pasting between "
-"documents inside %productName, there is no need to download.</p>"
-msgstr ""
+#: src/map/Clipboard.js:1354
+msgid "Paste from this document"
+msgstr "இந்த ஆவணத்திலிருந்து ஒட்டவும்"
 
-#: src/map/Clipboard.js:904
-msgid ""
-"<p>A download due to a large copy/paste operation has already started. "
-"Please, wait for the current download or cancel it before starting a new "
-"one</p>"
-msgstr ""
+#: src/map/Clipboard.js:1354
+msgid "Cancel paste special"
+msgstr "பேச்ட் சிறப்பு ரத்துசெய்"
 
-#: src/map/Clipboard.js:918
-msgid ""
-"<p>Your browser has very limited access to the clipboard</p><p>Please press "
-"now: <kbd>Ctrl</kbd><span class=\"kbd--plus\">+</span><kbd>V</kbd> to see "
-"more options</p><p>Close popup to ignore paste special</p>"
-msgstr ""
+#: src/map/Clipboard.js:1364
+msgid "Your browser has very limited access to the clipboard"
+msgstr "உங்கள் உலாவியில் கிளிப்போர்டுக்கு மிகக் குறைந்த அணுகல் உள்ளது"
 
-#: src/map/Map.js:215
+#: src/map/Clipboard.js:1369
+msgid "Please use following combination to see more options:"
+msgstr "மேலும் விருப்பங்களைக் காண பின்வரும் கலவையைப் பயன்படுத்தவும்:"
+
+#: src/map/Clipboard.js:1387
+msgid "Close popup to ignore paste special"
+msgstr "பேச்ட் ச்பெசலை புறக்கணிக்க பாப்அப் மூடு"
+
+#: src/map/Map.js:216
 msgid "Initializing..."
-msgstr ""
+msgstr "தொடங்குதல் ..."
 
-#: src/map/Map.js:432 src/map/Map.js:435 src/map/Map.js:438 src/map/Map.js:441
+#: src/map/Map.js:461 src/map/Map.js:464 src/map/Map.js:467 src/map/Map.js:470
 msgid "Last saved:"
-msgstr ""
+msgstr "கடைசியாக சேமிக்கப்பட்டது:"
 
-#: src/map/handler/Map.Feedback.js:82
+#: src/map/Map.js:1495
+msgid "Please wait!"
+msgstr "தயவுசெய்து காத்திருங்கள்!"
+
+#: src/map/handler/Map.Feedback.js:86
 msgid "Please send us your feedback"
-msgstr ""
+msgstr "உங்கள் கருத்தை எங்களுக்கு அனுப்புங்கள்"
 
-#: src/map/handler/Map.FileInserter.js:105
-#, javascript-format
+#: src/map/handler/Map.FileInserter.js:123
 msgid ""
-"The file of type: %0 cannot be uploaded to server since the file has no name"
+"The file of type: {0} cannot be uploaded to server since the file has no "
+"name"
 msgstr ""
+"வகையின் கோப்பு: {0 the கோப்புக்கு பெயர் இல்லாததால் சேவையகத்தில் பதிவேற்ற "
+"முடியாது"
 
-#: src/map/handler/Map.FileInserter.js:107
-#, javascript-format
+#: src/map/handler/Map.FileInserter.js:125
 msgid ""
-"The file of type: %0 cannot be uploaded to server since the file is empty"
-msgstr ""
+"The file of type: {0} cannot be uploaded to server since the file is empty"
+msgstr "வகை: {0} கோப்பு காலியாக இருப்பதால் சேவையகத்தில் பதிவேற்ற முடியாது"
 
-#: src/map/handler/Map.FileInserter.js:138
-#, fuzzy
+#: src/map/handler/Map.FileInserter.js:156
 msgid "Uploading..."
-msgstr "ஏற்றப்படுகிறது..."
+msgstr "பதிவேற்றுதல் ..."
 
-#: src/map/handler/Map.FileInserter.js:161
-msgid "Uploading file to server failed with status: %0"
+#: src/map/handler/Map.FileInserter.js:179
+msgid "Uploading file to server failed with status: {0}"
+msgstr "சேவையகத்தில் கோப்பைப் பதிவேற்றுவது நிலையுடன் தோல்வியுற்றது: {0}"
+
+#: src/map/handler/Map.Print.js:44
+msgid "Print dialog"
+msgstr "உரையாடலை அச்சிடுக"
+
+#: src/map/handler/Map.SlideShow.js:55 src/slideshow/SlideShowPresenter.ts:641
+msgid "Empty Slide Show"
+msgstr "வெற்று ச்லைடு காட்சி"
+
+#: src/map/handler/Map.SlideShow.js:163
+#: src/slideshow/SlideShowPresenter.ts:669
+msgid "Windowed Presentation Blocked"
+msgstr "சாளர விளக்கக்காட்சி தடுக்கப்பட்டது"
+
+#: src/map/handler/Map.SlideShow.js:164
+#: src/slideshow/SlideShowPresenter.ts:671
+msgid ""
+"Presentation was blocked. Please allow pop-ups in your browser. This lets "
+"slide shows to be displayed in separated windows, allowing for easy screen "
+"sharing."
 msgstr ""
+"விளக்கக்காட்சி தடுக்கப்பட்டது. உங்கள் உலாவியில் பாப்-அப்களை அனுமதிக்கவும். "
+"இது பிரிக்கப்பட்ட சாளரங்களில் ச்லைடு காட்சிகளைக் காட்ட அனுமதிக்கிறது, இது "
+"எளிதான திரை பகிர்வை அனுமதிக்கிறது."
 
-#: src/map/handler/Map.WOPI.js:147
+#: src/map/handler/Map.SlideShow.js:168
+#: src/slideshow/SlideShowPresenter.ts:468
+msgid "Windowed Presentation: "
+msgstr "சாளர விளக்கக்காட்சி: "
+
+#: src/map/handler/Map.SlideShow.js:198
+#: src/slideshow/SlideShowPresenter.ts:511
+msgid "Presenting in window"
+msgstr "சாளரத்தில் வழங்குதல்"
+
+#: src/map/handler/Map.SlideShow.js:199
+#: src/slideshow/SlideShowPresenter.ts:512
+msgid "Close Presentation"
+msgstr "விளக்கக்காட்சியை மூடு"
+
+#: src/map/handler/Map.SlideShow.js:226
+msgid "Presenting in fullscreen"
+msgstr "முழுத் திரையில் வழங்குதல்"
+
+#: src/map/handler/Map.SlideShow.js:227
+msgid "End Presentation"
+msgstr "இறுதி விளக்கக்காட்சி"
+
+#: src/map/handler/Map.SlideShow.js:291
+#: src/slideshow/SlideShowPresenter.ts:656
+msgid "Already presenting"
+msgstr "ஏற்கனவே வழங்குகிறது"
+
+#: src/map/handler/Map.SlideShow.js:292
+#: src/slideshow/SlideShowPresenter.ts:657
+msgid "You are already presenting this document"
+msgstr "நீங்கள் ஏற்கனவே இந்த ஆவணத்தை முன்வைக்கிறீர்கள்"
+
+#: src/map/handler/Map.SlideShow.js:302
+#: src/slideshow/SlideShowPresenter.ts:694
+msgid "Presentation disabled"
+msgstr "விளக்கக்காட்சி முடக்கப்பட்டுள்ளது"
+
+#: src/map/handler/Map.SlideShow.js:303
+#: src/slideshow/SlideShowPresenter.ts:695
+msgid "Presentation mode has been disabled for this document"
+msgstr "இந்த ஆவணத்திற்கு விளக்கக்காட்சி முறை முடக்கப்பட்டுள்ளது"
+
+#: src/map/handler/Map.VersionBar.js:41
+msgid "Your Collabora Online server needs updating. Version {0} is available."
+msgstr ""
+"உங்கள் ஒத்துழைப்பு நிகழ்நிலை சேவையகத்திற்கு புதுப்பிக்க வேண்டும். பதிப்பு {0}"
+" கிடைக்கிறது."
+
+#: src/map/handler/Map.WOPI.js:161
 msgid "Creating new file from template..."
-msgstr ""
+msgstr "வார்ப்புருவில் இருந்து புதிய கோப்பை உருவாக்குதல் ..."
 
-#: src/map/handler/Map.WOPI.js:484
+#: src/map/handler/Map.WOPI.js:673
 msgid "Error"
-msgstr ""
+msgstr "பிழை"
 
-#: src/map/handler/Map.WOPI.js:484
+#: src/map/handler/Map.WOPI.js:673
 msgid "File name should contain an extension."
+msgstr "கோப்பு பெயரில் நீட்டிப்பு இருக்க வேண்டும்."
+
+#: src/map/handler/Map.WOPI.js:681
+msgid "Creating copy..."
+msgstr "நகலை உருவாக்குதல் ..."
+
+#: src/map/handler/Map.Welcome.js:81
+msgid "Welcome Dialog"
+msgstr "வரவேற்பு உரையாடல்"
+
+#: src/slideshow/PauseTimer.ts:140
+msgid "Pause... ( %SECONDS% )"
+msgstr "இடைநிறுத்தம் ... ( % வினாடிகள் %)"
+
+#: src/slideshow/PresenterConsole.js:29
+msgid "Current Slide"
+msgstr "தற்போதைய ச்லைடு"
+
+#: src/slideshow/PresenterConsole.js:30
+msgid "Next Slide"
+msgstr "அடுத்த ச்லைடு"
+
+#: src/slideshow/PresenterConsole.js:31
+msgid "Previous"
+msgstr "முந்தைய"
+
+#: src/slideshow/PresenterConsole.js:32
+msgid "Next"
+msgstr "அடுத்தது"
+
+#: src/slideshow/PresenterConsole.js:34
+msgid "Slides"
+msgstr "ச்லைடுகள்"
+
+#: src/slideshow/PresenterConsole.js:35
+msgid "Pause"
+msgstr "இடைநிறுத்தம்"
+
+#: src/slideshow/PresenterConsole.js:36
+msgid "Restart"
+msgstr "மறுதொடக்கம்"
+
+#: src/slideshow/PresenterConsole.js:37
+msgid "Resume"
+msgstr "மீண்டும் தொடங்குங்கள்"
+
+#: src/slideshow/PresenterConsole.js:38
+msgid "Go Back"
+msgstr "திரும்பிச் செல்லுங்கள்"
+
+#: src/slideshow/PresenterConsole.js:39
+msgid "Zoom In"
+msgstr "பெரிதாக்கு"
+
+#: src/slideshow/PresenterConsole.js:40
+msgid "Zoom Out"
+msgstr "சிறிதாக்கு"
+
+#: src/slideshow/PresenterConsole.js:1215
+msgid "Slide {0} of {1}"
+msgstr "{1 of இன் {0} ச்லைடு"
+
+#: src/slideshow/PresenterConsole.js:1239
+msgid "No Notes"
+msgstr "குறிப்புகள் இல்லை"
+
+#: src/slideshow/PresenterConsole.js:1327
+msgid "Repeat in {0} seconds"
 msgstr ""
 
-#: src/map/handler/Map.WOPI.js:492
-msgid "Creating copy..."
-msgstr ""
+#: src/slideshow/PresenterConsole.js:1332
+#: src/slideshow/SlideShowPresenter.ts:366
+msgid "Click to exit presentation..."
+msgstr "விளக்கக்காட்சியிலிருந்து வெளியேற சொடுக்கு செய்க ..."
 
 #: welcome/welcome.html%2Bhtml.head.title:9-3
 msgid "Collabora Online Welcome"
-msgstr ""
+msgstr "ஆன்லைனில் வரவேற்பு"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h1:26-7
-msgid "Explore The New %coolVersion"
-msgstr ""
+msgid "Explore The New {coolversion}"
+msgstr "புதிய {coolversion} ஐ ஆராயுங்கள்"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:27-7
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:38-7
 msgid "Collabora Online Development Edition"
-msgstr ""
+msgstr "ஒத்துழைப்பு நிகழ்நிலை மேம்பாட்டு பதிப்பு"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:28-7
 msgid ""
 "Enjoy the latest developments in online productivity, free for you to use, "
-"to explore and to use with others in the browser. Various <a target=\"_blank"
-"\" href=\"https://www.collaboraoffice.com/solutions/collabora-office-"
-"android-ios/\">apps</a> are also available for mobile."
+"to explore and to use with others in the browser. Various <a "
+"target=\"_blank\" href=\"https://www.collaboraonline.com/solutions/"
+"collabora-office-android-ios/\">apps</a> are also available for mobile."
 msgstr ""
+"நிகழ்நிலை உற்பத்தித்திறனில் அண்மைக் கால முன்னேற்றங்களை அனுபவிக்கவும், நீங்கள்"
+" பயன்படுத்த, ஆராய்வது மற்றும் உலாவியில் மற்றவர்களுடன் பயன்படுத்த இலவசம். "
+"பல்வேறு <a இலக்கு = \"_ வெற்று\" href = \"https://www.collaboraonline.com/"
+"solutions/collabora-formice-android-ios/\"> பயன்பாடுகள் </a> மொபைலுக்கும் "
+"கிடைக்கின்றன."
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h1:37-7
 msgid "Discover All The Changes"
-msgstr ""
+msgstr "அனைத்து மாற்றங்களையும் கண்டறியவும்"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:39-7
 msgid ""
-"Check the <a target=\"_blank\" href=\"https://www.collaboraoffice.com/"
-"code-23-05-release-notes/\">release notes</a> and learn all about: The "
+"Check the <a target=\"_blank\" href=\"https://www.collaboraonline.com/"
+"code-24-04-release-notes/\">release notes</a> and learn all about: The "
 "latest Collabora Online Development Edition, aimed at home users and small "
 "teams."
 msgstr ""
+"<A இலக்கு = \"_ வெற்று\" href = \"https://www.collaboraonline.com/"
+"code-24-04-d-04-release-notes/\"> வெளியீட்டு குறிப்புகள் </a> பதிப்பு, வீட்டு"
+" பயனர்கள் மற்றும் சிறிய குழுக்களை இலக்காகக் கொண்டது."
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h1:48-7
 msgid "Get Involved"
-msgstr ""
+msgstr "ஈடுபடுங்கள்"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.h2:49-7
 msgid "https://collaboraonline.github.io/"
-msgstr ""
+msgstr "https://collaboraonline.github.io/"
 
 #: welcome/welcome.html%2Bhtml.body.div.div.div.div.p:50-7
 msgid ""
@@ -2467,13 +3752,59 @@ msgid ""
 "\">filing a bug report</a> with all the essential steps on how to reproduce "
 "it."
 msgstr ""
+"நீங்கள் பங்களிப்பதில் ஆர்வமாக உள்ளீர்களா, ஆனால் எங்கு தொடங்குவது என்று "
+"தெரியவில்லையா? <A target = \"_ glang\" href = \"https://collaboraonline."
+"github.io/post/build-code/\"> படிப்படியான வழிமுறைகள் </a> க்குச் சென்று "
+"புதிதாக குறியீட்டை உருவாக்குங்கள். <A target = \"_ glang\" href = \"https"
+"://collaboraonline.github.io/post/translate/\"> மொழிபெயர்ப்புகள் </a> அல்லது "
+"<a இலக்கு = \"_ வெற்று\" href = \"https மூலம் நீங்கள் உதவலாம் ."
+
+#: welcome/welcome.html%2Bhtml.body.div.div:55-5
+msgid ""
+"<a id=\"slide-1-indicator\" class=\"active\" href=\"#slide-1\" data-"
+"translate=\"true\">1</a> <a id=\"slide-2-indicator\" href=\"#slide-2\" data-"
+"translate=\"true\">2</a> <a id=\"slide-3-indicator\" href=\"#slide-3\" data-"
+"translate=\"true\">3</a>"
+msgstr ""
+"<a ஐடி = \"slide-1-inicator\" வகுப்பு = \"active\" href = \"#slide-1\" data-"
+"translate = \"true\"> 1 </a> <a ஐடி = \"slide-2-Incator\" href = \"#ச்லைடு -"
+"2\" தரவு-மொழிபெயர்ப்பு = \"உண்மை\"> 2 </a> <a ஐடி = \"slide-3-Incator\" href "
+"= \"#slide-3\" Data-translate = \"true\"> 3 </a >"
+
+#~ msgid "Electronic signature..."
+#~ msgstr "மின்னணு கையொப்பம் ..."
+
+#~ msgid "Presentation is paused - main window is hidden"
+#~ msgstr ""
+#~ "விளக்கக்காட்சி இடைநிறுத்தப்பட்டுள்ளது - முதன்மையான சாளரம் மறைக்கப்பட்டுள்ளது"
+
+#~ msgid "Edit"
+#~ msgstr "தொகு"
+
+#~ msgid "RouteToken"
+#~ msgstr "RoutToken"
+
+#~ msgid "ServerId"
+#~ msgstr "சேவையகம்"
+
+#, fuzzy
+#~ msgid "ODF Spreadsheet (.ods)"
+#~ msgstr "ODF விரிதாள் (.ods)"
+
+#, fuzzy
+#~ msgid "ODF Presentation (.odp)"
+#~ msgstr "ODF வழங்கல் (.odp)"
+
+#, fuzzy
+#~ msgid "ODF Text Document (.odt)"
+#~ msgstr "ODF உரை ஆவணம் (.odt)"
+
+#~ msgid "Previous slide"
+#~ msgstr "முந்தைய படவில்லை"
 
 #, fuzzy
 #~ msgid "Start Presentation"
 #~ msgstr "முழுத்திரை வழங்கல்"
-
-#~ msgid "Oops, there is a problem connecting to Collabora Online : "
-#~ msgstr "ஐயோ, லிப்ரெஓபிஸ் ஒன்லைனுடன் இணைவதில் சிக்கல் :  "
 
 #~ msgid "Number of views"
 #~ msgstr "பார்வை எண்ணிக்கை"

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,16 +11,17 @@
 
 #include <config.h>
 
-#include <assert.h>
-#include <unistd.h>
 #include "Ssl.hpp"
+
+#include <common/Log.hpp>
+#include <Util.hpp>
+
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #ifdef __FreeBSD__
 #include <pthread_np.h>
 #endif
-
-#include <sys/syscall.h>
-#include <Util.hpp>
 
 extern "C"
 {
@@ -80,14 +85,34 @@ static inline void lock(int mode, int n, const char* /*file*/, int /*line*/)
 std::unique_ptr<SslContext> ssl::Manager::ServerInstance(nullptr);
 std::unique_ptr<SslContext> ssl::Manager::ClientInstance(nullptr);
 
+static const char* getCABundleFile()
+{
+    // Try the same locations that core's GetCABundleFile will
+    const char* locations[] = {
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/pki/tls/certs/ca-bundle.trust.crt",
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/var/lib/ca-certificates/ca-bundle.pem",
+        "/etc/ssl/cert.pem"
+    };
+    for (const char* location : locations)
+    {
+        if (access(location, R_OK) == 0)
+            return location;
+    }
+    return nullptr;
+}
+
 SslContext::SslContext(const std::string& certFilePath, const std::string& keyFilePath,
                        const std::string& caFilePath, const std::string& cipherList,
                        ssl::CertificateVerification verification)
     : _ctx(nullptr)
     , _verification(verification)
 {
+    LOG_INF("Initializing " << OPENSSL_VERSION_TEXT);
+
     const std::vector<char> rand = Util::rng::getBytes(512);
-    RAND_seed(&rand[0], rand.size());
+    RAND_seed(rand.data(), rand.size());
 
 #if OPENSSL_VERSION_NUMBER >= 0x0907000L && OPENSSL_VERSION_NUMBER < 0x10100003L
     OPENSSL_config(nullptr);
@@ -124,6 +149,16 @@ SslContext::SslContext(const std::string& certFilePath, const std::string& keyFi
     ERR_clear_error();
     SSL_CTX_set_options(_ctx, SSL_OP_ALL);
 
+    if (!getenv("SSL_CERT_FILE"))
+    {
+        const char* bundle = getCABundleFile();
+        if (!bundle)
+            throw std::runtime_error(std::string("Cannot load default CA bundle"));
+        LOG_INF("Using SSL_CERT_FILE of: " << bundle);
+        setenv("SSL_CERT_FILE", bundle, false);
+    }
+    SSL_CTX_set_default_verify_paths(_ctx);
+
     try
     {
         int errCode = 0;
@@ -157,13 +192,19 @@ SslContext::SslContext(const std::string& certFilePath, const std::string& keyFi
             }
         }
 
-        SSL_CTX_set_verify(_ctx, SSL_VERIFY_NONE, nullptr /*&verifyServerCallback*/);
+        const int sslVerifyMode = _verification == ssl::CertificateVerification::Disabled ? SSL_VERIFY_NONE : SSL_VERIFY_PEER;
+        SSL_CTX_set_verify(_ctx, sslVerifyMode, nullptr /*&verifyServerCallback*/);
+
         SSL_CTX_set_cipher_list(_ctx, cipherList.c_str());
         SSL_CTX_set_verify_depth(_ctx, 9);
 
         // The write buffer may re-allocate, and we don't mind partial writes.
-        SSL_CTX_set_mode(_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE |
-                               SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+        // Without auto-retry, when SSL_read processes non-application data,
+        // it would return with WANT_READ even when there is application data to
+        // process. This is reasonable for blocking sockets, but inefficient for
+        // non-blocking ones, wich we use. So we enable auto-retry.
+        SSL_CTX_set_mode(_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+                                   SSL_MODE_AUTO_RETRY);
         SSL_CTX_set_session_cache_mode(_ctx, SSL_SESS_CACHE_OFF);
 
         initDH();

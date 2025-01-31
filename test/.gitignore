@@ -14,3 +14,5 @@ gdb.txt
 ./unithttplib
 run_unit.sh
 run_unit_standalone.sh
+PerformanceMetricsSummary.csv
+updated-chart.fods

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,22 +11,21 @@
 
 #pragma once
 
-#include <chrono>
-#include <memory>
-#include <vector>
-
-#include "common/Common.hpp"
+#include "NetUtil.hpp"
+#include "Socket.hpp"
 #include "common/Log.hpp"
-#include "common/TraceEvent.hpp"
+#include "common/Protocol.hpp"
 #include "common/Unit.hpp"
 #include "common/Util.hpp"
-#include "Socket.hpp"
+#include <limits>
 #include <net/HttpRequest.hpp>
 
-#include <Poco/MemoryStream.h>
-#include <Poco/Net/HTTPRequest.h>
 #include <Poco/Net/HTTPResponse.h>
-#include <Poco/Net/WebSocket.h>
+
+#include <chrono>
+#include <memory>
+#include <string>
+#include <vector>
 
 class WebSocketHandler : public ProtocolHandlerInterface
 {
@@ -37,7 +40,7 @@ private:
     bool _inFragmentBlock;
     /// The security key. Meaningful only for clients.
     const std::string _key;
-    unsigned char _lastFlags; //< The flags in the last frame.
+    unsigned char _lastFlags; ///< The flags in the last frame.
 #endif
 
     std::vector<char> _wsPayload;
@@ -66,16 +69,16 @@ public:
     /// isClient: the instance should behave like a client (true) or like a server (false)
     ///           (from websocket perspective)
     /// isMasking: a client should mask (true) or not (false) outgoing frames
-    WebSocketHandler(bool isClient, bool isMasking)
+    WebSocketHandler(bool isClient, [[maybe_unused]] bool isMasking)
         :
 #if !MOBILEAPP
         _lastPingSentTime(std::chrono::steady_clock::now() -
-                          std::chrono::microseconds(PingFrequencyMicroS) +
+                          PingFrequencyMicroS +
                           std::chrono::microseconds(InitialPingDelayMicroS))
         , _pingTimeUs(0)
         , _isMasking(isClient && isMasking)
         , _inFragmentBlock(false)
-        , _key(isClient ? PublicComputeAccept::generateKey() : std::string())
+        , _key(isClient ? generateKey() : std::string())
         , _lastFlags(0)
         ,
 #endif
@@ -83,9 +86,6 @@ public:
         , _isClient(isClient)
         , _unit(UnitBase::isUnitTesting() ? &UnitBase::get() : nullptr)
     {
-#if MOBILEAPP
-        (void) isMasking;
-#endif
     }
 
     /// Upgrades itself to a websocket directly.
@@ -139,7 +139,7 @@ public:
                    bool isSecure, SocketPoll& poll)
     {
         const std::string hostAndPort = host + ':' + port;
-        LOG_TRC("Web-Socket request: " << hostAndPort);
+        LOGA_TRC(WebSocket, "Web-Socket request: " << hostAndPort);
 
         auto socket = net::connect(host, port, isSecure, shared_from_this());
         if (!socket)
@@ -151,10 +151,8 @@ public:
         onConnect(socket);
 
         req.set("Host", hostAndPort); // Make sure the host is set.
-        req.set("Date", Util::getHttpTimeNow());
-        req.set("User-Agent", HTTP_AGENT_STRING);
 
-        req.set("Connection", "Upgrade");
+        req.header().setConnectionToken(http::Header::ConnectionToken::Upgrade);
         req.set("Upgrade", "websocket");
         req.set("Sec-WebSocket-Version", "13");
         req.set("Sec-WebSocket-Key", getWebSocketKey());
@@ -178,7 +176,7 @@ protected:
 
         _socket = socket;
         setLogContext(socket->getFD());
-        LOG_TRC("Connected to WS Handler " << this);
+        LOGA_TRC(WebSocket, "Connected to WS Handler " << this);
     }
 
     /// Sends WS Close frame to the peer.
@@ -202,27 +200,30 @@ protected:
         // Don't send close-frame more than once.
         if (!_shuttingDown)
         {
-            LOG_TRC("Shutdown websocket, code: " << static_cast<unsigned>(statusCode)
-                                                 << ", message: " << statusMessage);
+            LOGA_TRC(WebSocket, "Shutdown websocket, code: "
+                     << static_cast<unsigned>(statusCode) << ", message: " << statusMessage);
             _shuttingDown = true;
 
-#if !MOBILEAPP
-            const size_t len = statusMessage.size();
-            std::vector<char> buf(2 + len);
-            buf[0] = ((((int)statusCode) >> 8) & 0xff);
-            buf[1] = ((((int)statusCode) >> 0) & 0xff);
-            std::copy(statusMessage.begin(), statusMessage.end(), buf.begin() + 2);
-            const unsigned char flags = WSFrameMask::Fin | static_cast<char>(WSOpCode::Close);
+            if constexpr (!Util::isMobileApp())
+            {
+                const size_t len = statusMessage.size();
+                std::vector<char> buf(2 + len);
+                buf[0] = ((((int)statusCode) >> 8) & 0xff);
+                buf[1] = ((((int)statusCode) >> 0) & 0xff);
+                std::copy(statusMessage.begin(), statusMessage.end(), buf.begin() + 2);
+                const unsigned char flags = WSFrameMask::Fin | static_cast<char>(WSOpCode::Close);
 
-            sendFrame(socket, buf.data(), buf.size(), flags);
-#endif
+                sendFrame(socket, buf.data(), buf.size(), flags);
+            }
         }
     }
 
     void shutdown(bool goingAway, const std::string &statusMessage) override
     {
-        shutdown(goingAway ? WebSocketHandler::StatusCodes::ENDPOINT_GOING_AWAY :
-                 WebSocketHandler::StatusCodes::NORMAL_CLOSE, statusMessage);
+        shutdownImpl(_socket.lock(),
+                     goingAway ? WebSocketHandler::StatusCodes::ENDPOINT_GOING_AWAY :
+                     WebSocketHandler::StatusCodes::NORMAL_CLOSE, statusMessage,
+                     /*hardShutdown=*/ false, /*silentShutdown=*/ false);
     }
 
     void getIOStats(uint64_t &sent, uint64_t &recv) override
@@ -239,17 +240,56 @@ protected:
 
 public:
     void shutdown(const StatusCodes statusCode = StatusCodes::NORMAL_CLOSE,
-                  const std::string& statusMessage = std::string())
+                  const std::string& statusMessage = std::string(),
+                  bool hardShutdown = false)
+    {
+        shutdownImpl(_socket.lock(),
+                     statusCode, statusMessage, hardShutdown, false);
+    }
+
+    /// Don't wait for the remote Websocket to handshake with us; go down fast.
+    void shutdownAfterWriting()
+    {
+        shutdownImpl(_socket.lock(),
+                     WebSocketHandler::StatusCodes::NORMAL_CLOSE, std::string(),
+                     true /* hard async shutdown & close */, false);
+    }
+
+    /// Returns true if the underlying socket is connected.
+    bool isConnected() const
     {
         std::shared_ptr<StreamSocket> socket = _socket.lock();
+        return socket && !socket->isClosed();
+    }
+
+private:
+    void shutdownSilent(const std::shared_ptr<StreamSocket>& socket)
+    {
+        shutdownImpl(socket,
+                     WebSocketHandler::StatusCodes::POLICY_VIOLATION /* ignored */,
+                     std::string(), true /* hard async shutdown & close */, true);
+    }
+
+    void shutdownImpl(const std::shared_ptr<StreamSocket>& socket,
+                      const StatusCodes statusCode,
+                      const std::string& statusMessage,
+                      bool hardShutdown,
+                      bool silentShutdown)
+    {
         if (socket)
         {
-            LOG_TRC("Shutdown: Closing Connection");
-            if (!_shuttingDown)
+            const bool silent = _shuttingDown || silentShutdown;
+            LOGA_TRC(WebSocket, "Shutdown: Closing Connection " << (silent ? "(silent)" : "(coop)"));
+            if (!silent)
                 sendCloseFrame(statusCode, statusMessage);
-            socket->closeConnection();
-            socket->getInBuffer().clear();
+            socket->shutdown();
             socket->ignoreInput();
+            assert(socket->getInBuffer().empty() &&
+                   "Socket buffer must be empty after ignoreInput");
+
+            // force close after writing this message (real shutdown)
+            if (hardShutdown)
+                socket->closeConnection();
         }
 
         _wsPayload.clear();
@@ -258,8 +298,6 @@ public:
 #endif
         _shuttingDown = false;
     }
-
-private:
     bool handleTCPStream(const std::shared_ptr<StreamSocket>& socket)
     {
         assert(socket && "Expected a valid socket instance.");
@@ -273,11 +311,11 @@ private:
 #if !MOBILEAPP
         if (len < 2) // partial read
         {
-            LOG_TRC("Still incomplete WebSocket message, have " << len << " bytes");
+            LOGA_TRC(WebSocket, "Still incomplete WebSocket message, have " << len << " bytes");
             return false;
         }
 
-        unsigned char *p = reinterpret_cast<unsigned char*>(&socket->getInBuffer()[0]);
+        unsigned char *p = reinterpret_cast<unsigned char*>(socket->getInBuffer().data());
         _lastFlags = p[0];
         const bool fin = _lastFlags & 0x80;
         const WSOpCode code = static_cast<WSOpCode>(_lastFlags & 0x0f);
@@ -290,7 +328,7 @@ private:
         {
             if (len < 2 + 2)
             {
-                LOG_TRC("Still incomplete WebSocket message, have " << len << " bytes");
+                LOGA_TRC(WebSocket, "Still incomplete WebSocket message, have " << len << " bytes");
                 return false;
             }
 
@@ -301,7 +339,7 @@ private:
         {
             if (len < 2 + 8)
             {
-                LOG_TRC("Still incomplete WebSocket message, have " << len << " bytes");
+                LOGA_TRC(WebSocket, "Still incomplete WebSocket message, have " << len << " bytes");
                 return false;
             }
             payloadLen = ((((uint64_t)p[9]) <<  0) + (((uint64_t)p[8]) <<  8) +
@@ -312,7 +350,7 @@ private:
             headerLen += 8;
         }
 
-        unsigned char *data, *mask = nullptr;
+        unsigned char *mask = nullptr;
 
         if (hasMask)
         {
@@ -320,9 +358,9 @@ private:
             headerLen += 4;
         }
 
-        if (payloadLen + headerLen > len)
+        if (headerLen > len || payloadLen > len - headerLen)
         { // partial read wait for more data.
-            LOG_TRC("Still incomplete WebSocket frame, have "
+            LOGA_TRC(WebSocket, "Still incomplete WebSocket frame, have "
                     << len << " bytes, frame is " << payloadLen + headerLen << " bytes");
             return false;
         }
@@ -334,11 +372,11 @@ private:
             return true;
         }
 
-        LOG_TRC("Incoming WebSocket data of "
+        LOGA_TRC(WebSocket, "Incoming WebSocket data of "
                 << len << " bytes: "
                 << Util::stringifyHexLine(socket->getInBuffer(), 0, std::min((size_t)32, len)));
 
-        data = p + headerLen;
+        unsigned char *data = p + headerLen;
 
         if (isControlFrame(code))
         {
@@ -348,7 +386,7 @@ private:
 
             readPayload(data, payloadLen, mask, ctrlPayload);
             socket->getInBuffer().eraseFirst(headerLen + payloadLen);
-            LOG_TRC("Incoming WebSocket frame code "
+            LOGA_TRC(WebSocket, "Incoming WebSocket frame code "
                     << static_cast<unsigned>(code) << ", fin? " << fin << ", mask? " << hasMask
                     << ", payload length: " << payloadLen
                     << ", residual socket data: " << socket->getInBuffer().size() << " bytes");
@@ -376,19 +414,19 @@ private:
 
                     _pingTimeUs = std::chrono::duration_cast<std::chrono::microseconds>
                         (std::chrono::steady_clock::now() - _lastPingSentTime).count();
-                    LOG_TRC("Pong received: " << _pingTimeUs << " microseconds");
+                    LOGA_TRC(WebSocket, "Pong received: " << _pingTimeUs << " microseconds");
                     gotPing(code, _pingTimeUs);
                 }
                 break;
             case WSOpCode::Ping:
                 {
                     if (!_isClient)
-                        LOG_ERR("Clients should not send pings, only servers");
+                        LOG_DBG("Clients should not send pings, only servers");
 
                     const auto now = std::chrono::steady_clock::now();
                     _pingTimeUs = std::chrono::duration_cast<std::chrono::microseconds>
                                             (now - _lastPingSentTime).count();
-                    sendPong(now, &ctrlPayload[0], payloadLen, socket);
+                    sendPong(now, ctrlPayload.data(), payloadLen, socket);
                     gotPing(code, _pingTimeUs);
                 }
                 break;
@@ -445,7 +483,7 @@ private:
         //Process data frame
         readPayload(data, payloadLen, mask, _wsPayload);
 #else
-        unsigned char * const p = reinterpret_cast<unsigned char*>(&socket->getInBuffer()[0]);
+        unsigned char * const p = reinterpret_cast<unsigned char*>(socket->getInBuffer().data());
         _wsPayload.insert(_wsPayload.end(), p, p + len);
         const size_t headerLen = 0;
         const size_t payloadLen = len;
@@ -455,8 +493,7 @@ private:
 
 #if !MOBILEAPP
 
-        LOG_TRC(
-            "Incoming WebSocket frame code "
+        LOGA_TRC(WebSocket, "Incoming WebSocket frame code "
             << static_cast<unsigned>(code) << ", fin? " << fin << ", mask? " << hasMask
             << ", payload length: " << payloadLen
             << ", residual socket data: " << socket->getInBuffer().size()
@@ -514,15 +551,16 @@ private:
 
 protected:
     /// Implementation of the ProtocolHandlerInterface.
-    virtual void handleIncomingMessage(SocketDisposition&) override
+    void handleIncomingMessage(SocketDisposition&) override
     {
         std::shared_ptr<StreamSocket> socket = _socket.lock();
 
-#if MOBILEAPP
-        // No separate "upgrade" is going on
-        if (socket && !socket->isWebSocket())
-            socket->setWebSocket();
-#endif
+        if constexpr (Util::isMobileApp())
+        {
+            // No separate "upgrade" is going on
+            if (socket && !socket->isWebSocket())
+                socket->setWebSocket();
+        }
 
         if (!socket)
         {
@@ -548,8 +586,8 @@ protected:
         }
     }
 
-    int getPollEvents(std::chrono::steady_clock::time_point now,
-                      int64_t & timeoutMaxMicroS) override
+    int getPollEvents([[maybe_unused]] std::chrono::steady_clock::time_point now,
+                      [[maybe_unused]] int64_t& timeoutMaxMicroS) override
     {
 #if !MOBILEAPP
         if (!_isClient)
@@ -559,9 +597,6 @@ protected:
             timeoutMaxMicroS
                 = std::min(timeoutMaxMicroS, (int64_t)(PingFrequencyMicroS - timeSincePingMicroS).count());
         }
-#else
-        (void) now;
-        (void) timeoutMaxMicroS;
 #endif
         int events = POLLIN;
         if (_msgHandler && _msgHandler->hasQueuedMessages())
@@ -571,7 +606,7 @@ protected:
 
 #if !MOBILEAPP
 private:
-    /// Send a ping message
+    /// Sends a native control-frame ping or pong message
     void sendPingOrPong(std::chrono::steady_clock::time_point now,
                         const char* data, const size_t len,
                         const WSOpCode code,
@@ -587,34 +622,39 @@ private:
             return;
         }
 
-        LOG_TRC("Sending " << (const char*)(code == WSOpCode::Ping ? " ping" : "pong"));
+        LOGA_TRC(WebSocket, "Sending " << (code == WSOpCode::Ping ? "ping" : "pong"));
         // FIXME: allow an empty payload.
         sendMessage(data, len, code, false);
         _lastPingSentTime = now;
     }
 
 public:
+    /// Sends a native control-frame ping message
     void sendPing(std::chrono::steady_clock::time_point now,
                   const std::shared_ptr<StreamSocket>& socket)
     {
-//        assert(!_isClient);
+        if (_isClient)
+            LOG_DBG("Clients should not send pings, only servers");
         sendPingOrPong(now, "", 1, WSOpCode::Ping, socket);
     }
 
+    /// Sends a native control-frame pong message
     void sendPong(std::chrono::steady_clock::time_point now,
                   const char* data, const size_t len,
                   const std::shared_ptr<StreamSocket>& socket)
     {
+        if (!_isClient)
+            LOG_WRN("Servers should not send pongs, only clients");
         sendPingOrPong(now, data, len, WSOpCode::Pong, socket);
     }
 #endif
 
     /// Do we need to handle a timeout ?
-    void checkTimeout(std::chrono::steady_clock::time_point now) override
+    bool checkTimeout([[maybe_unused]] std::chrono::steady_clock::time_point now) override
     {
 #if !MOBILEAPP
         if (_isClient)
-            return;
+            return false;
 
         const auto timeSincePingMicroS
             = std::chrono::duration_cast<std::chrono::microseconds>(now - _lastPingSentTime);
@@ -624,9 +664,8 @@ public:
             if (socket)
                 sendPing(now, socket);
         }
-#else
-        (void) now;
 #endif
+        return false;
     }
 
 public:
@@ -646,6 +685,11 @@ public:
     int sendMessage(const std::string& msg) const
     {
         return sendTextMessage(msg.c_str(), msg.size());
+    }
+
+    template <std::size_t N> int sendMessage(const char (&msg)[N]) const
+    {
+        return sendTextMessage(msg, N - 1); // Minus the null-terminator.
     }
 
     /// Implementation of the ProtocolHandlerInterface.
@@ -678,6 +722,22 @@ public:
         return sendFrame(socket, data, len, WSFrameMask::Fin | static_cast<unsigned char>(code), flush);
     }
 
+    bool processInputEnabled() const override
+    {
+        std::shared_ptr<StreamSocket> socket = _socket.lock();
+        if (socket)
+            return socket->processInputEnabled();
+
+        return true;
+    }
+
+    void flush()
+    {
+        std::shared_ptr<StreamSocket> socket = _socket.lock();
+        if (socket)
+            socket->flush();
+    }
+
 protected:
 
 #if !MOBILEAPP
@@ -689,22 +749,22 @@ protected:
         char scratch[16];
 
         // All unfragmented frames must have the Fin bit.
-        scratch[slen++] = WSFrameMask::Fin | flags;
+        scratch[slen++] = static_cast<char>(WSFrameMask::Fin | flags);
 
         int maskFlag = _isMasking ? 0x80 : 0;
         if (len < 126)
         {
-            scratch[slen++] = (char)(len | maskFlag);
+            scratch[slen++] = static_cast<char>(len | maskFlag);
         }
         else if (len <= 0xffff)
         {
-            scratch[slen++] = (char)(126 | maskFlag);
+            scratch[slen++] = static_cast<char>(126 | maskFlag);
             scratch[slen++] = static_cast<char>((len >> 8) & 0xff);
             scratch[slen++] = static_cast<char>((len >> 0) & 0xff);
         }
         else
         {
-            scratch[slen++] = (char)(127 | maskFlag);
+            scratch[slen++] = static_cast<char>(127 | maskFlag);
             scratch[slen++] = static_cast<char>((len >> 56) & 0xff);
             scratch[slen++] = static_cast<char>((len >> 48) & 0xff);
             scratch[slen++] = static_cast<char>((len >> 40) & 0xff);
@@ -752,12 +812,14 @@ protected:
     /// Sends a WebSocket frame given the data, length, and flags.
     /// Returns the number of bytes written (including frame overhead) on success,
     /// 0 for closed/invalid socket, and -1 for other errors.
-    int sendFrame(const std::shared_ptr<StreamSocket>& socket,
-                  const char* data, const uint64_t len,
-                  unsigned char flags, bool flush = true) const
+    int sendFrame(const std::shared_ptr<StreamSocket>& socket, const char* data, const uint64_t len,
+                  [[maybe_unused]] unsigned char flags, bool flush = true) const
     {
         if (!socket || data == nullptr || len == 0)
+        {
+            LOG_DBG("Socket or data missing. Cannot send WS frame");
             return -1;
+        }
 
         if (socket->isClosed())
         {
@@ -768,9 +830,9 @@ protected:
         ASSERT_CORRECT_SOCKET_THREAD(socket);
         Buffer& out = socket->getOutBuffer();
 
-        LOG_TRC("WebSocketHandler: Writing " << len << " bytes to #" << socket->getFD()
-                                             << " in addition to " << out.size()
-                                             << " bytes buffered");
+        LOGA_TRC(WebSocket, "WebSocketHandler: Writing " << len << " bytes to #" << socket->getFD()
+                 << " in addition to " << out.size()
+                 << " bytes buffered");
 
 #if ENABLE_DEBUG
         if ((flags & 0xf) == (int)WSOpCode::Text) // utf8 validate
@@ -778,10 +840,29 @@ protected:
             size_t offset = Util::isValidUtf8((unsigned char*)data, len);
             if (offset < len)
             {
-                std::string raw(data, len);
+                std::string hex, raw;
+                if (len < 256)
+                {
+                    raw = std::string(data, len);
+                    hex = "whole string:" + Util::dumpHex(raw);
+                }
+                else
+                {
+                    // 64 bytes before & after ...
+                    size_t cropstart, croplen;
+                    if (offset < 64)
+                        cropstart = 0;
+                    else
+                        cropstart = offset - 64;
+                    croplen = std::min<size_t>(len - cropstart, 128);
+                    assert (cropstart + croplen <= len);
+                    raw = std::string(data + cropstart, croplen);
+                    hex = "msg: "+ COOLProtocol::getAbbreviatedMessage(data, len) +
+                        " string region error at byte " + std::to_string(offset - cropstart) + ": " + Util::dumpHex(raw);
+                };
                 std::cerr << "attempting to send invalid UTF-8 message '" << raw << "' "
                           << " error at offset " << std::hex << "0x" << offset << std::dec
-                          << " bytes, string: " << Util::dumpHex(raw) << "\n";
+                          << " bytes, " << hex << '\n';
                 assert("invalid utf-8 - check Message::detectType()" && false);
             }
         }
@@ -801,8 +882,6 @@ protected:
         // Return the number of bytes we wrote to the *buffer*.
         const size_t size = out.size() - oldSize;
 #else
-        (void) flags;
-
         // We ignore the flush parameter and always flush in the MOBILEAPP case because there is no
         // WebSocket framing, we put the messages as such into the FakeSocket queue.
         flush = true;
@@ -900,26 +979,18 @@ protected:
     }
 
     /// Implementation of the ProtocolHandlerInterface.
-    void dumpState(std::ostream& os) const override;
+    void dumpState(std::ostream& os, const std::string& indent) const override;
 
-    /// To make the protected 'computeAccept' accessible.
-    class PublicComputeAccept final : public Poco::Net::WebSocket
-    {
-    public:
-        static std::string doComputeAccept(const std::string &key)
-        {
-            return computeAccept(key);
-        }
-
-        static std::string generateKey() { return createKey(); }
-    };
+    static std::string generateKey();
+    static std::string computeAccept(const std::string &key);
 
     /// Upgrade the http(s) connection to a websocket.
     template <typename T>
-    void upgradeToWebSocket(const std::shared_ptr<StreamSocket>& socket, const T& req)
+    void upgradeToWebSocket(const std::shared_ptr<StreamSocket>& socket,
+                            [[maybe_unused]] const T& req)
     {
         assert(socket && "Must have a valid socket");
-        LOG_TRC("Upgrading to WebSocket");
+        LOGA_TRC(WebSocket, "Upgrading to WebSocket");
         assert(!socket->isWebSocket());
         assert(!_isClient && "Accepting upgrade requests are done by servers only.");
 
@@ -939,12 +1010,10 @@ protected:
 
         http::Response httpResponse(http::StatusCode::SwitchingProtocols, socket->getFD());
         httpResponse.set("Upgrade", "websocket");
-        httpResponse.set("Connection", "Upgrade");
-        httpResponse.set("Sec-WebSocket-Accept", PublicComputeAccept::doComputeAccept(wsKey));
-        LOG_TRC("Sending WS Upgrade response: " << httpResponse.header().toString());
+        httpResponse.header().setConnectionToken(http::Header::ConnectionToken::Upgrade);
+        httpResponse.set("Sec-WebSocket-Accept", computeAccept(wsKey));
+        LOGA_TRC(WebSocket, "Sending WS Upgrade response: " << httpResponse.header().toString());
         socket->send(httpResponse);
-#else
-        (void) req;
 #endif
         setWebSocket(socket);
     }
@@ -958,8 +1027,8 @@ protected:
 
         Buffer& data = socket->getInBuffer();
 
-        LOG_TRC("Incoming client websocket upgrade response: " << std::string(data.data(),
-                                                                              data.size()));
+        LOGA_TRC(WebSocket, "Incoming client websocket upgrade response: "
+                 << std::string(data.data(), data.size()));
 
         // Consume the incoming data by parsing and processing the body.
         http::Response response(
@@ -967,11 +1036,10 @@ protected:
             {
                 if (response.statusLine().statusCode() == http::StatusCode::SwitchingProtocols &&
                     Util::iequal(response.get("Upgrade"), "websocket") &&
-                    Util::iequal(response.get("Connection", ""), "Upgrade") &&
-                    response.get("Sec-WebSocket-Accept", "") ==
-                        PublicComputeAccept::doComputeAccept(_key))
+                    response.header().getConnectionToken() == http::Header::ConnectionToken::Upgrade &&
+                    response.get("Sec-WebSocket-Accept", "") == computeAccept(_key))
                 {
-                    LOG_TRC("Accepted incoming websocket response");
+                    LOGA_TRC(WebSocket, "Accepted incoming websocket response");
                     setWebSocket(socket);
                 }
                 else
@@ -1014,20 +1082,11 @@ protected:
 #endif
     }
 
-    virtual void enableProcessInput(bool enable = true) override
+    void enableProcessInput(bool enable = true) override
     {
         std::shared_ptr<StreamSocket> socket = _socket.lock();
         if (socket)
             socket->enableProcessInput(enable);
-    }
-
-    virtual bool processInputEnabled() const override
-    {
-        std::shared_ptr<StreamSocket> socket = _socket.lock();
-        if (socket)
-            return socket->processInputEnabled();
-
-        return false;
     }
 
     virtual void gotPing(WSOpCode /* code */, int /* pingTimeUs */)

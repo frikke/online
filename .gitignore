@@ -10,11 +10,12 @@
 .yavide_proj
 .yavide_session
 .vscode
+Doxyfile.cpp.cfg
+doc/cpp/**
 **/.clangd
 **/.cache
 Makefile
 Makefile.in
-coolkitconfig.xcu
 coolwsd.spec
 coolwsd.xml
 aclocal.m4
@@ -54,8 +55,17 @@ test/data/hello-world.odt
 test/data/hello-world.ods
 test/data/hello-world.odp
 test/data/hello-world.odg
+test/data/presets
+test/samples/calc-edit.fods
+test/samples/writer-edit.fodt
+test/samples/impress-edit.fodp
+test/samples/draw-edit.odg
+test/samples/calc-edit.ods
+cypress_test/test/data/presets/user/browsersetting.json
 test/fakesockettest
 test/unithttplib
+test/*.csv
+test/data/presets/user/browsersettings.json
 jsstress
 
 *.o
@@ -82,12 +92,17 @@ browser/admin/jsconfig.json
 browser/dist
 browser/compilets
 browser/typescript_js
+browser/src/layer/tile/CanvasTileWorker.js
 
+coolforkit
+coolforkitns
+coolforkit-caps
+coolforkit-nocaps
+coolforkit-ns
 connect
 lokitclient
 coolwsd
 loolwsd
-coolforkit
 coolmount
 coolmap
 coolconvert
@@ -95,10 +110,12 @@ coolsocketdump
 coolstress
 coolconfig
 loolconfig
-coolforkit-nocaps
 loadtest
 unittest
 clientnb
+libsimd.a
+coolwsd-inproc
+coolbench
 
 # Fuzzer
 *_fuzzer
@@ -121,6 +138,7 @@ ios/Mobile/Info.plist
 ios/Mobile/Fonts
 ios/Mobile/Branding
 ios/Mobile/Resources/Settings.bundle/Root.plist
+ios/Mobile/coolkitconfig.xcu
 
 # symlinks created by configure for the iOS app Xcode project
 lobuilddir-symlink
@@ -131,8 +149,9 @@ zstdlib-symlink
 ICU.dat
 ios/Mobile/Assets.xcassets/AppIcon.appiconset
 
-# iOS app build number
+# build numbers/versions
 BUNDLE-VERSION
+/dist_git_hash
 
 # android stuff
 /android/lib/src/main/assets/dist
@@ -164,3 +183,9 @@ Makecache
 
 # autoconf stuff
 autogen.input
+
+# MacOS file manager metadata
+.DS_Store
+
+# SBOM
+collabora-online-sbom.spdx.json

@@ -1,7 +1,17 @@
 /* -*- js-indent-level: 8 -*- */
 /*
- * L.Control.MobileWizardBuilder used for building the native HTML components
- * from the JSON description provided by the server.
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
+ * L.Control.MobileWizardBuilder used for building the native HTML component
+ * variants for mobile/touch devices from the JSON description provided by the server.
  */
 
 /* global $ _UNO _ JSDialog */
@@ -14,19 +24,32 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 	},
 
 	_overrideHandlers: function() {
-		this._controlHandlers['grid'] = this._gridHandler;
-		this._controlHandlers['frame'] = this._frameHandler;
-		this._controlHandlers['listbox'] = this._listboxControl;
-		this._controlHandlers['checkbox'] = this._checkboxControl;
 		this._controlHandlers['basespinfield'] = this.baseSpinField;
-		this._controlHandlers['radiobutton'] = this._radiobuttonControl;
+		this._controlHandlers['checkbox'] = this._checkboxControl;
+		this._controlHandlers['combobox'] = JSDialog.mobileCombobox;
+		this._controlHandlers['comboboxentry'] = JSDialog.mobileComboboxEntry;
 		this._controlHandlers['edit'] = this._editControl;
-		this._controlHandlers['panel'] = this._panelHandler;
-		this._controlHandlers['toolbox'] = this._toolboxHandler;
+		this._controlHandlers['frame'] = this._frameHandler;
+		this._controlHandlers['grid'] = this._gridHandler;
+		this._controlHandlers['listbox'] = this._listboxControl;
 		this._controlHandlers['mobile-popup-container'] = this._mobilePopupContainer;
-		this._controlHandlers['tabcontrol'] = JSDialog.mobileTabControl;
+		this._controlHandlers['panel'] = this._panelHandler;
 		this._controlHandlers['paneltabs'] = JSDialog.mobilePanelControl;
+		this._controlHandlers['radiobutton'] = this._radiobuttonControl;
 		this._controlHandlers['scrollwindow'] = undefined;
+		this._controlHandlers['submenutabs'] = JSDialog.mobileSubmenuTabControl;
+		this._controlHandlers['tabcontrol'] = JSDialog.mobileTabControl;
+		this._controlHandlers['borderstyle'] = JSDialog.mobileBorderSelector;
+
+		this._controlHandlers['colorlistbox'] = this._colorControl;
+		this._toolitemHandlers['.uno:XLineColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:FontColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:CharBackColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:BackgroundColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:TableCellBackgroundColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:FrameLineColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:Color'] = this._colorControl;
+		this._toolitemHandlers['.uno:FillColor'] = this._colorControl;
 
 		this._toolitemHandlers['.uno:FontworkAlignmentFloater'] = function () { return false; };
 		this._toolitemHandlers['.uno:FontworkCharacterSpacingFloater'] = function () { return false; };
@@ -36,6 +59,7 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		this._toolitemHandlers['.uno:StyleUpdateByExampleimg'] = function () { return false; };
 		this._toolitemHandlers['.uno:StyleNewByExampleimg'] = function () { return false; };
 		this._toolitemHandlers['.uno:LineEndStyle'] = function () { return false; };
+		this._toolitemHandlers['.uno:SetOutline'] = function () { return false; };
 
 		this._toolitemHandlers['.uno:FontworkShapeType'] = this._fontworkShapeControl;
 		this._toolitemHandlers['SelectWidth'] = this._lineWidthControl;
@@ -52,13 +76,11 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		var div = L.DomUtil.create('div', 'spinfieldcontainer', parentContainer);
 		div.id = data.id;
 		controls['container'] = div;
-
-		var commandName = data.id ? data.id.substring('.uno:'.length) : data.id;
+		var commandName = data.id  && data.id.startsWith('.uno:') ? data.id.substring('.uno:'.length) : data.id;
 		if (commandName && commandName.length && L.LOUtil.existsIconForCommand(commandName, builder.map.getDocType())) {
 			var image = L.DomUtil.create('img', 'spinfieldimage', div);
 			var icon = (data.id === 'Transparency') ? builder._createIconURL('settransparency') : builder._createIconURL(data.id);
-			L.LOUtil.setImage(image, icon.split('/').pop(), builder.map.getDocType());
-			image.src = icon;
+			L.LOUtil.setImage(image, icon, builder.map);
 			icon.alt = '';
 		}
 
@@ -256,15 +278,15 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		L.DomUtil.addClass(container, 'radiobutton');
 		L.DomUtil.addClass(container, builder.options.cssClass);
 
+		var radiobuttonLabel = L.DomUtil.create('label', '', container);
+		radiobuttonLabel.textContent = builder._cleanText(data.text);
+		radiobuttonLabel.htmlFor = data.id;
+
 		var radiobutton = L.DomUtil.create('input', '', container);
 		radiobutton.type = 'radio';
 
 		if (data.group)
 			radiobutton.name = data.group;
-
-		var radiobuttonLabel = L.DomUtil.create('label', '', container);
-		radiobuttonLabel.textContent = builder._cleanText(data.text);
-		radiobuttonLabel.htmlFor = data.id;
 
 		if (data.enabled === 'false' || data.enabled === false)
 			$(radiobutton).attr('disabled', 'disabled');
@@ -282,10 +304,14 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		return false;
 	},
 
+	// TODO: remove
 	_editControl: function(parentContainer, data, builder, callback) {
-		var edit = L.DomUtil.create('input', 'ui-edit ' + builder.options.cssClass, parentContainer);
+		var container = L.DomUtil.create('div', 'ui-edit-container ' + builder.options.cssClass, parentContainer);
+		container.id = data.id;
+
+		var edit = L.DomUtil.create('input', 'ui-edit ' + builder.options.cssClass, container);
 		edit.value = builder._cleanText(data.text);
-		edit.id = data.id;
+		edit.id = data.id + '-input';
 		edit.dir = 'auto';
 		if (data.password)
 			edit.type = 'password';
@@ -293,13 +319,14 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		if (data.enabled === 'false' || data.enabled === false)
 			$(edit).prop('disabled', true);
 
+		// TODO: below is not true anymore
 		// we still use non welded sidebar where don't have partial updates
 		// kayup can be used only in welded dialogs
 		edit.addEventListener('change', function() {
 			if (callback)
 				callback(this.value);
 			else
-				builder.callback('edit', 'change', edit, this.value, builder);
+				builder.callback('edit', 'change', container, this.value, builder);
 		});
 
 		edit.addEventListener('click', function(e) {
@@ -504,7 +531,7 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		var selectedColor = null;
 
 		var updateFunction = function (titleSpan) {
-			selectedColor = builder._getCurrentColor(data, builder);
+			selectedColor = JSDialog.getCurrentColor(data, builder);
 			valueNode.style.backgroundColor = selectedColor;
 			if (titleSpan) {
 				if (data.id === 'fillattr')
@@ -524,7 +551,7 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		var autoColorControl = (data.command === '.uno:FontColor' || data.command === '.uno:Color');
 
 		var callback = function(color) {
-			builder._sendColorCommand(builder, data, color);
+			JSDialog.sendColorCommand(builder, data, color);
 		};
 
 		var colorPickerControl = new L.ColorPicker(
@@ -624,21 +651,6 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		return false;
 	},
 
-	_toolboxHandler: function(parentContainer, data, builder) {
-		var toolbox = L.DomUtil.create('div', builder.options.cssClass + ' toolbox level-' + builder._currentDepth, parentContainer);
-		toolbox.id = data.id;
-
-		if (data.enabled === false || data.enabled === 'false') {
-			for (var index in data.children) {
-				data.children[index].enabled = false;
-			}
-		}
-
-		builder.build(toolbox, data.children, false, false);
-
-		return false;
-	},
-
 	_mobilePopupContainer: function(parentContainer, data) {
 		var container = L.DomUtil.create('div', 'mobile-popup-container', parentContainer);
 		container.id = 'popup-' + data.id;
@@ -695,6 +707,49 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 		return count;
 	},
 
+	// some widgets we want to modify / change
+	isHyperlinkTarget: function (builder, data) {
+		return data.type === 'combobox' && (data.id === 'target' || data.id === 'receiver');
+	},
+
+	isFindReplaceComboox: function (builder, data) {
+		return data.type === 'combobox' && (data.id === 'searchterm' || data.id === 'replaceterm');
+	},
+
+	shouldBeListbox: function (builder, data) {
+		return data.type === 'combobox' &&
+			(data.id === 'applystyle' ||
+			data.id === 'fontnamecombobox' ||
+			data.id === 'fontsizecombobox' ||
+			data.id === 'fontsize' ||
+			data.id === 'FontBox');
+	},
+
+	requiresOverwriting: function(builder, data) {
+		if (builder.isHyperlinkTarget(builder, data) ||
+			builder.isFindReplaceComboox(builder, data) ||
+			builder.shouldBeListbox(builder, data))
+			return true;
+
+		return false;
+	},
+
+	overwriteHandler: function(parentContainer, data, builder) {
+		if (builder.isHyperlinkTarget(builder, data) ||
+			builder.isFindReplaceComboox(builder, data)) {
+			// Replace combobox with edit
+			var callback = function(value) {
+				builder.callback('combobox', 'change', data, value, builder);
+			};
+
+			return builder._controlHandlers['edit'](parentContainer, data, builder, callback);
+		} else if (builder.shouldBeListbox(builder, data)) {
+			return builder._listboxControl(parentContainer, data, builder);
+		}
+
+		console.error('It seems widget doesn\'t require overwriting.');
+	},
+
 	build: function(parent, data) {
 		this._modifySidebarNodes(data);
 
@@ -739,9 +794,17 @@ L.Control.MobileWizardBuilder = L.Control.JSDialogBuilder.extend({
 			} else if (childData.children && this._countVisiblePanels(childData.children) == 2) {
 				handler = this._controlHandlers['paneltabs'];
 				processChildren = handler(childObject, childData.children, this);
+			} else if (childType == 'tabcontrol' && childData.children.length > 3) {
+				handler = this._controlHandlers['submenutabs'];
+				handler(childObject, childData, this);
+				this.postProcess(childObject, childData);
+				this.build(childObject, childData.children);
 			} else {
 				if (handler) {
-					processChildren = handler(childObject, childData, this);
+					if (this.requiresOverwriting(this, childData))
+						processChildren = this.overwriteHandler(childObject, childData, this);
+					else
+						processChildren = handler(childObject, childData, this);
 					this.postProcess(childObject, childData);
 				} else
 					window.app.console.warn('JSDialogBuilder: Unsupported control type: "' + childType + '"');

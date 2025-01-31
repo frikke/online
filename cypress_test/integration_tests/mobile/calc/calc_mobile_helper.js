@@ -2,6 +2,8 @@
 
 //warning: after jumbo sheet patch, number of columns become 16000 so if you select whole row and do some operation
 //cypress timeout
+import { addressInputSelector } from "../../common/helper";
+
 function selectFirstRow() {
 	cy.cGet('[id="test-div-row header"]')
 		.then(function(items) {
@@ -13,14 +15,12 @@ function selectFirstRow() {
 				.click(XPos, YPos);
 		});
 
-	cy.cGet('.spreadsheet-cell-resize-marker:nth-of-type(1)')
-		.should('be.visible');
+	cy.cGet('#test-div-cell_selection_handle_start').should('exist');
 
-	cy.cGet('.spreadsheet-cell-resize-marker:nth-of-type(2)')
-		.should('not.be.visible');
+	cy.cGet('#test-div-cell_selection_handle_end').should('exist');
 
 	var regex = /^A1:(AMJ|XFD)1$/;
-	cy.cGet('input#addressInput')
+	cy.cGet(addressInputSelector)
 		.should('have.prop', 'value')
 		.then(function(value) {
 			return regex.test(value);

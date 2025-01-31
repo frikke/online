@@ -1,10 +1,20 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
  * L.Control.JSDialogBuilder used for building the native HTML components
  * from the JSON description provided by the server.
  */
 
-/* global app $ w2ui _ _UNO L JSDialog */
+/* global app $ _ L JSDialog */
 
 L.Control.JSDialogBuilder = L.Control.extend({
 
@@ -42,7 +52,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 	_menuItemHandlers: null,
 	_menus: null,
 	_colorPickers: null,
-	_colorLastSelection: {},
 	_decimal: '.',
 	_minusSign: '-',
 
@@ -51,6 +60,10 @@ L.Control.JSDialogBuilder = L.Control.extend({
 	_responses: {}, // Button id = response
 
 	_currentDepth: 0,
+
+	rendersCache: {
+		fontnamecombobox: { persistent: true, images: [] }
+	}, // eg. custom renders for combobox entries
 
 	setWindowId: function (id) {
 		this.windowId = id;
@@ -61,6 +74,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		this.wizard = options.mobileWizard;
 		this.map = options.map;
 		this.windowId = options.windowId;
+		this.dialogId = null;
 		this.callback = options.callback ? options.callback : this._defaultCallbackHandler;
 
 		this._colorPickers = [];
@@ -71,50 +85,54 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		this._controlHandlers = {};
 		this._controlHandlers['radiobutton'] = this._radiobuttonControl;
+		this._controlHandlers['progressbar'] = JSDialog.progressbar;
 		this._controlHandlers['checkbox'] = this._checkboxControl;
 		this._controlHandlers['basespinfield'] = this.baseSpinField;
 		this._controlHandlers['spinfield'] = this._spinfieldControl;
 		this._controlHandlers['metricfield'] = this._metricfieldControl;
+		this._controlHandlers['time'] = JSDialog.timeField;
 		this._controlHandlers['formattedfield'] = this._formattedfieldControl;
-		this._controlHandlers['edit'] = this._editControl;
+		this._controlHandlers['edit'] = JSDialog.edit;
+		this._controlHandlers['searchedit'] = JSDialog.searchEdit;
 		this._controlHandlers['formulabaredit'] = JSDialog.formulabarEdit;
 		this._controlHandlers['multilineedit'] = JSDialog.multilineEdit;
 		this._controlHandlers['pushbutton'] = this._pushbuttonControl;
 		this._controlHandlers['okbutton'] = this._pushbuttonControl;
 		this._controlHandlers['helpbutton'] = this._pushbuttonControl;
 		this._controlHandlers['cancelbutton'] = this._pushbuttonControl;
-		this._controlHandlers['combobox'] = this._comboboxControl;
-		this._controlHandlers['comboboxentry'] = this._comboboxEntry;
+		this._controlHandlers['combobox'] = JSDialog.combobox;
+		this._controlHandlers['comboboxentry'] = JSDialog.comboboxEntry;
 		this._controlHandlers['listbox'] = this._listboxControl;
 		this._controlHandlers['valueset'] = this._valuesetControl;
 		this._controlHandlers['fixedtext'] = this._fixedtextControl;
+		this._controlHandlers['linkbutton'] = this._linkButtonControl;
 		this._controlHandlers['htmlcontrol'] = this._htmlControl;
 		this._controlHandlers['expander'] = this._expanderHandler;
-		this._controlHandlers['grid'] = this._gridHandler;
+		this._controlHandlers['grid'] = JSDialog.grid;
 		this._controlHandlers['alignment'] = this._alignmentHandler;
-		this._controlHandlers['buttonbox'] = this._buttonBox;
-		this._controlHandlers['frame'] = this._frameHandler;
-		this._controlHandlers['deck'] = this._deckHandler;
-		this._controlHandlers['panel'] = this._panelHandler;
+		this._controlHandlers['buttonbox'] = JSDialog.buttonBox;
+		this._controlHandlers['frame'] = JSDialog.frame;
+		this._controlHandlers['deck'] = JSDialog.deck;
+		this._controlHandlers['panel'] = JSDialog.panel;
 		this._controlHandlers['calcfuncpanel'] = this._calcFuncListPanelHandler;
 		this._controlHandlers['tabcontrol'] = this._tabsControlHandler;
 		this._controlHandlers['tabpage'] = this._tabPageHandler;
 		this._controlHandlers['singlepanel'] = this._singlePanelHandler;
-		this._controlHandlers['container'] = this._containerHandler;
-		this._controlHandlers['dialog'] = this._containerHandler;
-		this._controlHandlers['messagebox'] = this._containerHandler;
-		this._controlHandlers['window'] = this._containerHandler;
+		this._controlHandlers['container'] = JSDialog.container;
+		this._controlHandlers['dialog'] = JSDialog.container;
+		this._controlHandlers['messagebox'] = JSDialog.container;
+		this._controlHandlers['window'] = JSDialog.container;
 		this._controlHandlers['borderwindow'] = this._borderwindowHandler;
-		this._controlHandlers['control'] = this._containerHandler;
+		this._controlHandlers['control'] = JSDialog.container;
 		this._controlHandlers['scrollbar'] = this._ignoreHandler;
-		this._controlHandlers['toolbox'] = this._toolboxHandler;
+		this._controlHandlers['toolbox'] = JSDialog.toolbox;
+		this._controlHandlers['spacer'] = JSDialog.spacer;
 		this._controlHandlers['toolitem'] = this._toolitemHandler;
 		this._controlHandlers['colorsample'] = this._colorSampleControl;
 		this._controlHandlers['divcontainer'] = this._divContainerHandler;
-		this._controlHandlers['colorlistbox'] = this._colorControl;
-		this._controlHandlers['borderstyle'] = this._borderControl;
+		this._controlHandlers['colorlistbox'] = JSDialog.colorPickerButton;
 		this._controlHandlers['treelistbox'] = JSDialog.treeView;
-		this._controlHandlers['iconview'] = this._iconViewControl;
+		this._controlHandlers['iconview'] = JSDialog.iconView;
 		this._controlHandlers['drawingarea'] = JSDialog.drawingArea;
 		this._controlHandlers['rootcomment'] = this._rootCommentControl;
 		this._controlHandlers['comment'] = this._commentControl;
@@ -128,8 +146,12 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		this._controlHandlers['customtoolitem'] = this._mapDispatchToolItem;
 		this._controlHandlers['bigcustomtoolitem'] = this._mapBigDispatchToolItem;
 		this._controlHandlers['calendar'] = JSDialog.calendar;
+		this._controlHandlers['htmlcontent'] = JSDialog.htmlContent;
+		this._controlHandlers['colorpicker'] = JSDialog.colorPicker;
+		this._controlHandlers['dropdown'] = JSDialog.Dropdown;
+		this._controlHandlers['menu'] = JSDialog.treeView;
 
-		this._controlHandlers['mainmenu'] = this._containerHandler;
+		this._controlHandlers['mainmenu'] = JSDialog.container;
 		this._controlHandlers['submenu'] = this._subMenuHandler;
 		this._controlHandlers['menuitem'] = this._menuItemHandler;
 
@@ -137,137 +159,43 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		this._menuItemHandlers['inserttable'] = this._insertTableMenuItem;
 
 		this._toolitemHandlers = {};
-		this._toolitemHandlers['.uno:XLineColor'] = this._colorControl;
-		this._toolitemHandlers['.uno:FontColor'] = this._colorControl;
-		this._toolitemHandlers['.uno:BackColor'] = this._colorControl;
-		this._toolitemHandlers['.uno:CharBackColor'] = this._colorControl;
-		this._toolitemHandlers['.uno:BackgroundColor'] = this._colorControl;
-		this._toolitemHandlers['.uno:FrameLineColor'] = this._colorControl;
-		this._toolitemHandlers['.uno:Color'] = this._colorControl;
-		this._toolitemHandlers['.uno:FillColor'] = this._colorControl;
+		this._toolitemHandlers['.uno:XLineColor'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:FontColor'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:CharBackColor'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:BackgroundColor'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:TableCellBackgroundColor'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:FrameLineColor'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:Color'] = JSDialog.colorPickerButton;
+		this._toolitemHandlers['.uno:FillColor'] = JSDialog.colorPickerButton;
 
 		this._toolitemHandlers['.uno:InsertFormula'] = function () {};
-		this._toolitemHandlers['.uno:SetBorderStyle'] = function () {};
 
-		this._menus = {};
-		this._menus['AutoSumMenu'] = [
-			{text: _('Sum'), uno: '.uno:AutoSum'},
-			{text: _('Average'), uno: '.uno:AutoSum?Function:string=average'},
-			{text: _('Min'), uno: '.uno:AutoSum?Function:string=min'},
-			{text: _('Max'), uno: '.uno:AutoSum?Function:string=max'},
-			{text: _('Count'), uno: '.uno:AutoSum?Function:string=count'}
-		];
-		this._menus['Menu Statistic'] = [
-			{text: _UNO('.uno:SamplingDialog', 'spreadsheet'), uno: '.uno:SamplingDialog'},
-			{text: _UNO('.uno:DescriptiveStatisticsDialog', 'spreadsheet'), uno: '.uno:DescriptiveStatisticsDialog'},
-			{text: _UNO('.uno:AnalysisOfVarianceDialog', 'spreadsheet'), uno: '.uno:AnalysisOfVarianceDialog'},
-			{text: _UNO('.uno:CorrelationDialog', 'spreadsheet'), uno: '.uno:CorrelationDialog'},
-			{text: _UNO('.uno:CovarianceDialog', 'spreadsheet'), uno: '.uno:CovarianceDialog'},
-			{text: _UNO('.uno:ExponentialSmoothingDialog', 'spreadsheet'), uno: '.uno:ExponentialSmoothingDialog'},
-			{text: _UNO('.uno:MovingAverageDialog', 'spreadsheet'), uno: '.uno:MovingAverageDialog'},
-			{text: _UNO('.uno:RegressionDialog', 'spreadsheet'), uno: '.uno:RegressionDialog'},
-			{text: _UNO('.uno:TTestDialog', 'spreadsheet'), uno: '.uno:TTestDialog'},
-			{text: _UNO('.uno:FTestDialog', 'spreadsheet'), uno: '.uno:FTestDialog'},
-			{text: _UNO('.uno:ZTestDialog', 'spreadsheet'), uno: '.uno:ZTestDialog'},
-			{text: _UNO('.uno:ChiSquareTestDialog', 'spreadsheet'), uno: '.uno:ChiSquareTestDialog'},
-			{text: _UNO('.uno:FourierAnalysisDialog', 'spreadsheet'), uno: '.uno:FourierAnalysisDialog'}
-		];
-		this._menus['FormatSparklineMenu'] = [
-			{text: _UNO('.uno:InsertSparkline', 'spreadsheet'), uno: '.uno:InsertSparkline'},
-			{text: _UNO('.uno:DeleteSparkline', 'spreadsheet'), uno: '.uno:DeleteSparkline'},
-			{text: _UNO('.uno:DeleteSparklineGroup', 'spreadsheet'), uno: '.uno:DeleteSparklineGroup'},
-			{text: _UNO('.uno:EditSparklineGroup', 'spreadsheet'), uno: '.uno:EditSparklineGroup'},
-			{text: _UNO('.uno:EditSparkline', 'spreadsheet'), uno: '.uno:EditSparkline'},
-			{text: _UNO('.uno:GroupSparklines', 'spreadsheet'), uno: '.uno:GroupSparklines'},
-			{text: _UNO('.uno:UngroupSparklines', 'spreadsheet'), uno: '.uno:UngroupSparklines'}
-		];
-		this._menus['MenuPrintRanges'] = [
-			{text: _UNO('.uno:DefinePrintArea', 'spreadsheet'), uno: '.uno:DefinePrintArea'},
-			{text: _UNO('.uno:AddPrintArea', 'spreadsheet'), uno: '.uno:AddPrintArea'},
-			{text: _UNO('.uno:EditPrintArea', 'spreadsheet'), uno: '.uno:EditPrintArea'},
-			{text: _UNO('.uno:DeletePrintArea', 'spreadsheet'), uno: '.uno:DeletePrintArea'}
-		];
-		this._menus['MenuRowHeight'] = [
-			{text: _UNO('.uno:RowHeight', 'spreadsheet'), uno: '.uno:RowHeight'},
-			{text: _UNO('.uno:SetOptimalRowHeight', 'spreadsheet'), uno: '.uno:SetOptimalRowHeight'},
-		];
-		this._menus['MenuColumnWidth'] = [
-			{text: _UNO('.uno:ColumnWidth', 'spreadsheet'), uno: '.uno:ColumnWidth'},
-			{text: _UNO('.uno:SetOptimalColumnWidth', 'spreadsheet'), uno: '.uno:SetOptimalColumnWidth'},
-		];
-		this._menus['FormattingMarkMenu'] = [
-			{text: _UNO('.uno:InsertNonBreakingSpace', 'text'), uno: 'InsertNonBreakingSpace'},
-			{text: _UNO('.uno:InsertHardHyphen', 'text'), uno: 'InsertHardHyphen'},
-			{text: _UNO('.uno:InsertSoftHyphen', 'text'), uno: 'InsertSoftHyphen'},
-			{text: _UNO('.uno:InsertZWSP', 'text'), uno: 'InsertZWSP'},
-			{text: _UNO('.uno:InsertWJ', 'text'), uno: 'InsertWJ'},
-			{text: _UNO('.uno:InsertLRM', 'text'), uno: 'InsertLRM'},
-			{text: _UNO('.uno:InsertRLM', 'text'), uno: 'InsertRLM'}
-		];
-		this._menus['FormatMenu'] = [
-			{text: _UNO('.uno:Bold', 'text'), uno: 'Bold'},
-			{text: _UNO('.uno:Italic', 'text'), uno: 'Italic'},
-			{text: _UNO('.uno:Underline', 'text'), uno: 'Underline'},
-			{text: _UNO('.uno:UnderlineDouble', 'text'), uno: 'UnderlineDouble'},
-			{text: _UNO('.uno:Strikeout', 'text'), uno: 'Strikeout'},
-			{text: _UNO('.uno:Overline', 'text'), uno: 'Overline'},
-			{type: 'separator'},
-			{text: _UNO('.uno:SuperScript', 'text'), uno: 'SuperScript'},
-			{text: _UNO('.uno:SubScript', 'text'), uno: 'SubScript'},
-			{type: 'separator'},
-			{text: _UNO('.uno:Shadowed', 'text'), uno: 'Shadowed'},
-			{text: _UNO('.uno:OutlineFont', 'text'), uno: 'OutlineFont'},
-			{type: 'separator'},
-			{text: _UNO('.uno:Grow', 'text'), uno: 'Grow'},
-			{text: _UNO('.uno:Shrink', 'text'), uno: 'Shrink'},
-			{type: 'separator'},
-			{text: _UNO('.uno:ChangeCaseToUpper', 'text'), uno: 'ChangeCaseToUpper'},
-			{text: _UNO('.uno:ChangeCaseToLower', 'text'), uno: 'ChangeCaseToLower'},
-			{text: _UNO('.uno:ChangeCaseRotateCase', 'text'), uno: 'ChangeCaseRotateCase'},
-			{type: 'separator'},
-			{text: _UNO('.uno:ChangeCaseToSentenceCase', 'text'), uno: 'ChangeCaseToSentenceCase'},
-			{text: _UNO('.uno:ChangeCaseToTitleCase', 'text'), uno: 'ChangeCaseToTitleCase'},
-			{text: _UNO('.uno:ChangeCaseToToggleCase', 'text'), uno: 'ChangeCaseToToggleCase'},
-			{type: 'separator'},
-			{text: _UNO('.uno:SmallCaps', 'text'), uno: 'SmallCaps'}
-		];
-		this._menus['FormatBulletsMenu'] = [
-			{text: _UNO('.uno:DefaultBullet', 'text'), uno: 'DefaultBullet'},
-			{type: 'separator'},
-			{text: _UNO('.uno:DecrementLevel', 'text'), uno: 'DecrementLevel'},
-			{text: _UNO('.uno:IncrementLevel', 'text'), uno: 'IncrementLevel'},
-			{text: _UNO('.uno:DecrementSubLevels', 'text'), uno: 'DecrementSubLevels'},
-			{text: _UNO('.uno:IncrementSubLevels', 'text'), uno: 'IncrementSubLevels'},
-			{type: 'separator'},
-			{text: _UNO('.uno:MoveDown', 'text'), uno: 'MoveDown'},
-			{text: _UNO('.uno:MoveUp', 'text'), uno: 'MoveUp'},
-			{text: _UNO('.uno:MoveDownSubItems', 'text'), uno: 'MoveDownSubItems'},
-			{text: _UNO('.uno:MoveUpSubItems', 'text'), uno: 'MoveUpSubItems'},
-			{type: 'separator'},
-			{text: _UNO('.uno:InsertNeutralParagraph', 'text'), uno: 'InsertNeutralParagraph'},
-			{text: _UNO('.uno:NumberingStart', 'text'), uno: 'NumberingStart'},
-			{text: _UNO('.uno:RemoveBullets', 'text'), uno: 'RemoveBullets'},
-			{type: 'separator'},
-			{text: _UNO('.uno:JumpDownThisLevel', 'text'), uno: 'JumpDownThisLevel'},
-			{text: _UNO('.uno:JumpUpThisLevel', 'text'), uno: 'JumpUpThisLevel'},
-			{text: _UNO('.uno:ContinueNumbering', 'text'), uno: 'ContinueNumbering'}
-		];
+		this._menus = JSDialog.MenuDefinitions;
 
 		this._currentDepth = 0;
 
 		if (typeof Intl !== 'undefined') {
-			var formatter = new Intl.NumberFormat(L.Browser.lang);
+		    var formatter, lang;
+		    try {
+			if (app.UI.language.fromURL && app.UI.language.fromURL !== '')
+			    formatter = new Intl.NumberFormat(app.UI.language.fromURL);
+			else
+			    formatter = new Intl.NumberFormat(L.Browser.lang);
+
 			var that = this;
-			formatter.formatToParts(-11.1).map(function(item) {
-				switch (item.type) {
-				case 'decimal':
-					that._decimal = item.value;
-					break;
-				case 'minusSign':
-					that._minusSign = item.value;
-					break;
-				}
+			formatter.formatToParts(-11.1).map(function (item) {
+			     switch (item.type) {
+			     case 'decimal':
+				 that._decimal = item.value;
+				 break;
+			     case 'minusSign':
+				 that._minusSign = item.value;
+				 break;
+			    }
 			});
+		    } catch(e) {
+			    window.app.console.log('Exception parsing lang ' + lang + ' ' + e);
+		    }
 		}
 	},
 
@@ -278,6 +206,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		var inputs = this._container.querySelectorAll('input[type="number"]');
 		for (var item = 0; item < inputs.length; item++) {
+			if (!inputs[item].checkVisibility())
+				continue;
+
 			isValid = inputs[item].reportValidity();
 			if (!isValid)
 				break;
@@ -311,7 +242,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			var handler = builder._toolitemHandlers[data.command];
 			if (handler)
 				handler(parentContainer, data, builder);
-			else if (data.text || data.command) {
+			else if (data.text || data.command || data.postmessage) {
 				builder._unoToolButton(parentContainer, data, builder);
 			} else
 				window.app.console.warn('Unsupported toolitem type: "' + data.command + '"');
@@ -351,6 +282,11 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		window.app.console.debug('control: \'' + objectType + '\' id:\'' + object.id + '\' event: \'' + eventType + '\' state: \'' + data + '\'');
 
+		// if user does action - enter following own cursor mode
+		var viewId = builder.map && builder.map._docLayer ? builder.map._docLayer._getViewId() : -1;
+		if (viewId >= 0)
+			app.setFollowingUser(viewId);
+
 		if (builder.wizard.setCurrentScrollPosition)
 			builder.wizard.setCurrentScrollPosition();
 
@@ -364,18 +300,26 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			// returns docnotloaded error. Instead of this we can return to the integration
 			if (!builder.map._docLoaded &&
 				 !window._firstDialogHandled &&
-				 ((object.id === 'cancel' || eventType === 'close') ||
-				 (objectType === 'responsebutton' && (data == 0 || data == 7)))) {
-				window.onClose();
+				 (eventType === 'close' ||
+				 (objectType === 'responsebutton' && data == 7))) {
+				app.dispatcher.dispatch('closeapp');
 			}
-			data = typeof data === 'string' ? data.replace('"', '\\"') : data;
+			switch (typeof data) {
+			case 'string':
+				// escape backspaces, quotes, newlines, and so on; remove added quotes
+				data = JSON.stringify(data).slice(1, -1);
+				break;
+			case 'object':
+				data = encodeURIComponent(JSON.stringify(data));
+				break;
+			}
 			var windowId = builder.windowId !== null && builder.windowId !== undefined ? builder.windowId :
 				(window.mobileDialogId !== undefined ? window.mobileDialogId :
 					(window.sidebarId !== undefined ? window.sidebarId : -1));
 			var message = 'dialogevent ' + windowId
 					+ ' {\"id\":\"' + object.id
 				+ '\", \"cmd\": \"' + eventType
-				+ '\", \"data\": \"' + (typeof(data) === 'object' ? encodeURIComponent(JSON.stringify(data)) : data)
+				+ '\", \"data\": \"' + data
 				+ '\", \"type\": \"' + objectType + '\"}';
 			app.socket.sendMessage(message);
 			window._firstDialogHandled = true;
@@ -400,8 +344,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		spinfield.tabIndex = '0';
 		controls['spinfield'] = spinfield;
 
-		if (data.labelledBy)
-			spinfield.setAttribute('aria-labelledby', data.labelledBy);
 
 		if (data.unit && data.unit !== ':') {
 			var unit = L.DomUtil.create('span', builder.options.cssClass + ' spinfieldunit', div);
@@ -410,12 +352,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		var getPrecision = function (data) {
 			data = Math.abs(data);
-			var counter = 1;
-
-			while (Math.floor(data * counter) < (data * counter))
-				counter *= 10;
-
-			return 1/counter;
+			var str = '' + data;
+			var dot = str.indexOf('.');
+			return dot > 0 ? 1 / Math.pow(10, str.length - dot - 1) : 1;
 		};
 
 		if (data.min != undefined)
@@ -437,9 +376,12 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			$(spinfield).attr('step', step);
 		}
 
-		if (data.enabled === 'false' || data.enabled === false) {
-			$(spinfield).attr('disabled', 'disabled');
+		if (data.enabled === false) {
+			div.disabled = true;
+			spinfield.setAttribute('disabled', 'true');
 		}
+
+		JSDialog.SynchronizeDisabledState(div, [spinfield]);
 
 		if (data.readOnly === true)
 			$(spinfield).attr('readOnly', 'true');
@@ -448,9 +390,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			$(spinfield).hide();
 
 		spinfield.addEventListener('change', function() {
-			var attrdisabled = $(spinfield).attr('disabled');
+			var isDisabled = div.hasAttribute('disabled');
 			var isValid = this.checkValidity();
-			if (attrdisabled !== 'disabled' && isValid) {
+			if (!isDisabled && isValid) {
 				if (customCallback)
 					customCallback('spinfield', 'change', div, this.value, builder);
 				else
@@ -496,7 +438,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 	},
 
 	_stressAccessKey: function(element, accessKey) {
-		if (!accessKey)
+		if (!accessKey || window.mode.isMobile())
 			return;
 
 		var text = element.textContent;
@@ -509,7 +451,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 	_setAccessKey: function(element, key) {
 		if (key)
-				element.accessKey = key;
+			element.accessKey = key;
 	},
 
 	_getAccessKeyFromText: function(text) {
@@ -528,6 +470,8 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			return '';
 		if (text.endsWith('...'))
 			text = text.slice(0, -3);
+		if (text.endsWith('…'))
+			text = text.slice(0, -1);
 		return text.replace('~', '');
 	},
 
@@ -579,33 +523,13 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return '';
 	},
 
-	_toolboxHandler: function(parentContainer, data, builder) {
-		var toolbox = L.DomUtil.create('div', builder.options.cssClass + ' toolbox', parentContainer);
-		toolbox.id = data.id;
-
-		if (data.enabled === false || data.enabled === 'false') {
-			for (var index in data.children) {
-				data.children[index].enabled = false;
-			}
-		}
-
-		var noLabels = builder.options.noLabelsForUnoButtons;
-		builder.options.noLabelsForUnoButtons = true;
-
-		builder.build(toolbox, data.children, false, false);
-
-		builder.options.noLabelsForUnoButtons = noLabels;
-
-		return false;
-	},
-
 	_borderwindowHandler: function(parentContainer, data, builder) {
 		if (data.visible === false) {
 			for (var i in data.children)
 				data.children[i].visible = false;
 		}
 
-		return builder._containerHandler(parentContainer, data, builder);
+		return JSDialog.container(parentContainer, data, builder);
 	},
 
 	_handleResponses: function(data, builder) {
@@ -616,17 +540,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 				builder._responses[data.responses[i].id] = data.responses[i].response;
 			}
 		}
-	},
-
-	_containerHandler: function(parentContainer, data, builder) {
-		if (data.cols && data.rows) {
-			return builder._gridHandler(parentContainer, data, builder);
-		}
-
-		if (parentContainer && !parentContainer.id)
-			parentContainer.id = data.id;
-
-		return true;
 	},
 
 	// used inside tab control and assistant (chart wizard, where it should create own container)
@@ -641,7 +554,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 	_alignmentHandler: function(parentContainer, data, builder) {
 		L.DomUtil.addClass(parentContainer, 'ui-alignment');
-		return builder._containerHandler(parentContainer, data, builder);
+		return JSDialog.container(parentContainer, data, builder);
 	},
 
 	_ignoreHandler: function() {
@@ -666,126 +579,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return rows + 1;
 	},
 
-	_getGridChild: function(children, row, col) {
-		for (var index in children) {
-			if (parseInt(children[index].top) == row
-				&& parseInt(children[index].left) == col)
-				return children[index];
-		}
-		return null;
-	},
-
-	_gridHandler: function(parentContainer, data, builder) {
-		var rows = builder._getGridRows(data.children);
-		var cols = builder._getGridColumns(data.children);
-
-		var processedChildren = [];
-
-		var table = L.DomUtil.create('div', builder.options.cssClass + ' ui-grid', parentContainer);
-		table.id = data.id;
-
-		var gridRowColStyle = 'grid-template-rows: repeat(' + rows  + ', auto); \
-			grid-template-columns: repeat(' + cols  + ', auto);';
-
-		table.style = gridRowColStyle;
-
-		for (var row = 0; row < rows; row++) {
-			var prevChild = null;
-
-			for (var col = 0; col < cols; col++) {
-				var child = builder._getGridChild(data.children, row, col);
-				var isMergedCell = prevChild && prevChild.width
-					&& parseInt(prevChild.left) + parseInt(prevChild.width) > col;
-
-				if (child) {
-					if (!child.id || child.id === '') // required for postprocess...
-						child.id = table.id + '-cell-' + row + '-' + col;
-
-					var sandbox = L.DomUtil.create('div');
-					builder.build(sandbox, [child], false);
-
-					var control = sandbox.firstChild;
-					if (control) {
-						L.DomUtil.addClass(control, 'ui-grid-cell');
-						table.appendChild(control);
-					}
-
-					processedChildren.push(child);
-					prevChild = child;
-				} else if (!isMergedCell) {
-					// empty placeholder to keep correct order
-					L.DomUtil.create('div', 'ui-grid-cell', table);
-				}
-
-			}
-		}
-
-		for (var i = 0; i < (data.children || []).length; i++) {
-			child = data.children[i];
-			if (processedChildren.indexOf(child) === -1) {
-				sandbox = L.DomUtil.create('div');
-				builder.build(sandbox, [child], false);
-				control = sandbox.firstChild;
-				if (control) {
-					L.DomUtil.addClass(control, 'ui-grid-cell');
-					table.appendChild(control);
-				}
-				processedChildren.push(child);
-			}
-		}
-
-		return false;
-	},
-
-	_buttonBox: function(parentContainer, data, builder) {
-		var container = L.DomUtil.create('div', builder.options.cssClass + ' ui-button-box '
-												+ (data.layoutstyle ? data.layoutstyle : ''), parentContainer);
-		container.id = data.id;
-
-		var isButtonBoxLeft = data.leftaligned === 'true';
-		var leftAlignButtons = [];
-		var rightAlignButton = [];
-
-		for (var i in data.children) {
-			var child = data.children[i];
-			if (child.id === 'help' || isButtonBoxLeft === true)
-				leftAlignButtons.push(child);
-			else
-				rightAlignButton.push(child);
-		}
-
-		var left = L.DomUtil.create('div', builder.options.cssClass + ' ui-button-box-left', container);
-
-		for (i in leftAlignButtons) {
-			child = leftAlignButtons[i];
-			if (builder._controlHandlers[child.type]) {
-				builder._controlHandlers[child.type](left, child, builder);
-				builder.postProcess(left, child);
-			}
-		}
-
-		var right = L.DomUtil.create('div', builder.options.cssClass + ' ui-button-box-right', container);
-		if (data.layoutstyle && data.layoutstyle === 'end')
-			L.DomUtil.addClass(container, 'end');
-
-		for (i in rightAlignButton) {
-			child = rightAlignButton[i];
-			if (builder._controlHandlers[child.type]) {
-				builder._controlHandlers[child.type](right, child, builder);
-				builder.postProcess(right, child);
-			}
-		}
-
-		if (data.vertical === 'true' || data.vertical === true) {
-			left.style.display = 'grid';
-			left.style.margin = 'auto';
-			right.style.display = 'grid';
-			right.style.margin = 'auto';
-		}
-
-		return false;
-	},
-
 	_explorableEntry: function(parentContainer, data, content, builder, valueNode, iconURL, updateCallback) {
 		var mainContainer = L.DomUtil.create('div', 'ui-explorable-entry level-' + builder._currentDepth + ' ' + builder.options.cssClass, parentContainer);
 		if (data && data.id)
@@ -794,8 +587,10 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		var sectionTitle = L.DomUtil.create('div', 'ui-header level-' + builder._currentDepth + ' ' + builder.options.cssClass + ' ui-widget', mainContainer);
 		$(sectionTitle).css('justify-content', 'space-between');
 
-		if (data.enabled === 'false' || data.enabled === false)
-			$(sectionTitle).addClass('disabled');
+		if (data.enabled === 'false' || data.enabled === false) {
+			mainContainer.disabled = true;
+			$(mainContainer).addClass('disabled');
+		}
 
 		var leftDiv = L.DomUtil.create('div', 'ui-header-left', sectionTitle);
 		var titleClass = '';
@@ -808,12 +603,12 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		case 'SdTableDesignPanel':
 		case 'ChartTypePanel':
 		case 'rotation':
-			iconURL = L.LOUtil.getImageURL('lc_'+ sectionTitle.id.toLowerCase() +'.svg', builder.map.getDocType());
+			iconURL = 'lc_'+ sectionTitle.id.toLowerCase() +'.svg';
 			break;
 		}
 		if (iconURL) {
 			var icon = L.DomUtil.create('img', 'menu-entry-icon', leftDiv);
-			L.LOUtil.setImage(icon, iconURL.split('/').pop(), builder.map.getDocType());
+			L.LOUtil.setImage(icon, iconURL, builder.map);
 			icon.alt = '';
 			titleClass = 'menu-entry-with-icon';
 
@@ -856,13 +651,15 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		{
 			$(contentDiv).hide();
 			if (builder.wizard) {
-				if (data.enabled !== 'false' && data.enabled !== false) {
-					$(sectionTitle).click(function(event, data) {
+				$(sectionTitle).click(function(event, data) {
+					if (!mainContainer.hasAttribute('disabled')) {
 						builder.wizard.goLevelDown(mainContainer, data);
 						if (contentNode && contentNode.onshow && !builder.wizard._inBuilding)
 							contentNode.onshow();
-					});
-				} else {
+					}
+				});
+
+				if (mainContainer.hasAttribute('disabled')) {
 					$(arrowSpan).hide();
 				}
 			} else {
@@ -900,12 +697,12 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		if (builder.wizard) {
 			var that = this;
 			var functionName = data.functionName;
-			$(rightDiv).click(function() {
+			$(rightDiv).click(() => {
 				builder.wizard.goLevelDown(mainContainer);
 				if (contentNode.onshow)
 					contentNode.onshow();
 			});
-			$(leftDiv).click(function() {
+			$(leftDiv).click(() => {
 				if (functionName !== '') {
 					app.socket.sendMessage('completefunction name=' + functionName);
 					that.map.fire('closemobilewizard');
@@ -1020,9 +817,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		if (commandName && commandName.length && L.LOUtil.existsIconForCommand(commandName, builder.map.getDocType())) {
 			var iconName = builder._generateMenuIconName(commandName);
 			var iconSpan = L.DomUtil.create('span', 'menu-entry-icon ' + iconName, sectionTitle);
-			var iconURL = builder._createIconURL(iconName, true);
+			iconName = builder._createIconURL(iconName, true);
 			icon = L.DomUtil.create('img', '', iconSpan);
-			L.LOUtil.setImage(icon, iconURL.split('/').pop(), builder.map.getDocType());
+			L.LOUtil.setImage(icon, iconName, builder.map);
 			icon.alt = '';
 			var titleSpan2 = L.DomUtil.create('span', 'menu-entry-with-icon flex-fullwidth', sectionTitle);
 			titleSpan2.innerHTML = title;
@@ -1049,76 +846,10 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		$(contentDiv).hide();
 		if (builder.wizard) {
-			$(sectionTitle).click(function() { builder.wizard.goLevelDown(mainContainer); });
+			$(sectionTitle).click(() => { builder.wizard.goLevelDown(mainContainer); });
 		} else {
 			window.app.console.debug('Builder used outside of mobile wizard: please implement the click handler');
 		}
-	},
-
-	_frameHandler: function(parentContainer, data, builder) {
-		if (data.children.length > 1) {
-			var container = L.DomUtil.create('div', 'ui-frame-container ' + builder.options.cssClass, parentContainer);
-			container.id = data.id;
-
-			var frame = L.DomUtil.create('div', 'ui-frame ' + builder.options.cssClass, container);
-			frame.id = data.id + '-frame';
-			var label = L.DomUtil.create('label', 'ui-frame-label ' + builder.options.cssClass, frame);
-			label.innerText = builder._cleanText(data.children[0].text);
-			label.id = data.children[0].id;
-			if (data.children[0].visible === false)
-				L.DomUtil.addClass(label, 'hidden');
-			builder.postProcess(frame, data.children[0]);
-
-			var frameChildren = L.DomUtil.create('div', 'ui-expander-content ' + builder.options.cssClass, container);
-			frameChildren.id = data.id + '-content';
-			label.htmlFor = frameChildren.id;
-			$(frameChildren).addClass('expanded');
-
-			var children = [];
-			for (var i = 1; i < data.children.length; i++) {
-				children.push(data.children[i]);
-			}
-
-			builder.build(frameChildren, children);
-		} else {
-			return builder._containerHandler(parentContainer, data, builder);
-		}
-
-		return false;
-	},
-
-	_deckHandler: function(parentContainer, data, builder) {
-		var deck = L.DomUtil.create('div', 'deck ' + builder.options.cssClass, parentContainer);
-		deck.id = data.id;
-
-		for (var i = 0; i < data.children.length; i++) {
-			builder.build(deck, [data.children[i]]);
-		}
-
-		return false;
-	},
-
-	_panelHandler: function(parentContainer, data, builder) {
-		// we want to show the contents always, hidden property decides if we collapse the panel
-		if (data.children && data.children.length)
-			data.children[0].visible = true;
-
-		data.type = 'expander';
-		data.children = [{text: data.text}].concat(data.children);
-		data.id = data.id + 'PanelExpander';
-		builder._expanderHandler(parentContainer, data, builder, function() {});
-
-		var expander = $(parentContainer).children('#' + data.id);
-		if (data.hidden === 'true' || data.hidden === true)
-			expander.hide();
-
-		if (data.command) {
-			var iconParent = expander.children('.ui-expander').get(0);
-			var icon = L.DomUtil.create('div', 'ui-expander-icon-right ' + builder.options.cssClass, iconParent);
-			builder._controlHandlers['toolitem'](icon, {type: 'toolitem', command: data.command, icon: builder._createIconURL('morebutton')}, builder);
-		}
-
-		return false;
 	},
 
 	_calcFuncListPanelHandler: function(parentContainer, data, builder) {
@@ -1150,6 +881,80 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		};
 	},
 
+	_rayCastingSensitivity: 10, // Pixels
+
+	_findFocusableParent: function(container, currentElement, element, arrowUp) {
+		if (!element)
+			return null;
+		else if (element.tagName === 'NAV' && arrowUp) {
+			return element;
+		}
+		else if (element.tabIndex === -1 || element.tagName == 'A') {
+			return this._findFocusableParent(container, currentElement, element.parentNode, arrowUp);
+		}
+		else if (container.contains(element) && currentElement !== element && !currentElement.contains(element)) {
+			return element;
+		}
+		else
+			return null;
+	},
+
+	_rayCastToNextElement: function(container, currentElement, boundingRectangle, startX, startY, diffX, diffY, arrowUp) {
+		let count = 0;
+		let foundElement;
+		while (count <= 60) {
+			count++;
+			startX += diffX;
+			startY += diffY;
+
+			foundElement = document.elementFromPoint(startX, startY);
+			foundElement = this._findFocusableParent(container, currentElement, foundElement, arrowUp);
+			if (foundElement) break;
+
+			// If we are here, we'll try secondary and tertiary rays.
+			if (diffX === 0) {
+				foundElement = document.elementFromPoint(boundingRectangle.left, startY);
+				foundElement = this._findFocusableParent(container, currentElement, foundElement, arrowUp);
+				if (foundElement) break;
+
+				foundElement = document.elementFromPoint(boundingRectangle.right, startY);
+				foundElement = this._findFocusableParent(container, currentElement, foundElement, arrowUp);
+				if (foundElement) break;
+			}
+			else if (diffY === 0) {
+				foundElement = document.elementFromPoint(startX, boundingRectangle.top);
+				foundElement = this._findFocusableParent(container, currentElement, foundElement, arrowUp);
+				if (foundElement) break;
+
+				foundElement = document.elementFromPoint(startX, boundingRectangle.bottom);
+				foundElement = this._findFocusableParent(container, currentElement, foundElement, arrowUp);
+				if (foundElement) break;
+			}
+		}
+
+		if (count === 60)
+			return null;
+		else
+			return foundElement;
+	},
+
+	_findNextElementInContainer: function(container, currentElement, direction) {
+		let boundingRectangle = currentElement.getBoundingClientRect();
+		let startX = boundingRectangle.left + (boundingRectangle.right - boundingRectangle.left) / 2;
+		let startY = boundingRectangle.top + (boundingRectangle.bottom - boundingRectangle.top) / 2;
+
+		let diffX = 0;
+		let diffY = 0;
+
+		if (direction === 'ArrowLeft' || direction === 'ArrowRight')
+			diffX = direction === 'ArrowRight' ? (this._rayCastingSensitivity) : (this._rayCastingSensitivity * -1);
+
+		if (direction === 'ArrowUp' || direction === 'ArrowDown')
+			diffY = direction === 'ArrowDown' ? (this._rayCastingSensitivity) : (this._rayCastingSensitivity * -1);
+
+		return this._rayCastToNextElement(container, currentElement, boundingRectangle, startX, startY, diffX, diffY, direction === 'ArrowUp');
+	},
+
 	_tabsControlHandler: function(parentContainer, data, builder, tabTooltip) {
 		if (tabTooltip === undefined) {
 			tabTooltip = '';
@@ -1157,18 +962,18 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		if (data.tabs) {
 			var tabs = 0;
 			for (var tabIdx = 0; data.children && tabIdx < data.children.length; tabIdx++) {
-				if (data.children[tabIdx].type === 'tabpage')
+				if (data.children[tabIdx].type === 'tabpage' || data.vertical)
 					tabs++;
 			}
 			var isMultiTabJSON = tabs > 1;
 
-			var tabWidgetRootContainer = L.DomUtil.create('div', 'ui-tabs-root ' + builder.options.cssClass + ' ui-widget', parentContainer);
+			var tabWidgetRootContainer = L.DomUtil.create('div', 'ui-tabs-root ' + builder.options.cssClass, parentContainer);
 			tabWidgetRootContainer.id = data.id;
 
 			var tabsContainer = L.DomUtil.create('div', 'ui-tabs ' + builder.options.cssClass + ' ui-widget', builder.options.useSetTabs ? undefined : tabWidgetRootContainer);
 			tabsContainer.setAttribute('role', 'tablist');
 
-			var contentsContainer = L.DomUtil.create('div', 'ui-tabs-content ' + builder.options.cssClass + ' ui-widget', tabWidgetRootContainer);
+			var contentsContainer = L.DomUtil.create('div', 'ui-tabs-content ' + builder.options.cssClass, tabWidgetRootContainer);
 
 			var tabs = [];
 			var contentDivs = [];
@@ -1180,10 +985,11 @@ L.Control.JSDialogBuilder = L.Control.extend({
 				var title = builder._cleanText(item.text);
 
 				var tab = L.DomUtil.create('button', 'ui-tab ' + builder.options.cssClass, tabsContainer);
-				tab.id = item.name + '-tab-label';
-				tab.number = item.id - 1;
+				// avoid duplicated ids: we receive plain number from core, append prefix
+				tab.id = Number.isInteger(parseInt(item.id)) ? data.id + '-' + item.id : item.id;
 				tab.textContent = title;
 				tab.setAttribute('role', 'tab');
+				builder._addAriaLabel(tab, item, builder);
 				builder._setAccessKey(tab, builder._getAccessKeyFromText(item.text));
 				builder._stressAccessKey(tab, tab.accessKey);
 
@@ -1227,10 +1033,12 @@ L.Control.JSDialogBuilder = L.Control.extend({
 					builder.wizard.setTabs(tabsContainer, builder);
 
 				tabs.forEach(function (tab, index) {
+					var eventHandler = builder._createTabClick(builder, index, tabs, contentDivs, tabIds);
 					tab.addEventListener('click', function(event) {
-						builder._createTabClick(builder, index, tabs, contentDivs, tabIds)(event);
-						if (data.tabs[index].id - 1 >= 0)
+						eventHandler(event);
+						if (!data.noCoreEvents) {
 							builder.callback('tabcontrol', 'selecttab', tabWidgetRootContainer, index, builder);
+						}
 					});
 				});
 
@@ -1278,6 +1086,60 @@ L.Control.JSDialogBuilder = L.Control.extend({
 					}
 				};
 
+				var moveFocusIntoTabPage = function(tab) {
+					var tabIdx = tabs.indexOf(tab);
+					var currentElement = contentDivs[tabIdx];
+
+					function findFirstFocusableElement(currentNode)
+					{
+						var currentChildNodes = currentNode.childNodes;
+
+						if (currentChildNodes.length <= 0) {
+							return null;
+						}
+
+						for (var childIndex = 0; childIndex < currentChildNodes.length; childIndex++) {
+							var currentChildNode = currentChildNodes[childIndex];
+
+							if (currentChildNode.tabIndex === undefined) {
+								return null;
+							}
+							if (currentChildNode.tabIndex === -1) {
+								var firstFocusableElement = findFirstFocusableElement(currentChildNode);
+
+								if (firstFocusableElement !== null) {
+									return firstFocusableElement;
+								}
+							}
+							else
+							{
+								var classListContainsInvalidClass = false;
+								if (currentChildNode.classList !== undefined) {
+									classListContainsInvalidClass = currentChildNode.classList.contains('hidden') ||
+																	currentChildNode.classList.contains('jsdialog-begin-marker') ||
+																	currentChildNode.classList.contains('jsdialog-end-marker');
+								}
+
+								if (!currentChildNode.disabled && !currentChildNode.hidden && !classListContainsInvalidClass) {
+									var firstFocusableChild = findFirstFocusableElement(currentChildNode);
+									if (firstFocusableChild === null) {
+										return currentChildNode;
+									}
+									else {
+										return firstFocusableChild;
+									}
+								}
+							}
+						}
+
+						return null;
+					}
+
+					var firstFocusableElement = findFirstFocusableElement(currentElement);
+
+					firstFocusableElement.focus();
+				};
+
 				// We are adding this to distinguish "enter" key from real click events.
 				tabs.forEach(function (tab)
 					{
@@ -1291,6 +1153,10 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 							case 'ArrowRight':
 								moveFocusToNextTab(currentTab);
+								break;
+
+							case 'ArrowDown':
+								moveFocusIntoTabPage(currentTab);
 								break;
 
 							case 'Home':
@@ -1333,27 +1199,44 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			for (var tabIdx = 0; tabIdx < data.children.length; tabIdx++) {
 				var tab = data.children[tabIdx];
 
-				if (tab.type !== 'tabpage')
+				if (tab.type !== 'tabpage' && !data.vertical)
 					continue;
 
 				builder.build(contentDivs[tabId], [tab], false, false);
 				tabId++;
 			}
-
-			return false;
 		} else {
 			for (var tabIdx = 0; tabIdx < data.children.length; tabIdx++) {
 				var tab = data.children[tabIdx];
 
-				if (tab.type !== 'tabpage')
+				if (tab.type !== 'tabpage' && !data.vertical)
 					continue;
 
 				builder.build(contentDivs[singleTabId], [tab], false, false);
 				break;
 			}
-
-			return false;
 		}
+
+		if (data.tabs && data.parent.id === 'NotebookBar') {
+			let that = this;
+			contentDivs.forEach(function(tabPage)
+			{
+				tabPage.addEventListener('keydown', function(e) {
+					if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+						var currentElement = e.srcElement;
+						if (!(currentElement.tagName === 'INPUT' || currentElement.tagName === 'TEXTAREA')) {
+							let elementToFocus = this._findNextElementInContainer(document.getElementsByClassName('ui-tabs-content notebookbar')[0], currentElement, e.key);
+							if (elementToFocus && elementToFocus.tagName !== 'NAV')
+								elementToFocus.focus();
+							else if (elementToFocus)
+								document.querySelector('.ui-tab.notebookbar.selected').focus();
+						}
+					}
+				}.bind(that));
+			});
+		}
+
+		return false;
 	},
 
 	_singlePanelHandler: function(parentContainer, data, builder) {
@@ -1386,15 +1269,15 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		var radiobuttonLabel = L.DomUtil.createWithId('label', data.id + '-label', container);
 		radiobuttonLabel.textContent = builder._cleanText(data.text);
-		radiobuttonLabel.htmlFor = data.id;
-
-		radiobutton.setAttribute('aria-labelledby', radiobuttonLabel.id);
+		radiobuttonLabel.htmlFor = data.id + '-input';
 
 		var toggleFunction = function() {
 			builder.callback('radiobutton', 'change', container, this.checked, builder);
 		};
 
-		$(radiobuttonLabel).click(function () {
+		$(radiobuttonLabel).click(() => {
+			if ($(radiobutton).prop('disabled')) return;
+
 			$(radiobutton).prop('checked', true);
 			toggleFunction.bind({checked: true})();
 		});
@@ -1426,24 +1309,26 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		var checkboxLabel = L.DomUtil.create('label', builder.options.cssClass, div);
 		checkboxLabel.id = data.id + '-label';
 		checkboxLabel.textContent = builder._cleanText(data.text);
-		checkboxLabel.htmlFor = data.id;
-
-		checkbox.setAttribute('aria-labelledby', checkboxLabel.id);
+		checkboxLabel.htmlFor = data.id + '-input';
 
 		var toggleFunction = function() {
 			builder.callback('checkbox', 'change', div, this.checked, builder);
 		};
 
 		$(checkboxLabel).click(function () {
-			var status = $(checkbox).is(':checked');
-			$(checkbox).prop('checked', !status);
-			toggleFunction.bind({checked: !status})();
+			if (!div.hasAttribute('disabled')) {
+				var status = $(checkbox).is(':checked');
+				$(checkbox).prop('checked', !status);
+				toggleFunction.bind({checked: !status})();
+			}
 		});
 
-		if (data.enabled === 'false' || data.enabled === false) {
-			$(checkboxLabel).addClass('disabled');
-			$(checkbox).prop('disabled', true);
+		if (data.enabled === false) {
+			div.disabled = true;
+			checkbox.disabled = true;
 		}
+
+		JSDialog.SynchronizeDisabledState(div, [checkbox]);
 
 		checkbox.addEventListener('change', toggleFunction);
 
@@ -1603,12 +1488,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		value = parseFloat(data.value);
 
-		// time formatter or empty field
-		if (data.unit === ':' || (!data.unit && !data.text)) {
-			controls.spinfield.type = undefined;
-			value = data.text;
-		}
-
 		$(controls.spinfield).val(value);
 
 		return false;
@@ -1630,38 +1509,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return false;
 	},
 
-	_editControl: function(parentContainer, data, builder, callback) {
-		var edit = L.DomUtil.create('input', 'ui-edit ' + builder.options.cssClass, parentContainer);
-		edit.value = data.text;
-		edit.id = data.id;
-		edit.dir = 'auto';
-
-		if (data.password === true)
-			edit.type = 'password';
-
-		if (data.enabled === 'false' || data.enabled === false)
-			$(edit).prop('disabled', true);
-
-		edit.addEventListener('keyup', function() {
-			if (callback)
-				callback(this.value);
-			else
-				builder.callback('edit', 'change', edit, this.value, builder);
-		});
-
-		edit.addEventListener('click', function(e) {
-			e.stopPropagation();
-		});
-
-		if (data.hidden)
-			$(edit).hide();
-
-		if (data.placeholder)
-			$(edit).attr('placeholder', data.placeholder);
-
-		return false;
-	},
-
 	_customPushButtonTextForId: function(buttonId) {
 		if (buttonId == 'validref')
 			return _('Select range');
@@ -1673,7 +1520,8 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		if (data.id && data.id === 'changepass' && builder.map['wopi'].IsOwner === false) {
 			data.enabled = false;
 		}
-		var wrapper = L.DomUtil.create('div', '', parentContainer); // need for locking overlay
+		var wrapperClass = window.mode.isMobile() ? '' : 'd-flex justify-content-center';
+		var wrapper = L.DomUtil.create('div', wrapperClass, parentContainer); // need for locking overlay
 		var pushbutton = L.DomUtil.create('button', 'ui-pushbutton ' + builder.options.cssClass, wrapper);
 		pushbutton.id = data.id;
 		builder._setAccessKey(pushbutton, builder._getAccessKeyFromText(data.text));
@@ -1693,11 +1541,14 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		} else if (data.symbol) {
 			L.DomUtil.addClass(pushbutton, 'has-img d-flex align-content-center justify-content-center align-items-center');
 			image = L.DomUtil.create('img', '', pushbutton);
-			L.LOUtil.setImage(image, 'symbol_' + data.symbol + '.svg', builder.map.getDocType());
+			L.LOUtil.setImage(image, 'symbol_' + data.symbol + '.svg', builder.map);
 		} else {
 			pushbutton.innerText = pushbuttonText;
 			builder._stressAccessKey(pushbutton, pushbutton.accessKey);
 		}
+		if (image)
+			image.alt = '';
+
 		if (data.enabled === 'false' || data.enabled === false)
 			$(pushbutton).prop('disabled', true);
 
@@ -1708,11 +1559,63 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		else
 			pushbutton.onclick = builder.callback.bind(builder, 'pushbutton', data.isToggle ? 'toggle' : 'click', pushbutton, data.command, builder);
 
+
+		if (data.labelledBy) {
+			pushbutton.setAttribute('aria-labelledby', data.labelledBy);
+		} else {
+			builder._addAriaLabel(pushbutton, data, builder);
+		}
+
 		builder.map.hideRestrictedItems(data, wrapper, pushbutton);
 		builder.map.disableLockedItem(data, wrapper, pushbutton);
 		if (data.hidden)
 			$(wrapper).hide(); // Both pushbutton and its wrapper needs to be hidden.
 
+		return false;
+	},
+
+	_linkButtonControl: function(parentContainer, data, builder) {
+		var textContent = L.DomUtil.create('label', builder.options.cssClass + " ui-linkbutton", parentContainer);
+
+		if (data.labelFor)
+			textContent.htmlFor = data.labelFor + '-input';
+
+		if (data.text)
+			textContent.textContent = builder._cleanText(data.text);
+		else if (data.html)
+			textContent.innerHTML = data.html;
+
+		var accKey = builder._getAccessKeyFromText(data.text);
+		builder._stressAccessKey(textContent, accKey);
+
+		setTimeout(function () {
+			var labelledControl = document.getElementById(data.labelFor);
+			if (labelledControl) {
+				var target = labelledControl;
+				var input = labelledControl.querySelector('input');
+				if (input)
+					target = input;
+				var select = labelledControl.querySelector('select');
+				if (select)
+					target = select;
+
+				builder._setAccessKey(target, accKey);
+			}
+		}, 0);
+
+		textContent.id = data.id;
+		if (data.style && data.style.length) {
+			L.DomUtil.addClass(textContent, data.style);
+		} else {
+			L.DomUtil.addClass(textContent, 'ui-text');
+		}
+		if (data.hidden)
+			$(textContent).hide();
+
+		var clickFunction = function () {
+				builder.callback('linkbutton', 'click', data, null, builder);
+		};
+		$(textContent).click(clickFunction);
 		return false;
 	},
 
@@ -1724,90 +1627,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		} else if (data.command == '.uno:StyleApply') {
 			data.text = _('Style');
 		}
-	},
-
-	_explorableEditControl: function(parentContainer, data, builder) {
-		var sectionTitle = L.DomUtil.create('div', 'ui-header level-' + builder._currentDepth + ' ' + builder.options.cssClass + ' ui-widget', parentContainer);
-		$(sectionTitle).css('justify-content', 'space-between');
-		if (data && data.id)
-			sectionTitle.id = data.id;
-
-		var leftDiv = L.DomUtil.create('div', 'ui-header-left combobox', sectionTitle);
-
-		var editCallback = function(value) {
-			builder.callback('combobox', 'change', data, value, builder);
-		};
-		builder._controlHandlers['edit'](leftDiv, data, builder, editCallback);
-
-		var rightDiv = L.DomUtil.create('div', 'ui-header-right', sectionTitle);
-
-		var arrowSpan = L.DomUtil.create('span', 'sub-menu-arrow', rightDiv);
-		arrowSpan.textContent = '>';
-
-		var contentDiv = L.DomUtil.create('div', 'ui-content level-' + builder._currentDepth + ' ' + builder.options.cssClass, parentContainer);
-		contentDiv.title = data.text;
-
-		var entries = [];
-		if (data.entries) {
-			for (var index in data.entries) {
-				var style = 'ui-combobox-text';
-				if ((data.selectedEntries && index == data.selectedEntries[0])
-					|| data.entries[index] == data.text) {
-					style += ' selected';
-				}
-
-				var entry = { type: 'comboboxentry', text: data.entries[index], pos: index, parent: data, style: style };
-				entries.push(entry);
-			}
-		}
-
-		var contentNode = {type: 'container', children: entries};
-
-		builder._currentDepth++;
-		builder.build(contentDiv, [contentNode]);
-		builder._currentDepth--;
-
-		if (!data.nosubmenu)
-		{
-			$(contentDiv).hide();
-			if (builder.wizard) {
-				$(sectionTitle).click(function(event, data) {
-					builder.wizard.goLevelDown(contentDiv, data);
-					if (contentNode && contentNode.onshow)
-						contentNode.onshow();
-				});
-			} else {
-				window.app.console.debug('Builder used outside of mobile wizard: please implement the click handler');
-			}
-		}
-		else
-			$(sectionTitle).hide();
-	},
-
-	// todo: implement real combobox with entry field and listbox at the same time
-	_comboboxControl: function(parentContainer, data, builder) {
-		if (data.id === 'searchterm' ||
-			data.id === 'replaceterm') {
-			// Replace combobox with edit in mobile find & replace dialog
-			var callback = function(value) {
-				builder.callback('combobox', 'change', data, value, builder);
-			};
-
-			builder._controlHandlers['edit'](parentContainer, data, builder, callback);
-		} else if (data.id === 'applystyle' ||
-			data.id === 'fontnamecombobox' ||
-			data.id === 'fontsizecombobox' ||
-			data.id === 'fontsize' ||
-			data.id === 'FontBox' ||
-			data.id === 'rotation' ||
-			data.id === 'LB_ANGLE' ||
-			data.id === 'LB_DISTANCE' ||
-			!window.mode.isMobile()) {
-			builder._listboxControl(parentContainer, data, builder);
-		} else if (window.mode.isMobile())
-			builder._explorableEditControl(parentContainer, data, builder);
-		else
-			window.app.console.warn('Unsupported combobox control!');
 	},
 
 	_listboxControl: function(parentContainer, data, builder) {
@@ -1832,15 +1651,18 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		var listboxArrow = L.DomUtil.create('span', builder.options.cssClass + ' ui-listbox-arrow', container);
 		listboxArrow.id = 'listbox-arrow-' + data.id;
 
-		if (data.labelledBy)
-			listbox.setAttribute('aria-labelledby', data.labelledBy);
 
-		if (data.enabled === false || data.enabled === 'false')
-			$(listbox).attr('disabled', 'disabled');
+		if (data.enabled === false) {
+			container.disabled = true;
+			listbox.disabled = true;
+			container.setAttribute('disabled', 'true');
+		}
 
-		$(listbox).change(function() {
-			if ($(this).val())
-				builder.callback('combobox', 'selected', data, $(this).val()+ ';' + $(this).children('option:selected').text(), builder);
+		JSDialog.SynchronizeDisabledState(container, [listbox]);
+
+		$(listbox).change(() => {
+			if ($(listbox).val())
+				builder.callback('combobox', 'selected', data, $(listbox).val()+ ';' + $(listbox).children('option:selected').text(), builder);
 		});
 		var hasSelectedEntry = false;
 		if (typeof(data.entries) === 'object') {
@@ -1875,79 +1697,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return false;
 	},
 
-	_iconViewEntry: function (parentContainer, parentData, entry, builder) {
-		var disabled = parentData.enabled === 'false' || parentData.enabled === false;
-
-		if (entry.separator && (entry.separator === 'true' || entry.separator === true)) {
-			L.DomUtil.create('hr', builder.options.cssClass + ' ui-iconview-separator', parentContainer);
-			return;
-		}
-
-		var entryContainer = L.DomUtil.create('div', builder.options.cssClass + ' ui-iconview-entry', parentContainer);
-		if (entry.selected && (entry.selected === 'true' || entry.selected === true))
-			$(entryContainer).addClass('selected');
-
-		var icon = L.DomUtil.create('div', builder.options.cssClass + ' ui-iconview-icon', entryContainer);
-		var img = L.DomUtil.create('img', builder.options.cssClass, icon);
-		if (entry.image)
-			img.src = entry.image;
-		img.alt = entry.text;
-		if (entry.tooltip)
-			img.title = entry.tooltip;
-		else
-			img.title = entry.text;
-
-		if (!disabled) {
-			var singleClick = parentData.singleclickactivate === 'true' || parentData.singleclickactivate === true;
-			$(entryContainer).click(function() {
-				$('#' + parentData.id + ' .ui-treeview-entry').removeClass('selected');
-				builder.callback('iconview', 'select', parentData, entry.row, builder);
-				if (singleClick) {
-					builder.callback('iconview', 'activate', parentData, entry.row, builder);
-				}
-			});
-			if (!singleClick) {
-				$(entryContainer).dblclick(function() {
-					$('#' + parentData.id + ' .ui-treeview-entry').removeClass('selected');
-					builder.callback('iconview', 'activate', parentData, entry.row, builder);
-				});
-			}
-			builder._preventDocumentLosingFocusOnClick(entryContainer);
-		}
-	},
-
-	_scrollIntoViewBlockOption: function(option) {
-		if (option === 'nearest' || option === 'center') {
-			// compatibility with older firefox
-			var match = window.navigator.userAgent.match(/Firefox\/([0-9]+)\./);
-			var firefoxVer = match ? parseInt(match[1]) : 58;
-			var blockOption = firefoxVer >= 58 ? option : 'start';
-			return blockOption;
-		}
-
-		return option;
-	},
-
-	_iconViewControl: function (parentContainer, data, builder) {
-		var container = L.DomUtil.create('div', builder.options.cssClass + ' ui-iconview', parentContainer);
-		container.id = data.id;
-
-		var disabled = data.enabled === 'false' || data.enabled === false;
-		if (disabled)
-			L.DomUtil.addClass(container, 'disabled');
-
-		for (var i in data.entries) {
-			builder._iconViewEntry(container, data, data.entries[i], builder);
-		}
-
-		var firstSelected = $(container).children('.selected').get(0);
-		var blockOption = builder._scrollIntoViewBlockOption('nearest');
-		if (firstSelected)
-			firstSelected.scrollIntoView({behavior: 'smooth', block: blockOption, inline: 'nearest'});
-
-		return false;
-	},
-
 	_valuesetControl: function (parentContainer, data, builder) {
 		var elem;
 		var image;
@@ -1963,7 +1712,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			if (image) {
 				image = image.substr(0, image.lastIndexOf('.'));
 				image = image.substr(image.lastIndexOf('/') + 1);
-				image = 'url("' + L.LOUtil.getImageURL(image + '.svg', builder.map.getDocType()) + '")';
+				image = 'url("' + L.LOUtil.getImageURL(image + '.svg') + '")';
 			}
 
 			if (image64) {
@@ -1983,28 +1732,11 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return false;
 	},
 
-	_comboboxEntry: function(parentContainer, data, builder) {
-		var comboboxEntry = L.DomUtil.create('p', builder.options.cssClass, parentContainer);
-		comboboxEntry.textContent = builder._cleanText(data.text);
-
-		comboboxEntry.parent = data.parent;
-
-		if (data.style && data.style.length)
-			L.DomUtil.addClass(comboboxEntry, data.style);
-
-		$(comboboxEntry).click(function () {
-			builder.refreshSidebar = true;
-			if (builder.wizard)
-				builder.wizard.goLevelUp();
-			builder.callback('combobox', 'selected', comboboxEntry.parent, data.pos + ';' + comboboxEntry.textContent, builder);
-		});
-	},
-
 	_fixedtextControl: function(parentContainer, data, builder) {
 		var fixedtext = L.DomUtil.create('label', builder.options.cssClass, parentContainer);
 
 		if (data.labelFor)
-			fixedtext.htmlFor = data.labelFor;
+			fixedtext.htmlFor = data.labelFor + '-input';
 
 		if (data.text)
 			fixedtext.textContent = builder._cleanText(data.text);
@@ -2042,19 +1774,13 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return false;
 	},
 
-	_separatorControl: function(parentContainer, data) {
-		// don't create new control, style current parent
-
-		var target = parentContainer.lastChild;
-		if (!target)
-			target = parentContainer;
-
-		L.DomUtil.addClass(target, 'ui-separator');
+	_separatorControl: function(parentContainer, data, builder) {
 		if (data.orientation && data.orientation === 'vertical') {
-			L.DomUtil.addClass(target, 'vertical');
+			var separator = L.DomUtil.create('div', builder.options.cssClass + ' ui-separator vertical', parentContainer);
 		} else {
-			L.DomUtil.addClass(target, 'horizontal');
+			separator = L.DomUtil.create('hr', builder.options.cssClass + ' ui-separator horizontal', parentContainer);
 		}
+		separator.id = data.id;
 
 		return false;
 	},
@@ -2073,7 +1799,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		svgElement.setAttribute('height', '192');
 		// todo: change svg paths color depending on document type
 		svgElement.innerHTML = '<defs> <linearGradient id="spinner-shadow-bottom-linearGradient" x1="131.73" x2="184.28" y1="124.94" y2="177.49" gradientUnits="userSpaceOnUse"> <stop stop-color="#e6e6e6" offset="0"/> <stop stop-color="#ccc" stop-opacity="0" offset="1"/> </linearGradient> <linearGradient id="spinner-shadow-top-linearGradient" x1="130.72" x2="203.26" y1="151.3" y2="118.61" gradientUnits="userSpaceOnUse"> <stop stop-color="#e6e6e6" offset="0"/> <stop stop-color="#b3b3b3" stop-opacity="0" offset="1"/> </linearGradient> <linearGradient id="spinner-paper-linearGradient" x1="166.04" x2="106.19" y1="71.233" y2="36.679" gradientUnits="userSpaceOnUse"> <stop stop-color="#b3d3e5" offset="0"/> <stop stop-color="#d9e9f2" offset="1"/> </linearGradient> <linearGradient id="spinner-paper-fold-linearGradient" x1="167.16" x2="175.12" y1="46.783" y2="51.379" gradientUnits="userSpaceOnUse"> <stop stop-color="#68a7ca" offset="0"/> <stop stop-color="#4290bd" offset="1"/> </linearGradient> <linearGradient id="spinner-inner-left-linearGradient" x1="114.56" x2="142.35" y1="103.94" y2="103.94" gradientUnits="userSpaceOnUse"> <stop stop-color="#4290bd" offset="0"/> <stop stop-color="#4290bd" stop-opacity="0" offset="1"/> </linearGradient> </defs> <g id="spinner-box-g" transform="translate(9.8904)"> <g id="spinner-shadow-g"> <path id="spinner-shadow-top" d="m196.39 151.18 16.366-9.4488-81.829-47.244-16.366 9.4488z" fill="url(#spinner-shadow-top-linearGradient)"/> <path id="spinner-shadow-bottom" d="m130.93 188.98 65.463-37.795 16.366 9.4488-65.463 37.795z" fill="url(#spinner-shadow-bottom-linearGradient)"/> </g> <path id="spinner-box-back" d="m130.93 56.693-65.463 37.795 65.463 37.795 65.463-37.795z" fill="#b4d3e4" fill-opacity=".97667"/> <g> <path id="spinner-box-f-right-bg" d="m130.93 132.28v56.693l65.463-37.795v-56.693z" fill="white"/> <path id="spinner-box-f-right" d="m130.93 132.28v56.693l65.463-37.795v-56.693z" fill="#8ebdd7"/> <path id="spinner-box-f-left" d="m130.93 132.28v56.693l-65.463-37.795v-56.693z" fill="#d9e9f2"/> <path id="spinner-inner-right-bg" d="m81.829 103.94 49.098-28.346 49.098 28.346-49.098 28.346z" fill="white"/> <path id="spinner-inner-right" d="m81.829 103.94 49.098-28.346 49.098 28.346-49.098 28.346z" fill="#68a7ca"/> <path id="spinner-inner-left-bg" d="m130.93 75.591v56.693l-49.098-28.346z" fill="white"/> <path id="spinner-inner-left" d="m130.93 75.591v56.693l-49.098-28.346z" fill="url(#spinner-inner-left-linearGradient)"/> </g> <path id="spinner-handle" d="m114.56 153.07-6.5463 3.7795-32.732-18.898 6.5463-3.7795" fill="none" stroke="#4290bd" stroke-linecap="round" stroke-width="3"/> </g> <g id="spinner-paper-g" transform="translate(9.8904)"> <path id="spinner-paper-bg" d="m130.93 18.898s-14.524 12.927-49.098 28.346l49.098 28.346c16.428-6.7073 29.159-14.202 37.537-19.8 7.5473-5.0432 6.4305-9.2141 6.4305-9.2141-0.42453-2.5692-4.7288-5.0245-4.7288-5.0245z" fill="white"/> <path id="spinner-paper" d="m130.93 18.898s-14.524 12.927-49.098 28.346l49.098 28.346c16.428-6.7073 29.159-14.202 37.537-19.8 7.5473-5.0432 6.4305-9.2141 6.4305-9.2141-0.42453-2.5692-4.7288-5.0245-4.7288-5.0245z" fill="url(#spinner-paper-linearGradient)"/> <path id="spinner-paper-fold-bg" d="m168.46 55.791c7.5473-5.0432-1.2989-9.0071-1.2989-9.0071-0.42453-2.5692 3.0006-5.2315 3.0006-5.2315 4.4877 2.646 4.7288 5.0245 4.7288 5.0245 1.0076 4.4201-6.4305 9.2141-6.4305 9.2141z" fill="white"/> <path id="spinner-paper-fold" d="m168.46 55.791c7.5473-5.0432-1.2989-9.0071-1.2989-9.0071-0.42453-2.5692 3.0006-5.2315 3.0006-5.2315 4.4877 2.646 4.7288 5.0245 4.7288 5.0245 1.0076 4.4201-6.4305 9.2141-6.4305 9.2141z" fill="url(#spinner-paper-fold-linearGradient)"/> </g>';
-		var spinner = L.DomUtil.create('div', builder.options.cssClass + ' spinner-img ' + builder.map.getDocType() + '-doctype', parentContainer);
+		var spinner = L.DomUtil.create('div', builder.options.cssClass + ' spinner-img ', parentContainer);
 		spinner.appendChild(svgElement);
 		spinner.id = data.id;
 
@@ -2106,27 +1832,13 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		return false;
 	},
 
-	_createComment: function(container, data, isRoot) {
+	_createComment: function(container, data) {
 		// Create annotation copy and add it into the container.
+		container.appendChild(data.annotation.sectionProperties.container);
 
-		var annotation = new app.definitions.Comment(data.data, data.id === 'new' ? {noMenu: true} : {}, this);
-		annotation.context = data.annotation.containerObject.context;
-		annotation.documentTopLeft = data.annotation.containerObject.documentTopLeft;
-		annotation.containerObject = data.annotation.containerObject;
-		annotation.sectionProperties.section = annotation;
-		annotation.sectionProperties.commentListSection = data.annotation.sectionProperties.commentListSection;
-		annotation.onInitialize();
-
-		if (this.map.isPermissionEditForComments() || this.map.isEditMode())
-			annotation.sectionProperties.menu.isRoot = isRoot;
-
-		container.appendChild(annotation.sectionProperties.container);
-
-		annotation.show();
-		annotation.update();
-		annotation.setExpanded();
-		annotation.hideMarker();
-		annotation.sectionProperties.annotationMarker = null;
+		data.annotation.show();
+		data.annotation.update();
+		data.annotation.setExpanded();
 	},
 
 	_rootCommentControl: function(parentContainer, data, builder) {
@@ -2148,7 +1860,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		container.annotation = data.annotation;
 		container.id = data.id;
-		builder._createComment(container, data, true);
+		builder._createComment(container, data);
 		if (data.children.length > 1 && mainContainer.id !== 'comment-thread' + data.id)
 		{
 			var numberOfReplies = data.children.length - 1;
@@ -2220,7 +1932,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		}
 
 		$(container).find('.cool-annotation')[0].addEventListener('click', function() {
-			app.sectionContainer.getSectionWithName(L.CSections.CommentList.name).hightlightComment(data.annotation);
+			app.sectionContainer.getSectionWithName(L.CSections.CommentList.name).highlightComment(data.annotation);
 		});
 		return false;
 	},
@@ -2234,13 +1946,13 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		L.DomUtil.addClass(parentContainer, 'content-has-no-comments');
 		var emptyCommentWizard = L.DomUtil.create('figure', 'empty-comment-wizard-container', parentContainer);
 		var imgNode = L.DomUtil.create('img', 'empty-comment-wizard-img', emptyCommentWizard);
-		L.LOUtil.setImage(imgNode, 'lc_showannotations.svg', builder.map.getDocType());
+		L.LOUtil.setImage(imgNode, 'lc_showannotations.svg', builder.map);
 		imgNode.alt = data.text;
 
 		var textNode = L.DomUtil.create('figcaption', 'empty-comment-wizard', emptyCommentWizard);
 		textNode.innerText = data.text;
 		L.DomUtil.create('br', 'empty-comment-wizard', textNode);
-		if (this.map.isPermissionEditForComments()) {
+		if (app.isCommentEditingAllowed()) {
 			var linkNode = L.DomUtil.create('div', 'empty-comment-wizard-link', textNode);
 			linkNode.innerText = _('Insert Comment');
 			linkNode.onclick = builder.map.insertComment.bind(builder.map);
@@ -2265,6 +1977,11 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		}
 
 		var iconURLAliases = {
+			// lc_closemobile.svg is generated when loading in NB mode then
+			// switch to compact mode: 1st hidden element in the top toolbar
+			'closemobile': 'closedocmobile',
+			'file-saveas': 'saveas',
+			'home-search': 'recsearch',
 			'addmb-menu': 'ok',
 			'closetablet': 'view',
 			'defineprintarea': 'menuprintranges',
@@ -2283,6 +2000,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			'fieldtransparency': 'linetransparency',
 			'lb_glow_transparency': 'linetransparency',
 			'settransparency': 'linetransparency',
+			'field_transparency': 'linetransparency',
 			'selectionlanugagedefault': 'updateall',
 			'connectortoolbox': 'connectorlines',
 			'conditionalformatdialog': 'conditionalformatmenu',
@@ -2321,6 +2039,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			'scalignmentpropertypanel': 'aligntop',
 			'hyperlinkdialog': 'inserthyperlink',
 			'remotelink': 'inserthyperlink',
+			'remoteaicontent': 'sdrespageobjs',
 			'openhyperlinkoncursor': 'inserthyperlink',
 			'pageformatdialog': 'pagedialog',
 			'backgroundcolor': 'fillcolor',
@@ -2369,6 +2088,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			'decrementlevel': 'outlineright',
 			'acceptformula': 'ok',
 			'insertannotation': 'shownote',
+			'insertcomment': 'shownote',
+			'objecttitledescription': 'shownote',
+			'namegroup': 'shownote',
 			'incrementindent': 'leftindent',
 			'outlineup': 'moveup',
 			'charttypepanel': 'diagramtype',
@@ -2422,6 +2144,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			'zoterorefresh': 'updateall',
 			'zoterounlink': 'unlinkcitation',
 			'zoteroaddeditbibliography': 'addeditbibliography',
+			'zoteroeditbibliography': 'addeditbibliography',
 			'zoterosetdocprefs': 'formproperties',
 			'sidebardeck.propertydeck' : 'sidebar',
 			// Fix issue #6145 by adding aliases for the PDF and EPUB icons
@@ -2430,12 +2153,20 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			'downloadas-pdf': 'exportpdf',
 			'downloadas-direct-pdf': 'exportdirectpdf',
 			'downloadas-epub': 'exportepub',
+			'languagestatusmenu': 'languagemenu',
+			'cancelsearch': 'cancel',
+			'printoptions': 'print',
+			'togglesheetgrid': 'show',
+			'hamburger-tablet': 'fold',
+			'exportdirectpdf': 'exportpdf',
+			'textcolumnspropertypanel':'entirecolumn',
+			'sidebardeck.stylelistdeck': 'editstyle',
 		};
 		if (iconURLAliases[cleanName]) {
 			cleanName = iconURLAliases[cleanName];
 		}
 
-		return L.LOUtil.getImageURL('lc_' + cleanName + '.svg', this.map.getDocType());
+		return 'lc_' + cleanName + '.svg';
 	},
 
 	// make a class identifier from parent's id by walking up the tree
@@ -2448,11 +2179,22 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			return '';
 	},
 
+	_addAriaLabel(element, data, builder) {
+		if (data.aria)
+			element.setAttribute('aria-label', data.aria.label);
+		else if(data.text)
+			element.setAttribute('aria-label', builder._cleanText(data.text));
+	},
+
 	// Create a DOM node with an identifiable parent class
 	_createIdentifiable : function(type, classNames, parentContainer, data) {
 		return L.DomUtil.create(
 			type, classNames + this._getParentId(data),
 			parentContainer);
+	},
+
+	_isStringCloseToURL : function(str) {
+		return str.indexOf('http') !== -1;
 	},
 
 	_makeIdUnique: function(id) {
@@ -2485,29 +2227,35 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		controls['container'] = div;
 		div.tabIndex = -1;
+		if (data.class)
+			div.classList.add(data.class);
 
 		var isRealUnoCommand = true;
 		var hasPopUp = false;
+		var hasImage = true;
 
 		if (data.text && data.text.endsWith('...')) {
 			data.text = data.text.replace('...', '');
 			hasPopUp = true;
 		}
 
+		if (data && data.image === false) {
+			hasImage = false;
+		}
+
 		if (data.command || data.postmessage === true) {
-			var id = data.id ? data.id : (data.command && data.command !== '') ? data.command : data.text;
+			var id = data.id ? data.id : (data.command && data.command !== '') ? data.command.replace('.uno:', '') : data.text;
 			var isUnoCommand = data.command && data.command.indexOf('.uno:') >= 0;
-			if (isUnoCommand)
-				id = encodeURIComponent(data.command.substr('.uno:'.length));
-			else
-				isRealUnoCommand = false;
+
+			isRealUnoCommand = isUnoCommand;
 
 			if (id)
 				id.replace(/\%/g, '').replace(/\./g, '-').replace(' ', '');
 			else
 				console.warn('_unoToolButton: no id provided');
 
-			L.DomUtil.addClass(div, 'uno' + id);
+			if (data.command)
+				L.DomUtil.addClass(div, data.command.replace(':', '').replace('.', ''));
 
 			if (isRealUnoCommand)
 				id = builder._makeIdUnique(id);
@@ -2515,39 +2263,72 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			div.id = id;
 			data.id = id; // change in input data for postprocess
 
-			var icon = data.icon ? data.icon : builder._createIconURL(data.command);
-			var buttonId = id + 'img';
+			var buttonId = id + '-button';
 
 			button = L.DomUtil.create('button', 'ui-content unobutton', div);
 			button.id = buttonId;
-			builder._setAccessKey(button, builder._getAccessKeyFromText(data.text));
+
+			JSDialog.SynchronizeDisabledState(div, [button]);
+
+			builder._addAriaLabel(button, data, builder);
+
+			if (!data.accessKey)
+				builder._setAccessKey(button, builder._getAccessKeyFromText(data.text));
+			else
+				button.accessKey = data.accessKey;
+
 			if (hasPopUp)
 				button.setAttribute('aria-haspopup', true);
 
-
-			var imagePath = (data.image && !isUnoCommand) ? data.image : icon;
-			var buttonImage = L.DomUtil.create('img', '', button);
-			buttonImage.src = imagePath;
+			if (data.w2icon) {
+				// FIXME: DEPRECATED, this is legacy way to setup icon based on CSS class
+				var buttonImage = L.DomUtil.create('div', 'w2ui-icon ' + data.w2icon, button);
+			}
+			else if (hasImage !== false){
+				if (data.icon) {
+					buttonImage = L.DomUtil.create('img', '', button);
+					this._isStringCloseToURL(data.icon) ? buttonImage.src = data.icon : L.LOUtil.setImage(buttonImage, data.icon, builder.map);
+				}
+				else if (data.image) {
+					buttonImage = L.DomUtil.create('img', '', button);
+					buttonImage.src = data.image;
+				}
+				else {
+					buttonImage = L.DomUtil.create('img', '', button);
+					L.LOUtil.setImage(buttonImage, builder._createIconURL(data.command), builder.map);
+				}
+			} else {
+				buttonImage = false;
+			}
 
 			controls['button'] = button;
 			if (builder.options.noLabelsForUnoButtons !== true) {
 				var label = L.DomUtil.create('label', 'ui-content unolabel', button);
 				label.htmlFor = buttonId;
 				label.textContent = builder._cleanText(data.text);
-				button.setAttribute('alt', label.textContent);
-				buttonImage.alt = label.textContent;
 				builder._stressAccessKey(label, button.accessKey);
 				controls['label'] = label;
 				$(div).addClass('has-label');
 			} else if (builder.options.useInLineLabelsForUnoButtons === true) {
 				$(div).addClass('no-label');
 			} else {
-				div.title = data.text;
-				button.setAttribute('alt', data.text);
-				buttonImage.alt = data.text;
 				builder.map.uiManager.enableTooltip(div);
 				$(div).addClass('no-label');
 			}
+
+			// for Accessibility : graphic elements are located within buttons, the img should receive an empty alt
+			if(button.getAttribute('aria-label')){ // if we already set the aria-label then do not go for image alt attr
+				buttonImage.alt = '';
+			}
+			else if (buttonImage !== false) {
+				if(data.aria) {
+					buttonImage.alt = data.aria.label;
+				} else {
+					buttonImage.alt = builder._cleanText(data.text);
+				}
+			}
+
+			div.setAttribute('data-cooltip', builder._cleanText(data.text));
 
 			if (builder.options.useInLineLabelsForUnoButtons === true) {
 				$(div).addClass('inline');
@@ -2557,7 +2338,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 				controls['label'] = label;
 			}
-
+			var disabled = data.enabled === 'false' || data.enabled === false;
 			if (data.command) {
 				var updateFunction = function() {
 					var items = builder.map['stateChangeHandler'];
@@ -2572,80 +2353,90 @@ L.Control.JSDialogBuilder = L.Control.extend({
 						$(div).removeClass('selected');
 					}
 
-					if (state && state === 'disabled') {
-						if (data.command === '.uno:Paste') {
-							// Fix GitHub issue #5839 and never disable Paste toolbar button
-							// Behave the same as Contol.Menubar and never
-							// disable Paste toolbar button. Native clients
-							// that run LibreOffice locally may send a
-							// "statechanged: .uno:Paste=disabled" message when
-							// opening a document if the system clipboard is
-							// empty, So, we ignore such messages or else the
-							// current document's Paste toolbar button will
-							// never be enabled.
-							$(div).removeClass('disabled');
-							window.app.console.log('do not disable paste based on server side data');
-						} else {
-							$(div).addClass('disabled');
-						}
-					}
-					else {
-						$(div).removeClass('disabled');
-					}
+					if (disabled)
+						div.setAttribute('disabled', 'true');
+					else
+						div.removeAttribute('disabled');
 				};
 
 				updateFunction();
 
 				builder.map.on('commandstatechanged', function(e) {
+					disabled = false;
 					if (e.commandName === data.command)
+					{
+						// in some cases we will get both property like state and disabled
+						// to handle it we will set disable var based on INCOMING info (ex: .uno:ParaRightToLft)
+						disabled = e.disabled || e.state == 'disabled';
 						updateFunction();
+					}
 				}, this);
 			}
 
-			if (data.enabled === 'false' || data.enabled === false)
-				L.DomUtil.addClass(div, 'disabled');
-
-			if (data.selected === true) {
-				$(button).addClass('selected');
-				$(div).addClass('selected');
+			if (disabled) {
+				div.setAttribute('disabled', 'true');
 			}
-			L.LOUtil.checkIfImageExists(buttonImage);
 
+			var selectFn = function() {
+				L.DomUtil.addClass(button, 'selected');
+				L.DomUtil.addClass(div, 'selected');
+			};
+
+			var unSelectFn = function() {
+				L.DomUtil.removeClass(button, 'selected');
+				L.DomUtil.removeClass(div, 'selected');
+			};
+
+			div.onSelect = selectFn;
+			div.onUnSelect = unSelectFn;
+
+			if (data.selected === true)
+				selectFn();
 		} else {
-			button = L.DomUtil.create('label', 'ui-content unolabel', div);
-			button.textContent = builder._cleanText(data.text);
-			controls['label'] = button;
+			var label = L.DomUtil.create('label', 'ui-content unolabel', div);
+			label.textContent = builder._cleanText(data.text);
+			controls['button'] = button;
+			controls['label'] = label;
 		}
 
 		if (options && options.hasDropdownArrow) {
 			$(div).addClass('has-dropdown');
-			var arrow = L.DomUtil.create('i', 'unoarrow', div);
-			controls['arrow'] = arrow;
+			var arrowbackground = L.DomUtil.create('div', 'arrowbackground', div);
+			L.DomUtil.create('i', 'unoarrow', arrowbackground);
+			controls['arrow'] = arrowbackground;
 		} else if (data.dropdown === true) {
 			$(div).addClass('has-dropdown');
 			var arrowbackground = L.DomUtil.create('div', 'arrowbackground', div);
-			var arrow = L.DomUtil.create('i', 'unoarrow', arrowbackground);
-			controls['arrow'] = arrow;
-			var menuIsOpened = false;
-			$(arrowbackground).click(function (event) {
-				if (!$(div).hasClass('disabled')) {
-					if (menuIsOpened) {
-						builder.callback('toolbox', 'closemenu', parentContainer, data.command, builder);
-						menuIsOpened = false;
-						$(div).removeClass('menu-opened');
-					} else {
-						menuIsOpened = true;
-						builder.callback('toolbox', 'openmenu', parentContainer, data.command, builder);
-						$(div).addClass('menu-opened');
-					}
+			L.DomUtil.create('i', 'unoarrow', arrowbackground);
+			arrowbackground.tabIndex = '0';
+			controls['arrow'] = arrowbackground;
 
-					event.stopPropagation();
+			// Attach event listeners for both 'click' and 'keydown'
+			arrowbackground.addEventListener('click', function (event) {
+				openToolBoxMenu(event, div);
+			});
+			arrowbackground.addEventListener('keydown', function (event) {
+				switch (event.key) {
+					case 'Enter':
+						openToolBoxMenu(event, div);
+						break;
 				}
 			});
+
+			div.closeDropdown = function() {
+				builder.callback('toolbox', 'closemenu', parentContainer, data.command, builder);
+			};
 		}
 
-		$(div).on('click.toolbutton',function (e) {
-			if (!$(div).hasClass('disabled')) {
+		var openToolBoxMenu = function(event, div) {
+			if (!div.hasAttribute('disabled')) {
+				builder.callback('toolbox', 'openmenu', parentContainer, data.command, builder);
+				event.stopPropagation();
+			}
+		};
+
+		var clickFunction = function (e) {
+			if (!div.hasAttribute('disabled')) {
 				builder.refreshSidebar = true;
 				if (data.postmessage)
 					builder.map.fire('postMessage', {msgId: 'Clicked_Button', args: {Id: data.id} });
@@ -2656,7 +2447,28 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			}
 			e.preventDefault();
 			e.stopPropagation();
+		};
+
+		var mouseEnterFunction = window.touch.mouseOnly(function () {
+			if (builder.map.tooltip)
+				builder.map.tooltip.beginShow(div);
 		});
+
+		var mouseLeaveFunction = function () {
+			if (builder.map.tooltip)
+				builder.map.tooltip.beginHide(div);
+		};
+
+		$(controls.button).on('click', clickFunction);
+		$(controls.label).on('click', clickFunction);
+		// We need a way to also handle the cutom tooltip for any tool button like save in shortcut bar
+		if (data.isCustomTooltip) {
+			this._handleCutomTooltip(div, builder);
+		}
+		else {
+			$(div).on('mouseenter', mouseEnterFunction);
+			$(div).on('mouseleave', mouseLeaveFunction);
+		}
 
 		div.addEventListener('keydown', function(e) {
 			switch (e.key) {
@@ -2669,12 +2481,27 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		builder._preventDocumentLosingFocusOnClick(div);
 
 		if (data.enabled === 'false' || data.enabled === false)
-			$(button).prop('disabled', true);
+			div.setAttribute('disabled', 'true');
 
 		builder.map.hideRestrictedItems(data, controls['container'], controls['container']);
 		builder.map.disableLockedItem(data, controls['container'], controls['container']);
 
 		return controls;
+	},
+
+	_handleCutomTooltip: function(elem, builder) {
+		switch (elem.id) {
+			case 'save':
+				$(elem).on('mouseenter', window.touch.mouseOnly(function() {
+					if (builder.map.tooltip)
+						builder.map.tooltip.show(elem, builder.map.getLastModDateValue()); // Show the tooltip with the correct content
+				}));
+
+				$(elem).on('mouseleave', function() {
+					if (builder.map.tooltip)
+						builder.map.tooltip.hide(elem);
+				});
+		}
 	},
 
 	_mapDispatchToolItem: function (parentContainer, data, builder) {
@@ -2683,7 +2510,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		if (data.id && data.id !== 'exportas' && data.id.startsWith('export')) {
 			var format = data.id.substring('export'.length);
-			builder.map._docLayer.registerExportFormat(data.text, format);
+			app.registerExportFormat(data.text, format);
 
 			if (builder.map['wopi'].HideExportOption)
 				return false;
@@ -2699,10 +2526,40 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		if (data.inlineLabel !== undefined)
 			builder.options.useInLineLabelsForUnoButtons = backupInlineText;
 
-		$(control.container).unbind('click.toolbutton');
+		$(control.button).unbind('click');
+		$(control.label).unbind('click');
+
 		if (!builder.map.isLockedItem(data)) {
+			var handlePressAndHold = function(data) {
+				const scrollingInterval = setInterval(function () {
+					app.dispatcher.dispatch(data.command);
+				}, 100);
+
+				$(document).one('mouseup', function () {
+					clearInterval(scrollingInterval);
+				});
+			};
+
+			// Handle "Press+Hold" Event
+			if (data.pressAndHold) {
+				$(control.container).on('mousedown', (e) => {
+					if (e.button !== 0 // Only handle left mouse button
+						|| control.container.getAttribute('disabled') !== null)
+						return;
+
+					const pressAndHoldTimer = setTimeout(() => {
+						handlePressAndHold(data);
+					}, 500);
+
+					$(document).one('mouseup', () => {
+						clearTimeout(pressAndHoldTimer);
+					});
+				});
+			}
+
 			$(control.container).click(function () {
-				builder.map.dispatch(data.command);
+				if (control.container.getAttribute('disabled') === null)
+					app.dispatcher.dispatch(data.command);
 			});
 		}
 
@@ -2720,10 +2577,13 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		builder.options.noLabelsForUnoButtons = noLabels;
 
-		$(control.container).unbind('click.toolbutton');
+		$(control.button).unbind('click');
+		$(control.label).unbind('click');
+
 		if (!builder.map.isLockedItem(data)) {
-			$(control.container).click(function () {
-				builder.map.dispatch(data.command);
+			$(control.container).click(function (e) {
+				e.preventDefault();
+				app.dispatcher.dispatch(data.command);
 			});
 		}
 
@@ -2746,18 +2606,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		}
 		builder._setupHandlers(divElem, data.handlers);
 		return false;
-	},
-
-	setPickerOutline: function(bgColor) {
-		// Make sure the border around the color indicator is not too bright
-		// when the color is black so to avoid weird contast artifacts
-		if (bgColor) {
-			if (bgColor.style.backgroundColor == '#000000' || bgColor.style.backgroundColor == 'rgb(0, 0, 0)') {
-				bgColor.style.borderColor = '#6a6a6a';
-			} else {
-				bgColor.style.borderColor = 'var(--color-border)';
-			}
-		}
 	},
 
 	_colorSampleControl: function (parentContainer, data, builder) {
@@ -2786,309 +2634,6 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		 return false;
 	},
 
-	parseHexColor: function(color) {
-		if (color === 'transparent')
-			return -1;
-		else
-			return parseInt('0x' + color);
-	},
-
-	_sendColorCommand: function(builder, data, color, themeData) {
-		var gradientItem;
-
-		// complex color properties
-
-		if (data.id === 'fillgrad1') {
-			gradientItem = builder.map['stateChangeHandler'].getItemValue('.uno:FillGradient');
-			gradientItem.startcolor = color;
-			builder.map.sendUnoCommand('.uno:FillGradient?FillGradientJSON:string=' + JSON.stringify(gradientItem));
-			return;
-		} else if (data.id === 'fillgrad2') {
-			gradientItem = builder.map['stateChangeHandler'].getItemValue('.uno:FillGradient');
-			gradientItem.endcolor = color;
-			builder.map.sendUnoCommand('.uno:FillGradient?FillGradientJSON:string=' + JSON.stringify(gradientItem));
-			return;
-		} else if (data.id === 'fillattr2') {
-			gradientItem = builder.map['stateChangeHandler'].getItemValue('.uno:FillPageGradient');
-			gradientItem.startcolor = color;
-			builder.map.sendUnoCommand('.uno:FillPageGradient?FillPageGradientJSON:string=' + JSON.stringify(gradientItem));
-			return;
-		} else if (data.id === 'fillattr3') {
-			gradientItem = builder.map['stateChangeHandler'].getItemValue('.uno:FillPageGradient');
-			gradientItem.endcolor = color;
-			builder.map.sendUnoCommand('.uno:FillPageGradient?FillPageGradientJSON:string=' + JSON.stringify(gradientItem));
-			return;
-		}
-
-		// simple numeric color values
-
-		if (data.id === 'fillattr') {
-			data.command = '.uno:FillPageColor';
-		} else if (data.id === 'LB_GLOW_COLOR') {
-			data.id = 'GlowColor';
-		} else if (data.id === 'LB_SHADOW_COLOR') {
-			data.command = '.uno:FillShadowColor';
-		}
-
-		var params = {};
-		var colorParameterID = data.id + '.Color';
-		var themeParameterID = data.id + '.ComplexColorJSON';
-
-		params[colorParameterID] = {
-			type : 'long',
-			value : builder.parseHexColor(color)
-		};
-
-		if (themeData != null)
-		{
-			params[themeParameterID] = {
-				type : 'string',
-				value : themeData
-			};
-		}
-
-		builder.map['stateChangeHandler'].setItemValue(data.command, params[colorParameterID].value);
-		builder.map.sendUnoCommand(data.command, params);
-	},
-
-	_getDefaultColorForCommand: function(command) {
-		if (command == '.uno:BackColor')
-			return '#';
-		else if (command == '.uno:CharBackColor')
-			return '#';
-		else if (command == '.uno:BackgroundColor')
-			return '#';
-		return 0;
-	},
-
-	_getCurrentColor: function(data, builder) {
-		var selectedColor = parseInt(builder.map['stateChangeHandler'].getItemValue(data.command));
-
-		if (!selectedColor || selectedColor < 0)
-			selectedColor = builder._getUnoStateForItemId(data.id, builder);
-
-		if (!selectedColor || selectedColor < 0)
-			selectedColor = builder._getDefaultColorForCommand(data.command);
-
-		selectedColor = selectedColor.toString(16);
-
-		while (selectedColor != '#' && selectedColor.length < 6) {
-			selectedColor = '0' + selectedColor;
-		}
-
-		if (selectedColor[0] != '#')
-			selectedColor = '#' + selectedColor;
-
-		return selectedColor;
-	},
-
-	_getCurrentBorderNumber: function(builder) {
-		var outer = builder.map['stateChangeHandler'].getItemValue('.uno:BorderOuter');
-		var inner = builder.map['stateChangeHandler'].getItemValue('.uno:BorderInner');
-
-		if (!outer || !inner)
-			return 0;
-
-		var left = outer.left === 'true';
-		var right = outer.right === 'true';
-		var bottom = outer.bottom === 'true';
-		var top = outer.top === 'true';
-		var horiz = inner.horizontal === 'true';
-		var vert = inner.vertical === 'true';
-
-		if (left && !right && !bottom && !top && !horiz && !vert) {
-			return 2;
-		} else if (!left && right && !bottom && !top && !horiz && !vert) {
-			return 3;
-		} else if (left && right && !bottom && !top && !horiz && !vert) {
-			return 4;
-		} else if (!left && !right && !bottom && top && !horiz && !vert) {
-			return 5;
-		} else if (!left && !right && bottom && !top && !horiz && !vert) {
-			return 6;
-		} else if (!left && !right && bottom && top && !horiz && !vert) {
-			return 7;
-		} else if (left && right && bottom && top && !horiz && !vert) {
-			return 8;
-		} else if (!left && !right && bottom && top && horiz && !vert) {
-			return 9;
-		} else if (left && right && bottom && top && horiz && !vert) {
-			return 10;
-		} else if (left && right && bottom && top && !horiz && vert) {
-			return 11;
-		} else if (left && right && bottom && top && horiz && vert) {
-			return 12;
-		}
-
-		return 1;
-	},
-
-	_borderControlItem: function(parentContainer, data, builder, i, selected) {
-		var button = null;
-
-		var div = this._createIdentifiable('div', 'ui-content unospan', parentContainer, data);
-
-		var buttonId = 'border-' + i;
-		button = L.DomUtil.create('img', 'ui-content borderbutton', div);
-		L.LOUtil.setImage(button, 'fr0' + i + '.svg', builder.map.getDocType());
-		button.id = buttonId;
-		if (selected)
-			$(button).addClass('selected');
-
-		$(div).click(function () {
-			var color = 0;
-			// Find our associated color picker
-			var item = L.LOUtil.findItemWithAttributeRecursive(data.parent, 'command', '.uno:FrameLineColor');
-			if (item)
-				color = builder._getCurrentColor(item, builder);
-			window.setBorderStyle(i, color);
-		});
-	},
-
-	_borderControl: function(parentContainer, data, builder) {
-		var bordercontrollabel = L.DomUtil.create('label', builder.options.cssClass + ' ui-text', parentContainer);
-		bordercontrollabel.textContent = _('Cell borders');
-		bordercontrollabel.id = data.id + 'label';
-		var current = builder._getCurrentBorderNumber(builder);
-		for (var i = 1; i < 13; ++i)
-			builder._borderControlItem(parentContainer, data, builder, i, i === current);
-
-		var updateFunction = function() {
-			var current = builder._getCurrentBorderNumber(builder);
-			for (var i = 1; i < 13; ++i) {
-				if (i !== current)
-					$('#border-' + i).removeClass('selected');
-				else
-					$('#border-' + i).addClass('selected');
-			}
-
-			if (builder.wizard && builder.wizard._refreshSidebar) {
-				builder.wizard._refreshSidebar(0);
-				builder.refreshSidebar = false;
-			}
-		};
-
-		builder.map.on('commandstatechanged', function(e) {
-			if (e.commandName === '.uno:BorderOuter' || e.commandName === '.uno:BorderInner')
-				updateFunction();
-		}, this);
-	},
-
-	_colorControl: function(parentContainer, data, builder) {
-		var commandOverride = data.command === '.uno:Color' && builder.map.getDocType() === 'text';
-		if (commandOverride)
-			data.command = '.uno:FontColor';
-
-		var titleOverride = builder._getTitleForControlWithId(data.id);
-		if (titleOverride)
-			data.text = titleOverride;
-
-		data.id = data.id ? data.id : (data.command ? data.command.replace('.uno:', '') : undefined);
-
-		data.text = builder._cleanText(data.text);
-
-		if (data.command) {
-			var div = builder._createIdentifiable('div', 'unotoolbutton ' + builder.options.cssClass + ' ui-content unospan', parentContainer, data);
-
-			var id = data.command.substr('.uno:'.length);
-			div.id = id;
-
-			div.title = data.text;
-			builder.map.uiManager.enableTooltip(div);
-
-			var icon = builder._createIconURL(data.command);
-			var buttonId = id + 'img';
-			var button = L.DomUtil.create('img', 'ui-content unobutton', div);
-			L.LOUtil.setImage(button, icon.split('/').pop(), builder.map.getDocType());
-			button.id = buttonId;
-			button.setAttribute('alt', id);
-
-			var arrowbackground = L.DomUtil.create('div', 'arrowbackground', div);
-			L.DomUtil.create('i', 'unoarrow', arrowbackground);
-			$(div).addClass('has-dropdown--color');
-
-			var valueNode =  L.DomUtil.create('div', 'selected-color', div);
-
-			var selectedColor;
-
-			var updateFunction = function (color) {
-				if (builder._colorLastSelection[data.command] !== undefined)
-					selectedColor = builder._colorLastSelection[data.command];
-				else
-					selectedColor = builder._getCurrentColor(data, builder);
-
-				valueNode.style.backgroundColor = color ? color : selectedColor;
-				builder._colorLastSelection[data.command] = color ? color : selectedColor;
-				builder.setPickerOutline(valueNode);
-			};
-
-			updateFunction();
-
-			builder.map.on('commandstatechanged', function(e) {
-				if (e.commandName === data.command)
-					updateFunction();
-			}, this);
-
-			var noColorControl = (data.command !== '.uno:FontColor' && data.command !== '.uno:Color');
-
-			var applyFunction = function() {
-				var colorToApply = builder._colorLastSelection[data.command];
-				if (!colorToApply || colorToApply === '#')
-					return;
-
-				var color = -1;
-				if (colorToApply !== -1)
-					color = colorToApply.indexOf('#') === 0 ? colorToApply.substr(1) : colorToApply;
-
-				builder._sendColorCommand(builder, data, color);
-			};
-
-			$(button).click(applyFunction);
-			$(valueNode).click(applyFunction);
-
-			$(arrowbackground).click(function() {
-				if (!$(div).hasClass('disabled')) {
-					$(div).w2color({ color: builder._colorLastSelection[data.command], transparent: noColorControl }, function (color, themeData) {
-						if (color != null) {
-							if (color) {
-								updateFunction('#' + color);
-								builder._sendColorCommand(builder, data, color, themeData);
-							} else {
-								updateFunction('#FFFFFF');
-								builder._sendColorCommand(builder, data, 'transparent');
-							}
-						}
-					});
-
-					if (data.command === '.uno:FontColor' || data.command === '.uno:Color') {
-						var autoColorButton = document.createElement('button');
-						autoColorButton.textContent = _('Automatic');
-						autoColorButton.classList.add('auto-color-button');
-
-						autoColorButton.onclick = function() {
-							updateFunction(-1);
-							builder.map['stateChangeHandler'].setItemValue(data.command, -1);
-
-							var parameters;
-							if (data.command === '.uno:FontColor')
-								parameters = { FontColor: { type: 'long', value: -1 } };
-							else
-								parameters = { Color: { type: 'long', value: -1 } };
-							builder.map.sendUnoCommand(data.command, parameters);
-							document.getElementById('document-container').click();
-						}.bind(this);
-
-						var colorDiv = document.getElementById('w2ui-overlay');
-						colorDiv.insertBefore(autoColorButton, colorDiv.firstChild);
-					}
-				}
-			});
-			builder._preventDocumentLosingFocusOnClick(div);
-		}
-
-		return false;
-	},
-
 	_subMenuHandler: function(parentContainer, data, builder) {
 		var title = data.text;
 		builder._explorableMenu(parentContainer, title, data.children, builder, undefined, data.id);
@@ -3098,6 +2643,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 	_menuItemHandler: function(parentContainer, data, builder) {
 		var title = data.text;
+		var cssClassHeader = 'ui-header';
 		// separator
 		if (title === '') {
 			return false;
@@ -3105,6 +2651,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 		var id = data.id;
 		if (id) {
+			cssClassHeader += ' ui-header-' + id;
 			var handler = builder._menuItemHandlers[id];
 			if (handler) {
 				handler(parentContainer, data, builder);
@@ -3112,7 +2659,7 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			}
 		}
 
-		var menuEntry = L.DomUtil.create('div', 'ui-header level-' + builder._currentDepth + ' ' + builder.options.cssClass + ' ui-widget', parentContainer);
+		var menuEntry = L.DomUtil.create('div', cssClassHeader + ' level-' + builder._currentDepth + ' ' + builder.options.cssClass + ' ui-widget', parentContainer);
 
 		if (data.hyperlink) {
 			menuEntry = L.DomUtil.create('a', 'context-menu-link', menuEntry);
@@ -3124,9 +2671,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		if (commandName && commandName.length && L.LOUtil.existsIconForCommand(commandName, builder.map.getDocType())) {
 			var iconName = builder._generateMenuIconName(commandName);
 			var iconSpan = L.DomUtil.create('span', 'menu-entry-icon ' + iconName, menuEntry);
-			var iconURL = builder._createIconURL(iconName, true);
+			iconName = builder._createIconURL(iconName, true);
 			icon = L.DomUtil.create('img', '', iconSpan);
-			L.LOUtil.setImage(icon, iconURL.split('/').pop(), builder.map.getDocType());
+			L.LOUtil.setImage(icon, iconName, builder.map);
 			icon.alt = '';
 		}
 		if (data.checked && data.checked === true) {
@@ -3139,9 +2686,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		L.DomUtil.addClass(titleSpan, paddingClass);
 
 		if (builder.wizard) {
-			$(menuEntry).click(function() {
+			$(menuEntry).click(() => {
 				if (window.insertionMobileWizard)
-					w2ui['actionbar'].click('insertion_mobile_wizard');
+					app.dispatcher.dispatch('insertion_mobile_wizard');
 				else if (window.mobileMenuWizard)
 					$('#main-menu-state').click();
 				else if (window.contextMenuWizard) {
@@ -3225,9 +2772,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 	// executes actions like changing the selection without rebuilding the widget
 	executeAction: function(container, data) {
-		var control = container.querySelector('[id=\'' + data.control_id + '\']');
+		var control = container.querySelector('[id=\'' + this._removeMenuId(data.control_id) + '\']');
 		if (!control && data.control)
-			control = container.querySelector('[id=\'' + data.control.id + '\']');
+			control = container.querySelector('[id=\'' + this._removeMenuId(data.control.id) + '\']');
 		if (!control) {
 			window.app.console.warn('executeAction: not found control with id: "' + data.control_id + '"');
 			return;
@@ -3238,18 +2785,17 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			control.focus();
 			break;
 		case 'select':
-			$(control).children('.selected').removeClass('selected');
+			if (typeof control.onSelect === 'function')
+				control.onSelect(parseInt(data.position));
+			else
+				window.app.console.warn('widget "' + data.control_id + '" doesn\'t support "select" action');
+			break;
 
-			var pos = parseInt(data.position);
-			var entry = control.children.length > pos ? control.children[pos] : null;
-
-			if (entry) {
-				L.DomUtil.addClass(entry, 'selected');
-				var blockOption = this._scrollIntoViewBlockOption('nearest');
-				entry.scrollIntoView({behavior: 'smooth', block: blockOption, inline: 'nearest'});
-			} else if (pos != -1)
-				console.warn('not found entry: "' + pos + '" in: "' + data.control_id + '"');
-
+		case 'unselect':
+			if (typeof control.onSelect === 'function')
+				control.onUnSelect(parseInt(data.position));
+			else
+				window.app.console.warn('widget "' + data.control_id + '" doesn\'t support "unselect" action');
 			break;
 
 		case 'show':
@@ -3261,7 +2807,22 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			$(control).addClass('hidden');
 			break;
 
+		case 'enable':
+			control.disabled = false;
+			control.removeAttribute('disabled');
+			break;
+
+		case 'disable':
+			control.setAttribute('disabled', 'true');
+			control.disabled = true;
+			break;
+
 		case 'setText':
+			if (typeof control.onSetText === 'function') {
+				control.onSetText(data.text);
+				break;
+			}
+
 			// eg. in mobile wizard input is inside spin button div
 			var innerInput = control.querySelector('input');
 			if (innerInput)
@@ -3323,16 +2884,37 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			}
 			break;
 
+		case 'rendered_entry':
+		case 'rendered_combobox_entry':
+			if (!this.rendersCache[control.id])
+				this.rendersCache[control.id] = { persistent: false, images: [] };
+
+			this.rendersCache[control.id].images[data.pos] = data.image;
+
+			if (typeof control.updateRenders == 'function')
+				control.updateRenders(data.pos);
+
+			break;
+
 		default:
 			console.error('unknown action: "' + data.action_type + '"');
 			break;
 		}
 	},
 
+	_removeMenuId: function (rawId) {
+		var elementId = rawId;
+		var separatorPos = elementId.indexOf(':'); // delete menuId
+		if (separatorPos > 0)
+			elementId = elementId.substr(0, separatorPos);
+		return elementId;
+	},
+
 	_updateWidgetImpl: function (container, data, buildFunc) {
-		var control = container.querySelector('[id=\'' + data.id + '\']');
+		var elementId = this._removeMenuId(data.id);
+		var control = container.querySelector('[id=\'' + elementId + '\']');
 		if (!control) {
-			window.app.console.warn('jsdialogupdate: not found control with id: "' + data.id + '"');
+			window.app.console.warn('jsdialogupdate: not found control with id: "' + elementId + '"');
 			return;
 		}
 
@@ -3348,12 +2930,17 @@ L.Control.JSDialogBuilder = L.Control.extend({
 		control.style.visibility = 'hidden';
 
 		var temporaryParent = L.DomUtil.create('div');
+
+		// Remove the id of the to-be-removed control, so _makeIdUnique() won't rename
+		// data.id to something we can't find later.
+		control.id = '';
+
 		buildFunc.bind(this)(temporaryParent, [data], false);
 		parent.insertBefore(temporaryParent.firstChild, control.nextSibling);
 		var backupGridSpan = control.style.gridColumn;
 		L.DomUtil.remove(control);
 
-		var newControl = container.querySelector('[id=\'' + data.id + '\']');
+		var newControl = container.querySelector('[id=\'' + elementId + '\']');
 		if (newControl) {
 			newControl.scrollTop = scrollTop;
 			newControl.style.gridColumn = backupGridSpan;
@@ -3391,11 +2978,9 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			control.style.gridColumn = 'span ' + parseInt(data.width);
 		}
 
-		if (control && data.labelledBy)
-			control.setAttribute('aria-labelledby', data.labelledBy);
-
 		// natural tab-order when using keyboard navigation
 		if (control && !control.hasAttribute('tabIndex')
+			&& control.querySelectorAll('[tabindex]').length === 0
 			&& data.type !== 'container'
 			&& data.type !== 'tabpage'
 			&& data.type !== 'tabcontrol'
@@ -3415,8 +3000,37 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			&& data.type !== 'expander'
 			&& data.type !== 'panel'
 			&& data.type !== 'buttonbox'
-			&& data.type !== 'treelistbox')
+			&& data.type !== 'treelistbox'
+			&& data.type !== 'time'
+			&& data.type !== 'separator'
+			&& data.type !== 'spacer'
+			)
 			control.setAttribute('tabIndex', '0');
+	},
+
+	// some widgets we want to modify / change
+	isHyperlinkTarget: function (builder, data) {
+		return data.type === 'combobox' && (data.id === 'target' || data.id === 'receiver');
+	},
+
+	requiresOverwriting: function(builder, data) {
+		if (builder.isHyperlinkTarget(builder, data))
+			return true;
+
+		return false;
+	},
+
+	overwriteHandler: function(parentContainer, data, builder) {
+		if (builder.isHyperlinkTarget(builder, data)) {
+			// Replace combobox with edit
+			var callback = function(value) {
+				builder.callback('combobox', 'change', data, value, builder);
+			};
+
+			return builder._controlHandlers['edit'](parentContainer, data, builder, callback);
+		}
+
+		console.error('It seems widget doesn\'t require overwriting.');
 	},
 
 	build: function(parent, data, hasVerticalParent) {
@@ -3438,8 +3052,10 @@ L.Control.JSDialogBuilder = L.Control.extend({
 
 			var containerToInsert = parent;
 
-			if (childData.dialogid)
+			if (childData.dialogid) {
 				containerToInsert.id = childData.dialogid;
+				this.dialogId = childData.dialogid;
+			}
 
 			var isVertical = childData.vertical === 'true' || childData.vertical === true ? true : false;
 
@@ -3490,7 +3106,10 @@ L.Control.JSDialogBuilder = L.Control.extend({
 			var handler = this._controlHandlers[childType];
 
 			if (handler) {
-				processChildren = handler(childObject, childData, this);
+				if (this.requiresOverwriting(this, childData))
+					processChildren = this.overwriteHandler(childObject, childData, this);
+				else
+					processChildren = handler(childObject, childData, this);
 				this.postProcess(childObject, childData);
 			} else
 				window.app.console.warn('JSDialogBuilder: Unsupported control type: "' + childType + '"');
@@ -3560,6 +3179,18 @@ L.Control.JSDialogBuilder.getMenuStructureForMobileWizard = function(menu, mainM
 	}
 
 	return menuStructure;
+};
+
+JSDialog._scrollIntoViewBlockOption = function(option) {
+	if (option === 'nearest' || option === 'center') {
+		// compatibility with older firefox
+		var match = window.navigator.userAgent.match(/Firefox\/([0-9]+)\./);
+		var firefoxVer = match ? parseInt(match[1]) : 58;
+		var blockOption = firefoxVer >= 58 ? option : 'start';
+		return blockOption;
+	}
+
+	return option;
 };
 
 L.control.jsDialogBuilder = function (options) {

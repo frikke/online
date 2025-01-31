@@ -1,8 +1,13 @@
 // -*- Mode: objc; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*-
-//
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 
 #import "config.h"
 
@@ -10,9 +15,9 @@
 #import <cstdlib>
 #import <cstring>
 
+#define LIBO_INTERNAL_ONLY
 #import <LibreOfficeKit/LibreOfficeKit.hxx>
 
-#define LIBO_INTERNAL_ONLY
 #include <comphelper/lok.hxx>
 #include <i18nlangtag/languagetag.hxx>
 
@@ -46,7 +51,7 @@ NSString *app_text_direction;
     else
         setupKitEnvironment("");
 
-    Log::initialize("Mobile", trace, false, false, {});
+    Log::initialize("Mobile", trace, false, false, {}, false, {});
     Util::setThreadName("main");
 
     // Clear the cache directory if it is for another build of the app
@@ -88,9 +93,15 @@ NSString *app_text_direction;
     // Fix assert failure when running "My Mac (Designed for iPad)" in Xcode
     // LANG values such as en_US.UTF-8 trigger an assert in the LibreOffice
     // code so replace all "_" characters with "-" characters.
-    if (lang != nullptr)
+    if (lang != nullptr) {
         app_locale = [[NSString stringWithUTF8String:lang] stringByReplacingOccurrencesOfString:@"_" withString:@"-"];
-    else
+        // Eliminate invalid language tag exceptions in JavaScript by
+        // trimming any text encoding from LANG
+        NSRange range = [app_locale rangeOfString:@"."];
+        if (range.location != NSNotFound)
+            app_locale = [app_locale substringToIndex:range.location];
+    }
+    if (!app_locale || ![app_locale length])
         app_locale = [[NSLocale preferredLanguages] firstObject];
 
     if (LangUtil::isRtlLanguage(std::string([app_locale UTF8String])))

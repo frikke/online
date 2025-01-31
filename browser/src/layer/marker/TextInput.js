@@ -8,7 +8,7 @@
  * text area itself.
  */
 
-/* global app */
+/* global app _ */
 
 L.TextInput = L.Layer.extend({
 	initialize: function() {
@@ -113,7 +113,7 @@ L.TextInput = L.Layer.extend({
 			this._map.on('commandresult', this._onCommandResult, this);
 		}
 
-		this._map.on('updatepermission', this._onPermission, this);
+		app.events.on('updatepermission', this._onPermission.bind(this));
 		L.DomEvent.on(this._textArea, 'focus blur', this._onFocusBlur, this);
 
 		// Do not wait for a 'focus' event to attach events if the
@@ -152,7 +152,6 @@ L.TextInput = L.Layer.extend({
 		if (!this.hasAccessibilitySupport()) {
 			this._map.off('commandresult', this._onCommandResult, this);
 		}
-		this._map.off('updatepermission', this._onPermission, this);
 		L.DomEvent.off(this._textArea, 'focus blur', this._onFocusBlur, this);
 		L.DomEvent.off(this._map.getContainer(), 'mousedown touchstart', this._abortComposition, this);
 
@@ -168,7 +167,7 @@ L.TextInput = L.Layer.extend({
 	},
 
 	_onPermission: function(e) {
-		if (e.perm === 'edit') {
+		if (e.detail.perm === 'edit') {
 			this._textArea.removeAttribute('disabled');
 		} else {
 			this._textArea.setAttribute('disabled', true);
@@ -193,9 +192,13 @@ L.TextInput = L.Layer.extend({
 		}
 	},
 
+	hasFocus: function() {
+		return this._textArea && this._textArea === document.activeElement;
+	},
+
 	_onFocusBlur: function(ev) {
 		this._fancyLog(ev.type, '');
-		this._dbg('_onFocusBlur');
+		this._statusLog('_onFocusBlur');
 		var onoff = (ev.type === 'focus' ? L.DomEvent.on : L.DomEvent.off).bind(L.DomEvent);
 
 		// Debug - connect first for saner logging.
@@ -235,9 +238,6 @@ L.TextInput = L.Layer.extend({
 		if (ev.type === 'blur' && this._isComposing) {
 			this._abortComposition(ev);
 		}
-
-		if (ev.type === 'blur' && this._hasFormulaBarFocus())
-			this._map.formulabar.blurField();
 	},
 
 	// Focus the textarea/contenteditable
@@ -262,11 +262,11 @@ L.TextInput = L.Layer.extend({
 		// Trick to avoid showing the software keyboard: Set the textarea
 		// read-only before focus() and reset it again after the blur()
 		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.mode.isChromebook()) {
-			if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true)
+			if (window.keyboard.guessOnscreenKeyboard() && acceptInput !== true)
 				this._textArea.setAttribute('readonly', true);
 		}
 
-		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.ThisIsAMobileApp && !window.mode.isMobile()) {
+		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.keyboard.guessOnscreenKeyboard()) {
 			this._textArea.focus();
 		} else if (acceptInput === true) {
 			// On the iPhone, only call the textarea's focus() when we get an explicit
@@ -289,7 +289,7 @@ L.TextInput = L.Layer.extend({
 		}
 
 		if (!window.ThisIsTheiOSApp && navigator.platform !== 'iPhone' && !window.mode.isChromebook()) {
-			if ((window.ThisIsAMobileApp || window.mode.isMobile()) && acceptInput !== true) {
+			if (window.keyboard.guessOnscreenKeyboard() && acceptInput !== true) {
 				this._setAcceptInput(false);
 				this._textArea.blur();
 				this._textArea.removeAttribute('readonly');
@@ -433,6 +433,18 @@ L.TextInput = L.Layer.extend({
 		this._setupStyles();
 
 		this._emptyArea();
+
+		if (!this.hasAccessibilitySupport()) {
+			var warningMessage =
+				_('Screen reader support for text content is disabled. ') +
+				_('You need to enable it both at server level and in the UI. ') +
+				_('Look for the accessibility section in coolwsd.xml for server setting. ') +
+				_('Also check the voice over toggle under {parentControl}.').replace(
+					'{parentControl}',
+					window.userInterfaceMode === 'notebookbar' ? _('the Help tab') : _('the View menu')
+				);
+			this._textArea.setAttribute('aria-description', warningMessage);
+		}
 	},
 
 	_setupStyles: function() {
@@ -469,13 +481,13 @@ L.TextInput = L.Layer.extend({
 	// Displays the caret and the under-caret marker.
 	// Fetches the coordinates of the caret from the map's doclayer.
 	showCursor: function() {
-		if (!this._map._docLayer._cursorMarker) {
+		if (!this._map._docLayer._cursorMarker || !this._map._docLayer._tileWidthTwips) {
 			return;
 		}
 
 		// Fetch top and bottom coords of caret
-		var top = this._map._docLayer._visibleCursor.getNorthWest();
-		var bottom = this._map._docLayer._visibleCursor.getSouthWest();
+		var top = this._map._docLayer._twipsToLatLng({ x: app.file.textCursor.rectangle.x1, y: app.file.textCursor.rectangle.y1 });
+		var bottom = this._map._docLayer._twipsToLatLng({ x: app.file.textCursor.rectangle.x1, y: app.file.textCursor.rectangle.y2 });
 
 		if (!this._map._docLayer._cursorMarker.isDomAttached()) {
 			// Display caret
@@ -484,12 +496,11 @@ L.TextInput = L.Layer.extend({
 		this._map._docLayer._cursorMarker.setMouseCursorForTextBox();
 
 		// Move and display under-caret marker
-		if (L.Browser.touch) {
-			if (this._map._docLayer._textCSelections.empty()) {
-				this._cursorHandler.setLatLng(bottom).addTo(this._map);
-			} else {
-				this._map.removeLayer(this._cursorHandler);
-			}
+
+		if (window.touch.currentlyUsingTouchscreen() && this._map._docLayer._textCSelections.empty()) {
+			this._cursorHandler.setLatLng(bottom).addTo(this._map);
+		} else {
+			this._map.removeLayer(this._cursorHandler);
 		}
 
 		// Move the hidden text area with the cursor
@@ -557,9 +568,6 @@ L.TextInput = L.Layer.extend({
 			payload = 'undefined';
 		else if (payload === null)
 			payload = 'null';
-
-		// Save to downloadable log
-		L.Log.log(payload.toString(), 'INPUT');
 
 		// Pretty-print on console (but only if "tile layer debug mode" is active)
 		if (this._isDebugOn) {
@@ -633,7 +641,7 @@ L.TextInput = L.Layer.extend({
 	_onBeforeInput: function(ev) {
 		if (this._map.uiManager.isUIBlocked())
 			return;
-		this._dbg('_onBeforeInput [');
+		this._statusLog('_onBeforeInput [');
 		this._ignoreNextBackspace = false;
 		if (!this._isSelectionValid()) {
 			this._emptyArea();
@@ -643,12 +651,14 @@ L.TextInput = L.Layer.extend({
 		}
 		// Firefox is not able to delete the <img> post space. Since no 'input' event is generated,
 		// we need to handle a <delete> at the end of the paragraph, here.
-		if (L.Browser.gecko && this.getPlainTextContent().length === 0 && this._deleteHint === 'delete') {
-			window.app.console.log('Sending delete');
+		if (L.Browser.gecko && this._isCursorAtEnd() && this._deleteHint === 'delete') {
+			if (this._map._debug.logKeyboardEvents) {
+				window.app.console.log('Sending delete');
+			}
 			this._removeTextContent(0, 1);
 			this._emptyArea();
 		}
-		this._dbg('_onBeforeInput ]');
+		this._statusLog('_onBeforeInput ]');
 	},
 
 	_isDigit: function(asciiChar) {
@@ -663,7 +673,7 @@ L.TextInput = L.Layer.extend({
 	_onInput: function(ev) {
 		if (this._map.uiManager.isUIBlocked())
 			return;
-		this._dbg('_onInput [');
+		this._statusLog('_onInput [');
 		app.idleHandler.notifyActive();
 
 		if (this._ignoreInputCount > 0) {
@@ -689,14 +699,18 @@ L.TextInput = L.Layer.extend({
 		// We use a different leading and terminal space character
 		// to differentiate backspace from delete, then replace the character.
 		if (!this._hasPreSpace()) { // missing initial space
-			window.app.console.log('Sending backspace');
+			if (this._map._debug.logKeyboardEvents) {
+				window.app.console.log('Sending backspace');
+			}
 			if (!ignoreBackspace)
 				this._removeTextContent(1, 0);
 			this._emptyArea();
 			return;
 		}
 		if (!this._hasPostSpace()) { // missing trailing space.
-			window.app.console.log('Sending delete');
+			if (this._map._debug.logKeyboardEvents) {
+				window.app.console.log('Sending delete');
+			}
 			this._removeTextContent(0, 1);
 			this._emptyArea();
 			return;
@@ -720,9 +734,11 @@ L.TextInput = L.Layer.extend({
 		while (matchTo < sharedLength && content[matchTo] === this._lastContent[matchTo])
 			matchTo++;
 
-		window.app.console.log('Comparison matchAt ' + matchTo + '\n' +
-			    '\tnew "' + this.codePointsToString(content) + '" (' + content.length + ')' + '\n' +
-			    '\told "' + this.codePointsToString(this._lastContent) + '" (' + this._lastContent.length + ')');
+		if (this._map._debug.logKeyboardEvents) {
+			window.app.console.log('Comparison matchAt ' + matchTo + '\n' +
+				'\tnew "' + this.codePointsToString(content) + '" (' + content.length + ')' + '\n' +
+				'\told "' + this.codePointsToString(this._lastContent) + '" (' + this._lastContent.length + ')');
+		}
 
 		var removeBefore = this._lastContent.length - matchTo;
 		var removeAfter = 0;
@@ -760,9 +776,13 @@ L.TextInput = L.Layer.extend({
 		this._finishFormulabarEditing(content, matchTo);
 
 		// special handling for mentions
-		this._handleMentionInput(ev, removeBefore);
+		if (this._map.getDocType() === 'text') {
+			const contentStr = this.codePointsToString(content);
+			const newPara = contentStr.length === 1;
+			this._map.mention.handleMentionInput(ev, newPara);
+		}
 
-		this._dbg('_onInput ]');
+		this._statusLog('_onInput ]');
 	},
 
 	_sendNewText: function (ev, content, newText) {
@@ -778,39 +798,11 @@ L.TextInput = L.Layer.extend({
 		}
 	},
 
-	_handleMentionInput: function (ev, removeBefore) {
-		var docLayer = this._map._docLayer;
-		if (docLayer._typingMention)  {
-			if (removeBefore > 0) {
-				var ch = docLayer._mentionText.pop();
-				if (ch === '@') {
-					this._map.fire('closementionpopup', { 'typingMention': false });
-				} else {
-					this._map.fire('sendmentiontext', {data: docLayer._mentionText});
-				}
-			} else if (removeBefore === 0) {
-				docLayer._mentionText.push(ev.data);
-				var regEx = /^[0-9a-zA-Z ]+$/;
-				if (ev.data && ev.data.match(regEx)) {
-					this._map.fire('sendmentiontext', {data: docLayer._mentionText});
-				} else {
-					this._map.fire('closementionpopup', { 'typingMention': false });
-				}
-			}
-		}
-
-		if (ev.data === '@' && this._map.getDocType() === 'text') {
-			docLayer._mentionText.push(ev.data);
-			docLayer._typingMention = true;
-		}
-
-	},
-
 	_finishFormulabarEditing: function(content, matchTo) {
 		if (this._hasFormulaBarFocus() && content.length) {
 			var contentString = this.codePointsToString(content);
 			if (contentString[matchTo] === '\n' || contentString.charCodeAt(matchTo) === 13) {
-				this._map.dispatch('acceptformula');
+				app.dispatcher.dispatch('acceptformula');
 			}
 		}
 	},
@@ -853,7 +845,7 @@ L.TextInput = L.Layer.extend({
 	// (some combination of browser + input method don't fire those on an
 	// empty contenteditable).
 	_emptyArea: function(noSelect) {
-		this._dbg('_emptyArea [');
+		this._statusLog('_emptyArea [');
 		this._fancyLog('empty-area');
 
 		this._ignoreInputCount++;
@@ -880,7 +872,7 @@ L.TextInput = L.Layer.extend({
 		}
 
 		this._fancyLog('empty-area-end');
-		this._dbg('_emptyArea ]');
+		this._statusLog('_emptyArea ]');
 		this._ignoreInputCount--;
 	},
 
@@ -925,10 +917,49 @@ L.TextInput = L.Layer.extend({
 		if (this._isComposing)
 			this._isComposing = false;
 		if (this.hasAccessibilitySupport()) {
+			this._isLeftRightArrow = 0;
+			this._updateFocusedParagraph();
 			this._requestFocusedParagraph();
 		} else {
 			this._emptyArea(document.activeElement !== this._textArea);
 		}
+	},
+
+	_handleKeyDownForPopup: function (ev, id) {
+		var popup = L.DomUtil.get(id);
+		if (popup) {
+			const entries = document.querySelectorAll('#' + id + ' span.ui-treeview-cell');
+			if (ev.key === 'ArrowDown') {
+				const initialFocusElement = entries[0];
+				if (initialFocusElement) {
+					initialFocusElement.tabIndex = 0;
+					initialFocusElement.focus();
+					ev.preventDefault();
+					ev.stopPropagation();
+				}
+			} else if (ev.key === 'Enter' && entries.length === 1) {
+					const event = new KeyboardEvent('keydown', {
+						key: 'Enter',
+						bubbles: true,
+						cancelable: true,
+					});
+					entries[0].dispatchEvent(event);
+					ev.preventDefault();
+					ev.stopPropagation();
+			} else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' ||
+				ev.key === 'ArrowUp' || ev.key === 'Home' ||
+				ev.key === 'End' || ev.key === 'PageUp' ||
+				ev.key === 'PageDown' || ev.key === 'Enter' ||
+				ev.key === 'Escape' || ev.key === 'Control' ||
+				ev.key === 'Tab') {
+
+				if (id === 'mentionPopup')
+					this._map.mention.closeMentionPopup(false);
+				else if (id === 'formulaautocompletePopup')
+					this._map.fire('closepopup');
+			}
+		}
+		return popup;
 	},
 
 	_onKeyDown: function(ev) {
@@ -948,12 +979,112 @@ L.TextInput = L.Layer.extend({
 		this._newlineHint = ev.keyCode === 13;
 		this._linebreakHint = this._newlineHint && ev.shiftKey;
 
+		// In Firefox 117 up to 120 no copy/cut input event is emitted when CTRL+C/X is pressed
+		// with no selection in a text element with contenteditable='true'. Since no copy/cut event
+		// is emitted, Clipboard.copy/cut is never invoked. So we need to emit it manually.
+		// To be honest it seems a Firefox bug. We need to check if they fix it in later version.
+		if (!this.hasAccessibilitySupport() && !L.Browser.win &&
+			L.Browser.gecko && L.Browser.geckoVersion >= '117.0' && L.Browser.geckoVersion <= '120.0' &&
+			ev.ctrlKey && window.getSelection().isCollapsed) {
+			if (ev.key === 'c') {
+				document.execCommand('copy');
+			}
+			else if (ev.key === 'x') {
+				document.execCommand('cut');
+			}
+		}
+
+		if (this.hasAccessibilitySupport()) {
+			if ((this._hasAnySelection && !this._isEditingInSelection && this._map.getDocType() !== 'spreadsheet') ||
+				(!this._hasAnySelection && this._map.getDocType() === 'presentation')) {
+				if (!L.Browser.cypressTest) {
+					var allowedKeyEvent =
+						this._map.keyboard.allowedKeyCodeWhenNotEditing[ev.keyCode] ||
+						ev.ctrlKey ||
+						ev.altKey ||
+						(this._newlineHint && ev.shiftKey);
+					if (!allowedKeyEvent) {
+						window.console.log('TextInput._onKeyDown: any input default prevented since no shape editing is active.');
+						ev.preventDefault();
+					}
+				}
+			}
+			// In order to allow screen reader to track caret navigation properly even if there is some connection delay
+			// default behaviour for Left/Right arrow key press is no more prevented in Map.Keyboard._handleKeyEvent,
+			// Here we set _isLeftRightArrow flag and handle some special cases.
+			else {
+				this._isLeftRightArrow = 0;
+				if (ev.key === 'ArrowLeft') {
+					this._isLeftRightArrow = -1;
+				} else if (ev.key === 'ArrowRight') {
+					this._isLeftRightArrow = 1;
+				}
+
+				// If we are at paragraph begin/end and left/right arrow is pressed, we need to prevent default behaviour
+				if (this._isLeftRightArrow) {
+					clearTimeout(this._onNavigationEndTimeout);
+					if (!this._isSelectionValid() || this._isComposing ||
+						(this._isLeftRightArrow > 0 && this._isCursorAtEnd()) ||
+						(this._isLeftRightArrow < 0 && this._isCursorAtStart())) {
+						this._log('_onKeyDown: preventDefault');
+						ev.preventDefault();
+					}
+				}
+
+				if (this._isLeftRightArrow) {
+					if (this._listPrefixLength > 0) {
+						var cursorPosition = this._getSelectionEnd();
+						if (cursorPosition === this._listPrefixLength && this._isLeftRightArrow < 0) {
+							// if caret is at begin of list entry content: "1. |Item 1" and shift+left arrow is pressed,
+							// then caret is moved at the end of previous paragraph, if any; or it's not moved at all
+							// if we are at the document beginning; so we only need to prevent default behaviour
+							ev.preventDefault();
+							if (!ev.shiftKey) {
+								// when shift is not pressed, caret is moved ahead of list prefix: "|1. Item 1",
+								// selection is cleared, if any
+								this._updateCursorPosition(0);
+							}
+						}
+						// if caret is ahead of list prefix: "|1. Item 1" and right arrow is pressed, with or without shift,
+						// caret is moved at begin of list entry content: "1. |Item 1", nothing is selected
+						if (cursorPosition === 0 && this._isLeftRightArrow > 0) {
+							ev.preventDefault();
+							this._updateCursorPosition(this._listPrefixLength);
+						}
+					}
+
+					// When left/right arrow is pressed and text is selected, selection is cleared
+					// and caret needs to be moved by one char left/right.
+					// However, for an editable div the behaviour is different:
+					// - when left arrow is pressed caret moves at start of previously selected text
+					// - when right arrow is pressed caret moves at end of previously selected text
+					// So we need to prevent default behaviour and simulate the same behaviour that occurs in LibreOffice.
+					if (!ev.shiftKey) {
+						var selection = window.getSelection();
+						if (!selection.isCollapsed) {
+							// The case where a left arrow is pressed with caret at the beginning of a list entry content
+							// is already handled earlier.
+							if (!(this._listPrefixLength > 0 &&
+								this._lastCursorPosition === this._listPrefixLength && this._isLeftRightArrow < 0)) {
+								this._log('_onKeyDown: pressed left/right arrows with selected text');
+								ev.preventDefault();
+								var pos = this._lastCursorPosition + this._isLeftRightArrow;
+								// _updateCursorPosition takes care to normalize pos value
+								this._updateCursorPosition(pos);
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// We want to open drowdown menu when cursor is above a dropdown content control.
 		if (ev.code === 'Space' || ev.code === 'Enter') {
 			if (this._map['stateChangeHandler'].getItemValue('.uno:ContentControlProperties') === 'enabled') {
 				if (app.sectionContainer.doesSectionExist(L.CSections.ContentControl.name)) {
 					var section = app.sectionContainer.getSectionWithName(L.CSections.ContentControl.name);
-					section.onClickDropdown(ev);
+					if (section.sectionProperties.dropdownSection)
+						section.sectionProperties.dropdownSection.onClick(null, ev);
 				}
 			}
 		}
@@ -978,25 +1109,8 @@ L.TextInput = L.Layer.extend({
 			}
 		}
 
-		var mentionPopup = L.DomUtil.get('mentionPopup');
-		if (mentionPopup) {
-			if (ev.key === 'ArrowDown') {
-				var initialFocusElement = document.querySelector('#mentionPopup span');
-				if (initialFocusElement) {
-					initialFocusElement.tabIndex = 0;
-					initialFocusElement.focus();
-					ev.preventDefault();
-					ev.stopPropagation();
-				}
-			} else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' ||
-				ev.key === 'ArrowUp' || ev.key === 'Home' ||
-				ev.key === 'End' || ev.key === 'PageUp' ||
-				ev.key === 'PageDown' || ev.key === 'Enter' ||
-				ev.key === 'Escape' || ev.key === 'Control' ||
-				ev.key === 'Tab') {
-				this._map.fire('closementionpopup', { 'typingMention': false });
-			}
-		}
+		this._handleKeyDownForPopup(ev, 'mentionPopup');
+		this._handleKeyDownForPopup(ev, 'formulaautocompletePopup');
 	},
 
 	// Check arrow keys on 'keyup' event; using 'ArrowLeft' or 'ArrowRight'
@@ -1018,6 +1132,24 @@ L.TextInput = L.Layer.extend({
 			this._emptyArea();
 		}
 
+		if (this.hasAccessibilitySupport()) {
+			if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+				clearTimeout(this._onNavigationEndTimeout);
+				this._onNavigationEndTimeout = setTimeout(function () {
+					if (this._isLeftRightArrow) {
+						this._isLeftRightArrow = 0;
+						this._updateFocusedParagraph();
+					}
+				}.bind(this), 1000);
+			}
+			else if (ev.key === 'Shift') {
+				if (this._isLeftRightArrow/* && this._remotePosition !== undefined*/) {
+					this._isLeftRightArrow = 0;
+					this._updateFocusedParagraph();
+				}
+			}
+		}
+
 		if (app.UI.notebookbarAccessibility)
 			app.UI.notebookbarAccessibility.onDocumentKeyUp(ev);
 	},
@@ -1026,7 +1158,11 @@ L.TextInput = L.Layer.extend({
 	// message.
 	// Will remove characters from the queue first, if there are any.
 	_removeTextContent: function(before, after) {
-		window.app.console.log('Remove ' + before + ' before, and ' + after + ' after');
+		if (this._map._debug.logKeyboardEvents) {
+			window.app.console.log('Remove ' + before + ' before, and ' + after + ' after');
+		}
+
+		this._followMyCursor();
 
 		/// TODO: rename the event to 'removetextcontent' as soon as coolwsd supports it
 		/// TODO: Ask Marco about it
@@ -1036,6 +1172,11 @@ L.TextInput = L.Layer.extend({
 			' before=' + before +
 			' after=' + after
 		);
+	},
+
+	_followMyCursor: function() {
+		if (this._map && this._map.userList)
+		this._map.userList.followUser(this._map._docLayer._getViewId());
 	},
 
 	// Tiny helper - encapsulates sending a 'textinput' websocket message.
@@ -1057,6 +1198,7 @@ L.TextInput = L.Layer.extend({
 		{
 			var encodedText = encodeURIComponent(text);
 			var winId = this._map.getWinId();
+			this._followMyCursor();
 			app.socket.sendMessage(
 				'textinput id=' + winId + ' text=' + encodedText);
 		}
@@ -1065,6 +1207,7 @@ L.TextInput = L.Layer.extend({
 	// Tiny helper - encapsulates sending a 'key' or 'windowkey' websocket message
 	// "type" can be "input" (default) or "up"
 	_sendKeyEvent: function(charCode, unoKeyCode, type) {
+		this._followMyCursor();
 		if (!type) {
 			type = 'input';
 		}
@@ -1142,14 +1285,15 @@ L.TextInput = L.Layer.extend({
 			if (this._justSwitchedToEditMode && accept && this._isInitialContent()) {
 				// We need to make the paragraph at the cursor position focused in core
 				// so its content is sent to the editable area.
-				window.app.console.log('A11yTextInput._setAcceptInput: going to emit a synthetic click after switching to edit mode.');
 				this._justSwitchedToEditMode = false;
-				var top = this._map._docLayer._visibleCursor.getNorthWest();
-				var bottom = this._map._docLayer._visibleCursor.getSouthWest();
-				var center = L.latLng((top.lat + bottom.lat) / 2, top.lng);
-				var cursorPos = this._map._docLayer._latLngToTwips(center);
-				this._map._docLayer._postMouseEvent('buttondown', cursorPos.x, cursorPos.y, 1, 1, 0);
-				this._map._docLayer._postMouseEvent('buttonup', cursorPos.x, cursorPos.y, 1, 1, 0);
+				if (this._map._docLayer && app.file.textCursor.visible) {
+					window.app.console.log('A11yTextInput._setAcceptInput: going to emit a synthetic click after switching to edit mode.');
+					let center = app.file.textCursor.rectangle.center;
+					center[0] = Math.round(center[0]);
+					center[1] = Math.round(center[1]);
+					this._map._docLayer._postMouseEvent('buttondown', center[0], center[1], 1, 1, 0);
+					this._map._docLayer._postMouseEvent('buttonup', center[0], center[1], 1, 1, 0);
+				}
 			}
 		}
 	},
@@ -1176,6 +1320,16 @@ L.TextInput = L.Layer.extend({
 
 	_isSelectionValid: function() {
 		return typeof this._getSelectionStart() === 'number' && typeof this._getSelectionEnd() === 'number';
+	},
+
+	_isCursorAtStart: function() {
+		var selection = window.getSelection();
+		return selection.isCollapsed && this._getSelectionStart() === 0;
+	},
+
+	_isCursorAtEnd: function() {
+		var selection = window.getSelection();
+		return selection.isCollapsed && this._getSelectionEnd() === this.getPlainTextContent().length;
 	},
 
 	// When the cursor is on a text node return the position wrt the whole plain text content
@@ -1236,7 +1390,7 @@ L.TextInput = L.Layer.extend({
 	// start/end refer to the string represented by the whole plain text content
 	// it's not possible to set range start/end position at <img> delimiters
 	_setSelectionRange: function(start, end) {
-		this._dbg('_setSelectionRange [');
+		this._statusLog('_setSelectionRange [');
 		var selection = window.getSelection();
 		selection.removeAllRanges();
 		var range = document.createRange();
@@ -1246,7 +1400,7 @@ L.TextInput = L.Layer.extend({
 			range.setStart(this._textArea, 1);
 			range.setEnd(this._textArea, 1);
 			selection.addRange(range);
-			this._dbg('_setSelectionRange ]');
+			this._statusLog('_setSelectionRange ]');
 			return;
 		}
 
@@ -1295,7 +1449,7 @@ L.TextInput = L.Layer.extend({
 		// Get the selection object and add the range to it
 		selection.addRange(range);
 		window.console.log(msg);
-		this._dbg('_setSelectionRange ]');
+		this._statusLog('_setSelectionRange ]');
 	},
 
 	_logCharCodeSequence: function(text) {
@@ -1309,7 +1463,13 @@ L.TextInput = L.Layer.extend({
 		window.app.console.log('L.' + this._className + '._sendText: ' + s);
 	},
 
-	_dbg: function(header) {
+	_log: function(msg) {
+		if (!this._isDebugOn)
+			return;
+		window.app.console.log(msg);
+	},
+
+	_statusLog: function(header) {
 		if (!this._isDebugOn)
 			return;
 
@@ -1317,6 +1477,7 @@ L.TextInput = L.Layer.extend({
 		msg += '  _lastContent: ' + this._lastContent  +'\n';
 		msg += '  _lastContent: >' + this.codePointsToString(this._lastContent) + '<\n';
 		if (this.hasAccessibilitySupport()) {
+			msg += '  _remotePosition: ' + this._remotePosition + '\n';
 			msg += '  _lastCursorPosition: ' + this._getLastCursorPosition() + '\n';
 			msg += '  _lastSelectionStart: ' + this._lastSelectionStart + '\n';
 			msg += '  _lastSelectionEnd: ' + this._lastSelectionEnd + '\n';

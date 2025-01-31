@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -98,14 +102,16 @@ static void handleSysSignal(int /* signal */,
 
 namespace Seccomp {
 
-bool lockdown(Type type)
+bool lockdown([[maybe_unused]] Type type)
 {
-    (void)type; // so far just the kit.
-
 #if DISABLE_SECCOMP == 0
     #define ACCEPT_SYSCALL(name) \
         BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, __NR_##name, 0, 1), \
         BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_ALLOW)
+
+    #define REJECT_SYSCALL(name, err) \
+        BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, __NR_##name, 0, 1), \
+        BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_ERRNO | (err & SECCOMP_RET_DATA))
 
     #define KILL_SYSCALL_FULL(fullname) \
         BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, fullname, 0, 1), \
@@ -155,6 +161,10 @@ bool lockdown(Type type)
         KILL_SYSCALL(shmget),
         KILL_SYSCALL(shmat),
         KILL_SYSCALL(shmctl),
+#endif
+        REJECT_SYSCALL(execve, EPERM),
+#ifdef __NR_execveat
+        REJECT_SYSCALL(execveat, EPERM),
 #endif
         KILL_SYSCALL(getitimer),
         KILL_SYSCALL(setitimer),
@@ -225,7 +235,7 @@ bool lockdown(Type type)
     };
 
     struct sock_fprog filter = {
-        sizeof(filterCode)/sizeof(filterCode[0]), // length
+        N_ELEMENTS(filterCode), // length
         filterCode
     };
 

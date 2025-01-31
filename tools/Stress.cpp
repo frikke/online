@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -61,6 +65,7 @@ void Stress::printHelp()
     std::cerr << "       --help for full arguments list." << std::endl;
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 int Stress::main(const std::vector<std::string>& args)
 {
     if (args.empty())
@@ -88,7 +93,7 @@ int Stress::main(const std::vector<std::string>& args)
 
     if (!strncmp(server.c_str(), "http", 4))
     {
-        std::cerr << "Server should be wss:// or ws:// URL not " << server << "\n";
+        std::cerr << "Server should be wss:// or ws:// URL, not " << server << '\n';
         return -1;
     }
 
@@ -107,6 +112,7 @@ int Stress::main(const std::vector<std::string>& args)
     return EX_OK;
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 POCO_APP_MAIN(Stress)
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

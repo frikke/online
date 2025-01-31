@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -13,14 +17,15 @@
 #endif
 
 #include "Util.hpp"
+#include "Rectangle.hpp"
+#include "SigHandlerTrap.hpp"
 
-#include <csignal>
 #include <poll.h>
 
-#ifdef HAVE_SYS_RANDOM_H
-#  include <sys/random.h>
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
+#  include <execinfo.h>
+#  include <cxxabi.h>
 #endif
-
 #ifdef __linux__
 #  include <sys/prctl.h>
 #  include <sys/syscall.h>
@@ -38,6 +43,11 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <spawn.h>
+
+#if defined __GLIBC__
+#include <malloc.h>
+#endif
 
 #include <atomic>
 #include <cassert>
@@ -46,7 +56,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -62,15 +71,22 @@
 #include <Poco/ConsoleChannel.h>
 #include <Poco/Exception.h>
 #include <Poco/Format.h>
-#include <Poco/JSON/JSON.h>
-#include <Poco/JSON/Object.h>
-#include <Poco/JSON/Parser.h>
-#include <Poco/RandomStream.h>
+
 #include <Poco/TemporaryFile.h>
 #include <Poco/Util/Application.h>
 #include <Poco/URI.h>
 
-#include "Common.hpp"
+// for version info
+#include <Poco/Version.h>
+#if ENABLE_SSL
+#include <openssl/opensslv.h>
+#endif
+#include <zstd.h>
+#define PNG_VERSION_INFO_ONLY
+#include <png.h>
+#undef PNG_VERSION_INFO_ONLY
+
+
 #include "Log.hpp"
 #include "Protocol.hpp"
 #include "TraceEvent.hpp"
@@ -79,22 +95,25 @@ namespace Util
 {
     namespace rng
     {
-        static std::random_device _rd;
         static std::mutex _rngMutex;
-        static Poco::RandomBuf _randBuf;
 
         // Create the prng with a random-device for seed.
         // If we don't have a hardware random-device, we will get the same seed.
         // In that case we are better off with an arbitrary, but changing, seed.
-        static std::mt19937_64 _rng = std::mt19937_64(_rd.entropy()
-                                                    ? _rd()
-                                                    : (clock() + getpid()));
+        static std::mt19937_64 _rng = std::mt19937_64(rng::getSeed());
+
+        uint_fast64_t getSeed()
+        {
+            std::vector<char> hardRandom = getBytes(16);
+            uint_fast64_t seed = *reinterpret_cast<uint_fast64_t *>(hardRandom.data());
+            return seed;
+        }
 
         // A new seed is used to shuffle the sequence.
         // N.B. Always reseed after getting forked!
         void reseed()
         {
-            _rng.seed(_rd.entropy() ? _rd() : (clock() + getpid()));
+            _rng.seed(rng::getSeed());
         }
 
         // Returns a new random number.
@@ -104,10 +123,53 @@ namespace Util
             return _rng();
         }
 
+        int getURandom()
+        {
+            static int urandom = open("/dev/urandom", O_RDONLY);
+            if (urandom < 0)
+            {
+                LOG_SYS("Failed to source hard random numbers");
+                fprintf(stderr, "No adequate source of randomness");
+                abort();
+                // Potentially dangerous to continue without randomness
+            }
+            return urandom;
+        }
+
+        // Since we have a fd always open to /dev/urandom
+        // 'read' is hopefully no less efficient than getrandom.
         std::vector<char> getBytes(const std::size_t length)
         {
             std::vector<char> v(length);
-            _randBuf.readFromDevice(v.data(), v.size());
+            char* p = v.data();
+            size_t nbytes = length;
+
+            while (nbytes)
+            {
+                ssize_t b = read(getURandom(), p, nbytes);
+                if (b <= 0)
+                {
+                    if (errno == EINTR)
+                        continue;
+                    break;
+                }
+
+                assert(static_cast<size_t>(b) <= nbytes);
+
+                nbytes -= b;
+                p += b;
+            }
+
+            size_t offset = p - v.data();
+            if (offset < length)
+            {
+                fprintf(stderr, "No adequate source of randomness, "
+                        "failed to read %ld bytes: with error %s\n",
+                        (long int)length, strerror(errno));
+                // Potentially dangerous to continue without randomness
+                abort();
+            }
+
             return v;
         }
 
@@ -118,39 +180,6 @@ namespace Util
             Poco::HexBinaryEncoder hex(ss);
             hex.rdbuf()->setLineLength(0); // Don't insert line breaks.
             hex.write(getBytes(length).data(), length);
-            hex.close(); // Flush.
-            return ss.str().substr(0, length);
-        }
-
-        /// Generate a string of harder random characters.
-        std::string getHardRandomHexString(const std::size_t length)
-        {
-            std::stringstream ss;
-            Poco::HexBinaryEncoder hex(ss);
-
-            // a poor fallback but something.
-            std::vector<char> random = getBytes(length);
-            int len = 0;
-#ifdef HAVE_SYS_RANDOM_H
-            len = getrandom(random.data(), length, GRND_NONBLOCK);
-
-            // if getrandom() fails, we fall back to "/dev/[u]random" approach.
-            if (len != length)
-#endif
-            {
-                const int fd = open("/dev/urandom", O_RDONLY);
-                if (fd < 0 ||
-                    (len = read(fd, random.data(), length)) < 0 ||
-                    std::size_t(len) < length)
-                {
-                    LOG_ERR("failed to read " << length << " hard random bytes, got " << len << " for hash: " << errno);
-                }
-                if (fd >= 0)
-                    close(fd);
-            }
-
-            hex.rdbuf()->setLineLength(0); // Don't insert line breaks.
-            hex.write(random.data(), length);
             hex.close(); // Flush.
             return ss.str().substr(0, length);
         }
@@ -179,348 +208,14 @@ namespace Util
         }
     }
 
-#if !MOBILEAPP
-    int getProcessThreadCount()
-    {
-        DIR *fdDir = opendir("/proc/self/task");
-        if (!fdDir)
-        {
-            LOG_ERR("No proc mounted");
-            return -1;
-        }
-        int tasks = 0;
-        struct dirent *i;
-        while ((i = readdir(fdDir)))
-        {
-            if (i->d_name[0] != '.')
-                tasks++;
-        }
-        closedir(fdDir);
-        return tasks;
-    }
-
-    // close what we have - far faster than going up to a 1m open_max eg.
-    static bool closeFdsFromProc(std::map<int, int> *mapFdsToKeep = nullptr)
-    {
-          DIR *fdDir = opendir("/proc/self/fd");
-          if (!fdDir)
-              return false;
-
-          struct dirent *i;
-
-          while ((i = readdir(fdDir))) {
-              if (i->d_name[0] == '.')
-                  continue;
-
-              char *e = NULL;
-              errno = 0;
-              long fd = strtol(i->d_name, &e, 10);
-              if (errno != 0 || !e || *e)
-                  continue;
-
-              if (fd == dirfd(fdDir))
-                  continue;
-
-              if (fd < 3)
-                  continue;
-
-              if (mapFdsToKeep && mapFdsToKeep->find(fd) != mapFdsToKeep->end())
-                  continue;
-
-              if (close(fd) < 0)
-                  std::cerr << "Unexpected failure to close fd " << fd << std::endl;
-          }
-
-          closedir(fdDir);
-          return true;
-    }
-
-    static void closeFds(std::map<int, int> *mapFdsToKeep = nullptr)
-    {
-        if (!closeFdsFromProc(mapFdsToKeep))
-        {
-            std::cerr << "Couldn't close fds efficiently from /proc" << std::endl;
-            for (int fd = 3; fd < sysconf(_SC_OPEN_MAX); ++fd)
-                if (mapFdsToKeep->find(fd) != mapFdsToKeep->end())
-                    close(fd);
-        }
-    }
-
-    int spawnProcess(const std::string &cmd, const StringVector &args, const std::vector<int>* fdsToKeep, int *stdInput)
-    {
-        int pipeFds[2] = { -1, -1 };
-        if (stdInput)
-        {
-            if (pipe2(pipeFds, O_NONBLOCK) < 0)
-            {
-                LOG_ERR("Out of file descriptors spawning " << cmd);
-                throw Poco::SystemException("Out of file descriptors");
-            }
-        }
-
-        // Create a vector of zero-terminated strings.
-        std::vector<std::string> argStrings;
-        for (const auto& arg : args)
-            argStrings.push_back(args.getParam(arg));
-
-        std::vector<char *> params;
-        params.push_back(const_cast<char *>(cmd.c_str()));
-        for (const auto& i : argStrings)
-            params.push_back(const_cast<char *>(i.c_str()));
-        params.push_back(nullptr);
-
-        std::map<int, int> mapFdsToKeep;
-
-        if (fdsToKeep)
-            for (const auto& i : *fdsToKeep)
-                mapFdsToKeep[i] = i;
-
-        int pid = fork();
-        if (pid < 0)
-        {
-            LOG_ERR("Failed to fork for command '" << cmd);
-            throw Poco::SystemException("Failed to fork for command ", cmd);
-        }
-        else if (pid == 0) // child
-        {
-            if (stdInput)
-                dup2(pipeFds[0], STDIN_FILENO);
-
-            closeFds(&mapFdsToKeep);
-
-            int ret = execvp(params[0], &params[0]);
-            if (ret < 0)
-                LOG_SFL("Failed to exec command '" << cmd << '\'');
-            Util::forcedExit(42);
-        }
-        // else spawning process still
-        if (stdInput)
-        {
-            close(pipeFds[0]);
-            *stdInput = pipeFds[1];
-        }
-        return pid;
-    }
-
-#endif
-
-    std::string encodeId(const std::uint64_t number, const int padding)
-    {
-        std::ostringstream oss;
-        oss << std::hex << std::setw(padding) << std::setfill('0') << number;
-        return oss.str();
-    }
-
-    std::uint64_t decodeId(const std::string& str)
-    {
-        std::uint64_t id = 0;
-        std::stringstream ss;
-        ss << std::hex << str;
-        ss >> id;
-        return id;
-    }
-
     bool windowingAvailable()
     {
         return std::getenv("DISPLAY") != nullptr;
     }
 
-#if !MOBILEAPP
-
-    static const char *startsWith(const char *line, const char *tag, std::size_t tagLen)
-    {
-        assert(strlen(tag) == tagLen);
-
-        std::size_t len = tagLen;
-        if (!strncmp(line, tag, len))
-        {
-            while (!isdigit(line[len]) && line[len] != '\0')
-                ++len;
-
-            return line + len;
-        }
-
-        return nullptr;
-    }
-
-    std::string getHumanizedBytes(unsigned long nBytes)
-    {
-        constexpr unsigned factor = 1024;
-        short count = 0;
-        float val = nBytes;
-        while (val >= factor && count < 4) {
-            val /= factor;
-            count++;
-        }
-        std::string unit;
-        switch (count)
-        {
-        case 0: unit = ""; break;
-        case 1: unit = "ki"; break;
-        case 2: unit = "Mi"; break;
-        case 3: unit = "Gi"; break;
-        case 4: unit = "Ti"; break;
-        default: assert(false);
-        }
-
-        unit += 'B';
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(1) << val << ' ' << unit;
-        return ss.str();
-    }
-
-    std::size_t getTotalSystemMemoryKb()
-    {
-        std::size_t totalMemKb = 0;
-        FILE* file = fopen("/proc/meminfo", "r");
-        if (file != nullptr)
-        {
-            char line[4096] = { 0 };
-            while (fgets(line, sizeof(line), file))
-            {
-                const char* value;
-                if ((value = startsWith(line, "MemTotal:", 9)))
-                {
-                    totalMemKb = atoi(value);
-                    break;
-                }
-            }
-            fclose(file);
-        }
-
-        return totalMemKb;
-    }
-
-    std::pair<std::size_t, std::size_t> getPssAndDirtyFromSMaps(FILE* file)
-    {
-        std::size_t numPSSKb = 0;
-        std::size_t numDirtyKb = 0;
-        if (file)
-        {
-            rewind(file);
-            char line[4096] = { 0 };
-            while (fgets(line, sizeof (line), file))
-            {
-                if (line[0] != 'P')
-                    continue;
-
-                const char *value;
-
-                // Shared_Dirty is accounted for by forkit's RSS
-                if ((value = startsWith(line, "Private_Dirty:", 14)))
-                {
-                    numDirtyKb += atoi(value);
-                }
-                else if ((value = startsWith(line, "Pss:", 4)))
-                {
-                    numPSSKb += atoi(value);
-                }
-            }
-        }
-
-        return std::make_pair(numPSSKb, numDirtyKb);
-    }
-
-    std::string getMemoryStats(FILE* file)
-    {
-        const std::pair<std::size_t, std::size_t> pssAndDirtyKb = getPssAndDirtyFromSMaps(file);
-        std::ostringstream oss;
-        oss << "procmemstats: pid=" << getpid()
-            << " pss=" << pssAndDirtyKb.first
-            << " dirty=" << pssAndDirtyKb.second;
-        LOG_TRC("Collected " << oss.str());
-        return oss.str();
-    }
-
-    std::size_t getMemoryUsagePSS(const pid_t pid)
-    {
-        if (pid > 0)
-        {
-            const auto cmd = "/proc/" + std::to_string(pid) + "/smaps";
-            FILE* fp = fopen(cmd.c_str(), "r");
-            if (fp != nullptr)
-            {
-                const std::size_t pss = getPssAndDirtyFromSMaps(fp).first;
-                fclose(fp);
-                return pss;
-            }
-        }
-
-        return 0;
-    }
-
-    std::size_t getMemoryUsageRSS(const pid_t pid)
-    {
-        static const int pageSizeBytes = getpagesize();
-        std::size_t rss = 0;
-
-        if (pid > 0)
-        {
-            rss = getStatFromPid(pid, 23);
-            rss *= pageSizeBytes;
-            rss /= 1024;
-            return rss;
-        }
-        return 0;
-    }
-
-    std::size_t getCpuUsage(const pid_t pid)
-    {
-        if (pid > 0)
-        {
-            std::size_t totalJiffies = 0;
-            totalJiffies += getStatFromPid(pid, 13);
-            totalJiffies += getStatFromPid(pid, 14);
-            return totalJiffies;
-        }
-        return 0;
-    }
-
-    std::size_t getStatFromPid(const pid_t pid, int ind)
-    {
-        if (pid > 0)
-        {
-            const auto cmd = "/proc/" + std::to_string(pid) + "/stat";
-            FILE* fp = fopen(cmd.c_str(), "r");
-            if (fp != nullptr)
-            {
-                char line[4096] = { 0 };
-                if (fgets(line, sizeof (line), fp))
-                {
-                    const std::string s(line);
-                    int index = 1;
-                    std::size_t pos = s.find(' ');
-                    while (pos != std::string::npos)
-                    {
-                        if (index == ind)
-                        {
-                            fclose(fp);
-                            return strtol(&s[pos], nullptr, 10);
-                        }
-                        ++index;
-                        pos = s.find(' ', pos + 1);
-                    }
-                }
-                fclose(fp);
-            }
-        }
-        return 0;
-    }
-
-    void setProcessAndThreadPriorities(const pid_t pid, int prio)
-    {
-        int res = setpriority(PRIO_PROCESS, pid, prio);
-        LOG_TRC("Lowered kit [" << (int)pid << "] priority: " << prio << " with result: " << res);
-
-#ifdef __linux__
-        // rely on Linux thread-id priority setting to drop this thread' priority
-        pid_t tid = getThreadId();
-        res = setpriority(PRIO_PROCESS, tid, prio);
-        LOG_TRC("Lowered own thread [" << (int)tid << "] priority: " << prio << " with result: " << res);
-#endif
-    }
-
-#endif // !MOBILEAPP
+    bool kitInProcess = false;
+    void setKitInProcess(bool value) { kitInProcess = value; }
+    bool isKitInProcess() { return kitInProcess || isFuzzing() || isMobileApp(); }
 
     std::string replace(std::string result, const std::string& a, const std::string& b)
     {
@@ -539,6 +234,34 @@ namespace Util
         return result;
     }
 
+    std::string replaceAllOf(std::string_view str, std::string_view match, std::string_view repl)
+    {
+        std::ostringstream os;
+
+        assert(match.size() == repl.size());
+        if (match.size() != repl.size())
+            return std::string("replaceAllOf failed");
+
+        const std::size_t strSize = str.size();
+        for (size_t i = 0; i < strSize; ++i)
+        {
+            auto pos = match.find(str[i]);
+            if (pos != std::string::npos)
+                os << repl[pos];
+            else
+                os << str[i];
+        }
+
+        return os.str();
+    }
+
+    std::string cleanupFilename(const std::string &filename)
+    {
+        constexpr std::string_view mtch(",/?:@&=+$#'\"");
+        constexpr std::string_view repl("------------");
+        return replaceAllOf(filename, mtch, repl);
+    }
+
     std::string formatLinesForLog(const std::string& s)
     {
         std::string r;
@@ -547,7 +270,43 @@ namespace Util
             r = s.substr(0, n-1);
         else
             r = s;
-        return replace(r, "\n", " / ");
+        return replace(std::move(r), "\n", " / ");
+    }
+
+#if defined __linux__
+    static thread_local pid_t ThreadTid = 0;
+
+    pid_t getThreadId()
+#else
+    static thread_local long ThreadTid = 0;
+
+    long getThreadId()
+#endif
+    {
+        // Avoid so many redundant system calls
+#if defined __linux__
+        if (!ThreadTid)
+            ThreadTid = ::syscall(SYS_gettid);
+        return ThreadTid;
+#elif defined __FreeBSD__
+        if (!ThreadTid)
+            thr_self(&ThreadTid);
+        return ThreadTid;
+#else
+        static long threadCounter = 1;
+        if (!ThreadTid)
+            ThreadTid = threadCounter++;
+        return ThreadTid;
+#endif
+    }
+
+    void killThreadById(int tid, int signal)
+    {
+#if defined __linux__
+        ::syscall(SYS_tgkill, getpid(), tid, signal);
+#else
+        LOG_WRN("No tgkill for thread " << tid);
+#endif
     }
 
     // prctl(2) supports names of up to 16 characters, including null-termination.
@@ -557,6 +316,9 @@ namespace Util
 
     void setThreadName(const std::string& s)
     {
+        // Clear the cache - perhaps we forked
+        ThreadTid = 0;
+
         // Copy the current name.
         const std::string knownAs
             = ThreadName[0] ? "known as [" + std::string(ThreadName) + ']' : "unnamed";
@@ -610,38 +372,14 @@ namespace Util
         return ThreadName;
     }
 
-#if defined __linux__
-    static thread_local pid_t ThreadTid = 0;
+    std::string getCoolVersion() { return std::string(COOLWSD_VERSION); }
 
-    pid_t getThreadId()
-#else
-    static thread_local long ThreadTid = 0;
-
-    long getThreadId()
-#endif
-    {
-        // Avoid so many redundant system calls
-#if defined __linux__
-        if (!ThreadTid)
-            ThreadTid = ::syscall(SYS_gettid);
-        return ThreadTid;
-#elif defined __FreeBSD__
-        if (!ThreadTid)
-            thr_self(&ThreadTid);
-        return ThreadTid;
-#else
-        static long threadCounter = 1;
-        if (!ThreadTid)
-            ThreadTid = threadCounter++;
-        return ThreadTid;
-#endif
-    }
+    std::string getCoolVersionHash() { return std::string(COOLWSD_VERSION_HASH); }
 
     void getVersionInfo(std::string& version, std::string& hash)
     {
-        version = std::string(COOLWSD_VERSION);
-        hash = std::string(COOLWSD_VERSION_HASH);
-        hash.resize(std::min(8, (int)hash.length()));
+        version = getCoolVersion();
+        hash = getCoolVersionHash();
     }
 
     const std::string& getProcessIdentifier()
@@ -651,101 +389,80 @@ namespace Util
         return id;
     }
 
-    std::string getVersionJSON(bool enableExperimental)
+    std::string getVersionJSON(bool enableExperimental, const std::string& timezone)
     {
         std::string version, hash;
         Util::getVersionInfo(version, hash);
-        return
-            "{ \"Version\":     \"" + version + "\", "
-              "\"Hash\":        \"" + hash + "\", "
-              "\"BuildConfig\": \"" + std::string(COOLWSD_BUILDCONFIG) + "\", "
-              "\"Protocol\":    \"" + COOLProtocol::GetProtocolVersion() + "\", "
-              "\"Id\":          \"" + Util::getProcessIdentifier() + "\", "
-              "\"Options\":     \"" + std::string(enableExperimental ? " (E)" : "") + "\" }";
+
+        std::string pocoVersion;
+        pocoVersion += std::to_string((POCO_VERSION & 0xff000000) >> 24) + ".";
+        pocoVersion += std::to_string((POCO_VERSION & 0x00ff0000) >> 16) + ".";
+        pocoVersion += std::to_string((POCO_VERSION & 0x0000ff00) >> 8);
+        std::string zstdVersion;
+        zstdVersion += std::to_string(ZSTD_VERSION_MAJOR) + ".";
+        zstdVersion += std::to_string(ZSTD_VERSION_MINOR) + ".";
+        zstdVersion += std::to_string(ZSTD_VERSION_RELEASE);
+
+        std::string json = "{ \"Version\":     \"" + version +
+                           "\", "
+                           "\"Hash\":        \"" +
+                           hash +
+                           "\", "
+                           "\"BuildConfig\": \"" +
+                           std::string(COOLWSD_BUILDCONFIG) +
+                           "\", "
+                           "\"PocoVersion\": \"" +
+                           pocoVersion +
+                           "\", "
+#if ENABLE_SSL
+                           "\"OpenSSLVersion\": \"" +
+                           std::string(OPENSSL_VERSION_STR) +
+                           "\", "
+#endif
+                           "\"ZstdVersion\": \"" +
+                           zstdVersion +
+                           "\", "
+                           "\"LibPngVersion\": \"" +
+                           std::string(PNG_LIBPNG_VER_STRING) +
+                           "\", "
+                           "\"Protocol\":    \"" +
+                           COOLProtocol::GetProtocolVersion() +
+                           "\", "
+                           "\"Id\":          \"" +
+                           Util::getProcessIdentifier() + "\", ";
+
+        if (!timezone.empty())
+            json += "\"TimeZone\":     \"" + timezone + "\", ";
+
+        json += "\"Options\":     \"" + std::string(enableExperimental ? " (E)" : "") + "\" }";
+        return json;
     }
 
-    std::string UniqueId()
+    std::string trimURI(const std::string &uriStr)
     {
-        static std::atomic_int counter(0);
-        return std::to_string(getpid()) + '/' + std::to_string(counter++);
-    }
-
-    std::map<std::string, std::string> JsonToMap(const std::string& jsonString)
-    {
-        std::map<std::string, std::string> map;
-        if (jsonString.empty())
-            return map;
-
-        Poco::JSON::Parser parser;
-        const Poco::Dynamic::Var result = parser.parse(jsonString);
-        const auto& json = result.extract<Poco::JSON::Object::Ptr>();
-
-        std::vector<std::string> names;
-        json->getNames(names);
-
-        for (const auto& name : names)
-        {
-            map[name] = json->get(name).toString();
-        }
-
-        return map;
-    }
-
-    bool isValidURIScheme(const std::string& scheme)
-    {
-        if (scheme.empty())
-            return false;
-
-        for (char c : scheme)
-        {
-            if (!isalpha(c))
-                return false;
-        }
-
-        return true;
-    }
-
-    bool isValidURIHost(const std::string& host)
-    {
-        if (host.empty())
-            return false;
-
-        for (char c : host)
-        {
-            if (!isalnum(c) && c != '_' && c != '-' && c != '.' && c !=':' && c != '[' && c != ']')
-                return false;
-        }
-
-        return true;
-    }
-
-    std::string encodeURIComponent(const std::string& uri, const std::string& reserved)
-    {
-        std::string encoded;
-        Poco::URI::encode(uri, reserved, encoded);
-        return encoded;
-    }
-
-    std::string decodeURIComponent(const std::string& uri)
-    {
-        std::string decoded;
-        Poco::URI::decode(uri, decoded);
-        return decoded;
+        Poco::URI uri(uriStr);
+        uri.setUserInfo("");
+        uri.setPath("");
+        uri.setQuery("");
+        uri.setFragment("");
+        return uri.toString();
     }
 
     /// Split a string in two at the delimiter and give the delimiter to the first.
     static
-    std::pair<std::string, std::string> splitLast2(const char* s, const int length, const char delimiter = ' ')
+    std::pair<std::string, std::string> splitLast2(const std::string& str, const char delimiter = ' ')
     {
-        if (s != nullptr && length > 0)
+        if (!str.empty())
         {
+            const char* s = str.c_str();
+            const int length = str.size();
             const int pos = getLastDelimiterPosition(s, length, delimiter);
             if (pos < length)
                 return std::make_pair(std::string(s, pos + 1), std::string(s + pos + 1));
         }
 
         // Not found; return in first.
-        return std::make_pair(std::string(s, length), std::string());
+        return std::make_pair(str, std::string());
     }
 
     std::tuple<std::string, std::string, std::string, std::string> splitUrl(const std::string& url)
@@ -756,7 +473,7 @@ namespace Util
         std::tie(base, params) = Util::split(url, '?', false);
 
         std::string filename;
-        std::tie(base, filename) = Util::splitLast2(base.c_str(), base.size(), '/');
+        std::tie(base, filename) = Util::splitLast2(base, '/');
         if (filename.empty())
         {
             // If no '/', then it's only filename.
@@ -769,97 +486,21 @@ namespace Util
         return std::make_tuple(base, filename, ext, params);
     }
 
-    static std::unordered_map<std::string, std::string> AnonymizedStrings;
-    static std::atomic<unsigned> AnonymizationCounter(0);
-    static std::mutex AnonymizedMutex;
-
-    void mapAnonymized(const std::string& plain, const std::string& anonymized)
-    {
-        if (plain.empty() || anonymized.empty())
-            return;
-
-        if (Log::traceEnabled() && plain != anonymized)
-            LOG_TRC("Anonymizing [" << plain << "] -> [" << anonymized << "].");
-
-        std::unique_lock<std::mutex> lock(AnonymizedMutex);
-
-        AnonymizedStrings[plain] = anonymized;
-    }
-
-    std::string anonymize(const std::string& text, const std::uint64_t nAnonymizationSalt)
-    {
-        {
-            std::unique_lock<std::mutex> lock(AnonymizedMutex);
-
-            const auto it = AnonymizedStrings.find(text);
-            if (it != AnonymizedStrings.end())
-            {
-                if (Log::traceEnabled() && text != it->second)
-                    LOG_TRC("Found anonymized [" << text << "] -> [" << it->second << "].");
-                return it->second;
-            }
-        }
-
-        // Modified 64-bit FNV-1a to add salting.
-        // For the algorithm and the magic numbers, see http://isthe.com/chongo/tech/comp/fnv/
-        std::uint64_t hash = 0xCBF29CE484222325LL;
-        hash ^= nAnonymizationSalt;
-        hash *= 0x100000001b3ULL;
-        for (const char c : text)
-        {
-            hash ^= static_cast<std::uint64_t>(c);
-            hash *= 0x100000001b3ULL;
-        }
-
-        hash ^= nAnonymizationSalt;
-        hash *= 0x100000001b3ULL;
-
-        // Generate the anonymized string. The '#' is to hint that it's anonymized.
-        // Prepend with count to make it unique within a single process instance,
-        // in case we get collisions (which we will, eventually). N.B.: Identical
-        // strings likely to have different prefixes when logged in WSD process vs. Kit.
-        std::string res
-            = '#' + Util::encodeId(AnonymizationCounter++, 0) + '#' + Util::encodeId(hash, 0) + '#';
-        mapAnonymized(text, res);
-        return res;
-    }
-
-    void clearAnonymized()
-    {
-        AnonymizedStrings.clear();
-    }
-
-    std::string getFilenameFromURL(const std::string& url)
-    {
-        std::string base;
-        std::string filename;
-        std::string ext;
-        std::string params;
-        std::tie(base, filename, ext, params) = Util::splitUrl(url);
-        return filename;
-    }
-
-    std::string anonymizeUrl(const std::string& url, const std::uint64_t nAnonymizationSalt)
-    {
-        std::string base;
-        std::string filename;
-        std::string ext;
-        std::string params;
-        std::tie(base, filename, ext, params) = Util::splitUrl(url);
-
-        return base + Util::anonymize(filename, nAnonymizationSalt) + ext + params;
-    }
-
-    std::string getHttpTimeNow()
+    std::string getTimeNow(const char* format)
     {
         char time_now[64];
         std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
         std::time_t now_c = std::chrono::system_clock::to_time_t(now);
         std::tm now_tm;
         gmtime_r(&now_c, &now_tm);
-        strftime(time_now, sizeof(time_now), "%a, %d %b %Y %T", &now_tm);
+        strftime(time_now, sizeof(time_now), format, &now_tm);
 
         return time_now;
+    }
+
+    std::string getHttpTimeNow()
+    {
+        return getTimeNow("%a, %d %b %Y %T");
     }
 
     std::string getHttpTime(std::chrono::system_clock::time_point time)
@@ -873,16 +514,16 @@ namespace Util
         return http_time;
     }
 
-    std::size_t findInVector(const std::vector<char>& tokens, const char *cstring)
+    std::size_t findInVector(const std::vector<char>& tokens, const char *cstring, std::size_t offset)
     {
         assert(cstring);
-        for (std::size_t i = 0; i < tokens.size(); ++i)
+        for (std::size_t i = 0; i < tokens.size() - offset; ++i)
         {
             std::size_t j;
-            for (j = 0; i + j < tokens.size() && cstring[j] != '\0' && tokens[i + j] == cstring[j]; ++j)
+            for (j = 0; i + j < tokens.size() - offset && cstring[j] != '\0' && tokens[i + j + offset] == cstring[j]; ++j)
                 ;
             if (cstring[j] == '\0')
-                return i;
+                return i + offset;
         }
         return std::string::npos;
     }
@@ -983,7 +624,7 @@ namespace Util
         localtime_r(&t, &tm);
 
         char buffer[128] = { 0 };
-        std::strftime(buffer, 80, "%a %b %d %H:%M", &tm);
+        std::strftime(buffer, 80, "%a %b %d %H:%M:%S", &tm);
         std::stringstream ss;
         ss << buffer << '.' << std::setfill('0') << std::setw(3) << msFraction << ' '
            << tm.tm_year + 1900;
@@ -999,11 +640,11 @@ namespace Util
 #endif
     }
 
-    std::map<std::string, std::string> stringVectorToMap(std::vector<std::string> sVector, const char delimiter)
+    std::map<std::string, std::string> stringVectorToMap(const std::vector<std::string>& strvector, const char delimiter)
     {
         std::map<std::string, std::string> result;
 
-        for (std::vector<std::string>::iterator it = sVector.begin(); it != sVector.end(); it++)
+        for (auto it = strvector.begin(); it != strvector.end(); ++it)
         {
             std::size_t delimiterPosition = 0;
             delimiterPosition = (*it).find(delimiter, 0);
@@ -1011,8 +652,7 @@ namespace Util
             {
                 std::string key = (*it).substr(0, delimiterPosition);
                 delimiterPosition++;
-                std::string value = (*it).substr(delimiterPosition);
-                result[key] = value;
+                result[key] = (*it).substr(delimiterPosition);
             }
             else
             {
@@ -1033,50 +673,6 @@ namespace Util
     {
         return ApplicationPath;
     }
-
-    #if !MOBILEAPP
-        // If OS is not mobile, it must be Linux.
-        std::string getLinuxVersion(){
-            // Read operating system info. We can read "os-release" file, located in /etc.
-            std::ifstream ifs("/etc/os-release");
-            std::string str(std::istreambuf_iterator<char>{ifs}, {});
-            std::vector<std::string> infoList = Util::splitStringToVector(str, '\n');
-            std::map<std::string, std::string> releaseInfo = Util::stringVectorToMap(infoList, '=');
-
-            auto it = releaseInfo.find("PRETTY_NAME");
-            if (it != releaseInfo.end())
-            {
-                std::string name = it->second;
-
-                // See os-release(5). It says that the lines are "environment-like shell-compatible
-                // variable assignments". What that means, *exactly*, is up for debate, but probably
-                // of mainly academic interest. (It does say that variable expansion at least is not
-                // supported, that is a relief.)
-
-                // The value of PRETTY_NAME might be quoted with double-quotes or
-                // single-quotes.
-
-                // FIXME: In addition, it might contain backslash-escaped special
-                // characters, but we ignore that possibility for now.
-
-                // FIXME: In addition, if it really does support shell syntax (except variable
-                // expansion), it could for instance consist of multiple concatenated quoted strings (with no
-                // whitespace inbetween), as in:
-                // PRETTY_NAME="Foo "'bar'" mumble"
-                // But I guess that is a pretty remote possibility and surely no other code that
-                // reads /etc/os-release handles that like a proper shell, either.
-
-                if (name.length() >= 2 && ((name[0] == '"' && name[name.length()-1] == '"') ||
-                                           (name[0] == '\'' && name[name.length()-1] == '\'')))
-                    name = name.substr(1, name.length()-2);
-                return name;
-            }
-            else
-            {
-                return "unknown";
-            }
-        }
-    #endif
 
     int safe_atoi(const char* p, int len)
     {
@@ -1134,13 +730,42 @@ namespace Util
             LOG_FTL("Forced Exit with code: " << code);
         else
             LOG_INF("Forced Exit with code: " << code);
+
         Log::shutdown();
 
 #if CODE_COVERAGE
         __gcov_dump();
 #endif
 
+        /// Wait for the signal handler, if any,
+        /// and prevent _Exit while collecting backtrace.
+        SigUtil::SigHandlerTrap::wait();
+
         std::_Exit(code);
+    }
+
+    std::string getMallocInfo()
+    {
+        std::string info;
+
+#if defined __GLIBC__
+        size_t size = 0;
+        char* p = nullptr;
+        FILE* f = open_memstream(&p, &size);
+        if (f)
+        {
+            // Dump malloc internal structures.
+            malloc_info(0, f);
+            fclose(f);
+
+            if (size)
+                info = std::string(p, size);
+
+            free(p);
+        }
+#endif // __GLIBC__
+
+        return info;
     }
 
     bool matchRegex(const std::set<std::string>& set, const std::string& subject)
@@ -1177,9 +802,9 @@ namespace Util
 
     std::string getValue(const std::map<std::string, std::string>& map, const std::string& subject)
     {
-        if (map.find(subject) != map.end())
+        if (const auto& it = map.find(subject); it != map.end())
         {
-            return map.at(subject);
+            return it->second;
         }
 
         // Not a perfect match, try regex.
@@ -1252,6 +877,180 @@ namespace Util
 
         assert(sameThread);
     }
-}
+
+    void sleepFromEnvIfSet(const char *domain, const char *envVar)
+    {
+        const char *value;
+        if ((value = std::getenv(envVar)))
+        {
+            const size_t delaySecs = std::stoul(value);
+            if (delaySecs > 0)
+            {
+                std::cerr << domain << ": Sleeping " << delaySecs
+                          << " seconds to give you time to attach debugger to process "
+                          << getpid() << std::endl
+                          << "sudo gdb --pid=" << getpid() << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(delaySecs));
+            }
+        }
+    }
+
+    std::string Backtrace::Symbol::toString() const
+    {
+        std::string s;
+        if (isDemangled())
+        {
+            s.append(demangled);
+            s.append(" <= ");
+        }
+        s.append(mangled);
+        if (!offset.empty())
+        {
+            s.append("+").append(offset);
+        }
+        if (!blob.empty())
+        {
+            s.append(" @ ").append(blob);
+        }
+        return s;
+    }
+    std::string Backtrace::Symbol::toMangledString() const
+    {
+        std::string s;
+        s.append(mangled);
+        if (!offset.empty())
+        {
+            s.append("+").append(offset);
+        }
+        if (!blob.empty())
+        {
+            s.append(" @ ").append(blob);
+        }
+        return s;
+    }
+    bool Backtrace::separateRawSymbol(const std::string& raw, Symbol& s)
+    {
+        auto idx0 = raw.find('(');
+        if (idx0 != std::string::npos)
+        {
+            auto idx2 = raw.find(')', idx0 + 1);
+            if (idx2 != std::string::npos && idx2 > idx0)
+            {
+                auto idx1 = raw.find('+', idx0 + 1);
+                if (idx1 != std::string::npos && idx1 > idx0 && idx1 < idx2)
+                {
+                    //  0123456789abcd
+                    // "abc(def+0x123)"
+                    s.blob = raw.substr(0, idx0);
+                    s.mangled = raw.substr(idx0 + 1, idx1 - idx0 - 1);
+                    s.offset = raw.substr(idx1 + 1, idx2 - idx1 - 1);
+                    return true;
+                }
+            }
+        }
+        s.mangled = raw;
+        return false;
+    }
+
+    Backtrace::Backtrace(const int maxFrames, const int skip)
+        : skipFrames(skip)
+    {
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
+        std::vector<void*> backtraceBuffer(maxFrames + skip, nullptr);
+
+        const int numSlots = ::backtrace(backtraceBuffer.data(), backtraceBuffer.size());
+        if (numSlots > 0)
+        {
+            char** rawSymbols = ::backtrace_symbols(backtraceBuffer.data(), numSlots);
+            if (rawSymbols)
+            {
+                for (int i = skip; i < numSlots; ++i)
+                {
+                    Symbol symbol;
+                    separateRawSymbol(rawSymbols[i], symbol);
+                    int status;
+                    char* demangled;
+                    std::string s("`");
+                    if ((demangled = abi::__cxa_demangle(symbol.mangled.c_str(), nullptr, nullptr,
+                                                         &status)) != nullptr)
+                    {
+                        symbol.demangled = demangled;
+                        free(demangled);
+                    }
+                    _frames.emplace_back(backtraceBuffer[i], symbol);
+                }
+                free(rawSymbols);
+            }
+        }
+#endif
+        if (0 == _frames.size())
+        {
+            _frames.emplace_back(nullptr, Symbol{"n/a", "empty", "0x00", ""});
+        }
+    }
+
+    std::ostream& Backtrace::send(std::ostream& os) const
+    {
+        os << "Backtrace:\n";
+        int fidx = skipFrames;
+        for (const auto& p : _frames)
+        {
+            const Symbol& sym = p.second;
+            if (sym.isDemangled())
+            {
+                os << fidx++ << ": " << sym.demangled << "\n";
+                os << "\t" << sym.toMangledString() << '\n';
+            }
+            else
+            {
+                os << fidx++ << ": " << sym.toMangledString() << '\n';
+            }
+        }
+        return os;
+    }
+    std::string Backtrace::toString() const
+    {
+        std::string s = "Backtrace:\n";
+        int fidx = skipFrames;
+        for (const auto& p : _frames)
+        {
+            const Symbol& sym = p.second;
+            if (sym.isDemangled())
+            {
+                s.append(std::to_string(fidx++)).append(": ").append(sym.demangled).append("\n");
+                s.append("\t").append(sym.toMangledString()).append("\n");
+            }
+            else
+            {
+                s.append(std::to_string(fidx++))
+                    .append(": ")
+                    .append(sym.toMangledString())
+                    .append("\n");
+            }
+        }
+        return s;
+    }
+
+    Rectangle::Rectangle(const std::string &rectangle)
+    {
+        StringVector tokens(StringVector::tokenize(rectangle, ','));
+        if (tokens.size() == 4)
+        {
+            _x1 = std::stoi(tokens[0]);
+            _y1 = std::stoi(tokens[1]);
+            _x2 = _x1 + std::stoi(tokens[2]);
+            _y2 = _y1 + std::stoi(tokens[3]);
+        }
+        else
+        {
+            _x1 = _y1 = _x2 = _y2 = 0;
+        }
+    }
+
+} // namespace Util
+
+namespace SigUtil {
+    std::atomic<int> SigHandlerTrap::SigHandling;
+} // end namespace SigUtil
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

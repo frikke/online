@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,7 +11,6 @@
 
 #include <config.h>
 
-#include "ConfigUtil.hpp"
 #include <HttpTestServer.hpp>
 
 #include <Poco/URI.h>
@@ -28,6 +31,7 @@
 #include "Ssl.hpp"
 #include <net/SslSocket.hpp>
 #endif
+#include <net/AsyncDNS.hpp>
 #include <net/ServerSocket.hpp>
 #include <net/DelaySocket.hpp>
 #include <net/HttpRequest.hpp>
@@ -93,6 +97,7 @@ public:
         : _pollServerThread("HttpServerPoll")
         , _port(0)
     {
+        net::AsyncDNS::startAsyncDNS();
 #if ENABLE_SSL
         Poco::Net::initializeSSL();
         // Just accept the certificate anyway for testing purposes
@@ -101,7 +106,7 @@ public:
         Poco::Net::Context::Params sslParams;
         Poco::Net::Context::Ptr sslContext
             = new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, sslParams);
-        Poco::Net::SSLManager::instance().initializeClient(nullptr, invalidCertHandler, sslContext);
+        Poco::Net::SSLManager::instance().initializeClient(nullptr, std::move(invalidCertHandler), std::move(sslContext));
 #endif
     }
 
@@ -110,11 +115,12 @@ public:
 #if ENABLE_SSL
         Poco::Net::uninitializeSSL();
 #endif
+        net::AsyncDNS::stopAsyncDNS();
     }
 
     class ServerSocketFactory final : public SocketFactory
     {
-        std::shared_ptr<Socket> create(const int physicalFd) override
+        std::shared_ptr<Socket> create(const int physicalFd, Socket::Type type) override
         {
             int fd = physicalFd;
 
@@ -125,12 +131,12 @@ public:
 #if ENABLE_SSL
             if (helpers::haveSsl())
                 return StreamSocket::create<SslStreamSocket>(
-                    std::string(), fd, false, std::make_shared<ServerRequestHandler>());
+                    std::string(), fd, type, false, HostType::Other, std::make_shared<ServerRequestHandler>());
             else
-                return StreamSocket::create<StreamSocket>(std::string(), fd, false,
+                return StreamSocket::create<StreamSocket>(std::string(), fd, type, false, HostType::Other,
                                                           std::make_shared<ServerRequestHandler>());
 #else
-            return StreamSocket::create<StreamSocket>(std::string(), fd, false,
+            return StreamSocket::create<StreamSocket>(std::string(), fd, type, false, HostType::Other,
                                                       std::make_shared<ServerRequestHandler>());
 #endif
         }
@@ -139,6 +145,7 @@ public:
     void setUp()
     {
         LOG_INF("HttpRequestTests::setUp");
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         std::shared_ptr<SocketFactory> factory = std::make_shared<ServerSocketFactory>();
         _port = 9990;
         for (int i = 0; i < 40; ++i, ++_port)
@@ -146,7 +153,7 @@ public:
             // Try listening on this port.
             LOG_INF("HttpRequestTests::setUp: creating socket to listen on port " << _port);
             _socket = ServerSocket::create(ServerSocket::Type::Local, _port, Socket::Type::IPv4,
-                                           _pollServerThread, factory);
+                                           now, _pollServerThread, factory);
             if (_socket)
                 break;
         }
@@ -179,7 +186,8 @@ void HttpRequestTests::testSslHostname()
     {
         const std::string host = "localhost";
         std::shared_ptr<SslStreamSocket> socket = StreamSocket::create<SslStreamSocket>(
-            host, _port, false, std::make_shared<ServerRequestHandler>());
+            host, _port, Socket::Type::All, false, HostType::LocalHost,
+            std::make_shared<ServerRequestHandler>());
         LOK_ASSERT_EQUAL(host, socket->getSslServername());
     }
 #endif
@@ -303,12 +311,16 @@ void HttpRequestTests::testSimpleGet()
 
         std::unique_lock<std::mutex> lock(mutex);
 
-        LOK_ASSERT(httpSession->asyncRequest(httpRequest, pollThread));
+        httpSession->setConnectFailHandler([](const std::shared_ptr<http::Session>&) {
+            LOK_ASSERT_FAIL("Unexpected connection failure");
+        });
+
+        httpSession->asyncRequest(httpRequest, pollThread);
 
         // Use Poco to get the same URL in parallel.
         const auto pocoResponse = helpers::pocoGetRetry(Poco::URI(_localUri + URL));
 
-        cv.wait_for(lock, DefTimeoutSeconds);
+        cv.wait_for(lock, DefTimeoutSeconds, [&]() { return timedout == false; });
 
         const std::shared_ptr<const http::Response> httpResponse = httpSession->response();
 
@@ -330,7 +342,7 @@ void HttpRequestTests::testSimpleGetSync()
 {
     constexpr auto testname = "simpleGetSync";
 
-    const auto data = Util::rng::getHardRandomHexString(Util::rng::getNext() % 1024);
+    const auto data = Util::rng::getHexString(Util::rng::getNext() % 1024);
     const auto body = std::string(data.data(), data.size());
     const std::string URL = "/echo/" + body;
     TST_LOG("Requesting URI: [" << URL << ']');
@@ -367,7 +379,7 @@ void HttpRequestTests::testChunkedGetSync()
 {
     constexpr auto testname = "chunkedGetSync";
 
-    const auto data = Util::rng::getHardRandomHexString(Util::rng::getNext() % 1024);
+    const auto data = Util::rng::getHexString(Util::rng::getNext() % 1024);
     const auto body = std::string(data.data(), data.size());
     const std::string URL = "/echo/chunked/" + body;
     TST_LOG("Requesting URI: [" << URL << ']');
@@ -523,7 +535,11 @@ void HttpRequestTests::test500GetStatuses()
         std::unique_lock<std::mutex> lock(mutex);
         timedout = true; // Assume we timed out until we prove otherwise.
 
-        LOK_ASSERT(httpSession->asyncRequest(httpRequest, pollThread));
+        httpSession->setConnectFailHandler([](const std::shared_ptr<http::Session>&) {
+            LOK_ASSERT_FAIL("Unexpected connection failure");
+        });
+
+        httpSession->asyncRequest(httpRequest, pollThread);
 
         // Get via Poco in parallel.
         std::pair<std::shared_ptr<Poco::Net::HTTPResponse>, std::string> pocoResponse;
@@ -612,9 +628,13 @@ void HttpRequestTests::testSimplePost_External()
 
     std::unique_lock<std::mutex> lock(mutex);
 
-    LOK_ASSERT(httpSession->asyncRequest(httpRequest, pollThread));
+    httpSession->setConnectFailHandler([](const std::shared_ptr<http::Session>&) {
+        LOK_ASSERT_FAIL("Unexpected connection failure");
+    });
 
-    cv.wait_for(lock, DefTimeoutSeconds);
+    httpSession->asyncRequest(httpRequest, pollThread);
+
+    cv.wait_for(lock, DefTimeoutSeconds, [&]() { return timedout == false; });
 
     const std::shared_ptr<const http::Response> httpResponse = httpSession->response();
     LOK_ASSERT(httpResponse->state() == http::Response::State::Complete);
@@ -624,7 +644,7 @@ void HttpRequestTests::testSimplePost_External()
     LOK_ASSERT(httpResponse->statusLine().statusCategory()
                == http::StatusLine::StatusCodeClass::Successful);
 
-    const std::string body = httpResponse->getBody();
+    const std::string& body = httpResponse->getBody();
     LOK_ASSERT(!body.empty());
     std::cerr << "[" << body << "]\n";
     LOK_ASSERT(body.find(data) != std::string::npos);

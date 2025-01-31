@@ -1,5 +1,15 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
  * JSDialog.FormulabarEdit - text field in the fromulabar
  *
  * Example JSON:
@@ -13,13 +23,11 @@
  *
  * 'cursor' specifies if user can type into the field or it is readonly
  * 'enabled' editable field can be temporarily disabled
- *
- * Copyright the Collabora Online contributors.
- *
- * SPDX-License-Identifier: MPL-2.0
  */
 
 /* global JSDialog */
+
+var scrollToCursorTimeout = null;
 
 function _sendSelection(edit, builder, id, event) {
 	if (document.activeElement != edit)
@@ -99,11 +107,11 @@ function _appendNewLine(cursorLayer) {
 function _appendCursor(cursorLayer) {
 	var cursor = L.DomUtil.create('span', 'cursor');
 	cursorLayer.appendChild(cursor);
-	cursor.scrollIntoView();
+	return cursor;
 }
 
 function _setSelection(cursorLayer, text, startX, endX, startY, endY) {
-	cursorLayer.innerHTML = '';
+	var newCursorLayer = document.createDocumentFragment();
 
 	var reversedSelection = false;
 	if (endY == startY && endX < startX) {
@@ -130,39 +138,57 @@ function _setSelection(cursorLayer, text, startX, endX, startY, endY) {
 		var line = text[i];
 
 		if (i < startY) {
-			_appendText(cursorLayer, line, '');
-			_appendNewLine(cursorLayer);
+			_appendText(newCursorLayer, line, '');
+			_appendNewLine(newCursorLayer);
 		} else if (i == startY) {
-			_appendText(cursorLayer, line.substr(0, startX), '');
+			_appendText(newCursorLayer, line.substr(0, startX), '');
 
 			if (reversedSelection)
-				_appendCursor(cursorLayer);
+				var cursor = _appendCursor(newCursorLayer);
 
-			_appendText(cursorLayer,
+			_appendText(newCursorLayer,
 				line.substr(startX, startY == endY ? endX - startX : undefined),
 				((startX != endX || startY != endY) ? 'selection' : ''));
 
 			if (startY == endY) {
 				if (!reversedSelection)
-					_appendCursor(cursorLayer);
+					cursor = _appendCursor(newCursorLayer);
 
-				_appendText(cursorLayer, line.substr(endX), '');
-				_appendNewLine(cursorLayer);
+				_appendText(newCursorLayer, line.substr(endX), '');
+				_appendNewLine(newCursorLayer);
 			} else
-				_appendNewLine(cursorLayer);
+				_appendNewLine(newCursorLayer);
 		} else if (i > startY && i < endY) {
-			_appendText(cursorLayer, line, 'selection');
-			_appendNewLine(cursorLayer);
+			_appendText(newCursorLayer, line, 'selection');
+			_appendNewLine(newCursorLayer);
 		} else if (i == endY && endY != startY) {
-			_appendText(cursorLayer, line.substr(0, endX), 'selection');
+			_appendText(newCursorLayer, line.substr(0, endX), 'selection');
 			if (!reversedSelection)
-				_appendCursor(cursorLayer);
-			_appendText(cursorLayer, line.substr(endX), '');
-			_appendNewLine(cursorLayer);
+				cursor = _appendCursor(newCursorLayer);
+			_appendText(newCursorLayer, line.substr(endX), '');
+			_appendNewLine(newCursorLayer);
 		} else if (i > endY) {
-			_appendText(cursorLayer, line, '');
-			_appendNewLine(cursorLayer);
+			_appendText(newCursorLayer, line, '');
+			_appendNewLine(newCursorLayer);
 		}
+	}
+
+	cursorLayer.textContent = '';
+	cursorLayer.appendChild(newCursorLayer);
+
+	// possible after cursor is added to the DOM
+	if (cursor) {
+		if (scrollToCursorTimeout)
+			clearTimeout(scrollToCursorTimeout);
+
+		// put scrol at the end of the task queue so we will not scroll multiple times
+		// during one session of processing events where multiple setSelection actions
+		// can be found, profiling shows it is heavy operation
+		scrollToCursorTimeout = setTimeout(function () {
+			var blockOption = JSDialog._scrollIntoViewBlockOption('nearest');
+			cursor.scrollIntoView({behavior: 'smooth', block: blockOption, inline: 'nearest'});
+			scrollToCursorTimeout = null;
+		}, 0);
 	}
 }
 
@@ -178,13 +204,16 @@ function _formulabarEditControl(parentContainer, data, builder) {
 	var cursorLayer = L.DomUtil.create('div', 'ui-custom-textarea-cursor-layer ' + builder.options.cssClass, container);
 
 	container.setText = function(text, selection) {
-		textLayer.innerHTML = '';
+		var newTextLayer = document.createDocumentFragment();
 		for (var c = 0; c < text.length; c++) {
 			if (text[c] == '\n')
-				_appendNewLine(textLayer);
+				_appendNewLine(newTextLayer);
 			else
-				_appendText(textLayer, text[c], '');
+				_appendText(newTextLayer, text[c], '');
 		}
+
+		textLayer.textContent = '';
+		textLayer.appendChild(newTextLayer);
 
 		var startX = parseInt(selection[0]);
 		var endX = parseInt(selection[1]);
@@ -205,26 +234,31 @@ function _formulabarEditControl(parentContainer, data, builder) {
 		textLayer.setAttribute('contenteditable', 'false');
 	};
 
-	['click', 'dblclick'].forEach(function (ev) {
-		textLayer.addEventListener(ev, function(event) {
-			if (L.DomUtil.hasClass(container, 'disabled')) {
-				event.preventDefault();
-				return;
-			}
-
-			builder.callback('edit', 'grab_focus', container, null, builder);
-			_sendSelection(textLayer, builder, container.id, event);
-
-			builder.map.setWinId(0);
-			builder.map._textInput._emptyArea();
-			builder.map._textInput.focus(true);
-
+	var textSelectionHandler = function(event) {
+		if (L.DomUtil.hasClass(container, 'disabled')) {
 			event.preventDefault();
-		});
+			return;
+		}
+
+		builder.callback('edit', 'grab_focus', container, null, builder);
+		_sendSelection(textLayer, builder, container.id, event);
+
+		builder.map.setWinId(0);
+		builder.map._textInput._emptyArea();
+		builder.map._textInput.focus(true);
+
+		event.preventDefault();
+	};
+
+	['click', 'dblclick'].forEach(function (ev) {
+		textLayer.addEventListener(ev, textSelectionHandler);
 	});
 
 	// hide old selection when user starts to select something else
 	textLayer.addEventListener('mousedown', function() {
+		textLayer.addEventListener('mouseleave', textSelectionHandler, {once: true});
+		builder.callback('edit', 'grab_focus', container, null, builder);
+
 		cursorLayer.querySelectorAll('.selection').forEach(function (element) {
 			L.DomUtil.addClass(element, 'hidden');
 		});

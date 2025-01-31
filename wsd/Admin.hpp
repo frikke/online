@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,10 +12,9 @@
 #pragma once
 
 #include "AdminModel.hpp"
-#include "Log.hpp"
 
-#include "net/WebSocketHandler.hpp"
-#include "COOLWSD.hpp"
+#include <net/WebSocketHandler.hpp>
+#include <common/ConfigUtil.hpp>
 
 class Admin;
 
@@ -45,6 +48,7 @@ private:
     Admin* _admin;
     int _sessionId;
     bool _isAuthenticated;
+    std::string _clientIPAdress;
 };
 
 class MonitorSocketHandler : public AdminSocketHandler
@@ -109,7 +113,7 @@ public:
     /// Calls with same pid will increment view count, if pid already exists
     void addDoc(const std::string& docKey, pid_t pid, const std::string& filename,
                 const std::string& sessionId, const std::string& userName, const std::string& userId,
-                const int smapsFD, const Poco::URI& wopiSrc, bool readOnly);
+                const int smapsFD, const std::string& wopiSrc, bool readOnly);
 
     /// Decrement view count till becomes zero after which doc is removed
     void rmDoc(const std::string& docKey, const std::string& sessionId);
@@ -158,18 +162,34 @@ public:
     /// Attempt a synchronous connection to a monitor with @uri @when that future comes
     void scheduleMonitorConnect(const std::string &uri, std::chrono::steady_clock::time_point when);
 
-    void sendMetrics(const std::shared_ptr<StreamSocket>& socket, const std::shared_ptr<Poco::Net::HTTPResponse>& response);
+    void sendMetrics(const std::shared_ptr<StreamSocket>& socket,
+                     const std::shared_ptr<http::Response>& response);
 
     void setViewLoadDuration(const std::string& docKey, const std::string& sessionId, std::chrono::milliseconds viewLoadDuration);
     void setDocWopiDownloadDuration(const std::string& docKey, std::chrono::milliseconds wopiDownloadDuration);
     void setDocWopiUploadDuration(const std::string& docKey, const std::chrono::milliseconds uploadDuration);
-    void addSegFaultCount(unsigned segFaultCount);
+    void addErrorExitCounters(unsigned segFaultCount, unsigned killedCount,
+                              unsigned oomKilledCount);
     void addLostKitsTerminated(unsigned lostKitsTerminated);
 
     void getMetrics(std::ostringstream &metrics);
 
+    /// Will dump the metrics in the log and stderr from the Admin SocketPoll.
+    static void dumpMetrics() { instance()._dumpMetrics = true; }
+
     // delete entry from _monitorSocket map
     void deleteMonitorSocket(const std::string &uriWithoutParam);
+
+    bool logAdminAction()
+    {
+        return ConfigUtil::getConfigValue<bool>("admin_console.logging.admin_action", true);
+    }
+
+    void routeTokenSanityCheck();
+
+    void sendShutdownReceivedMsg();
+
+    void setCloseMonitorFlag() { _closeMonitor = true; }
 
 private:
     /// Notify Forkit of changed settings.
@@ -194,6 +214,12 @@ private:
     void connectToMonitorSync(const std::string &uri);
 
 private:
+    /// The total installed system memory (RAM).
+    /// Technically, can be augmented at runtime, but we don't update it.
+    const size_t _totalSysMemKb;
+    /// The total available memory to our process, per memproportion.
+    size_t _totalAvailMemKb;
+
     /// The model is accessed only during startup & in
     /// the Admin Poll thread.
     AdminModel _model;
@@ -202,9 +228,10 @@ private:
     size_t _lastJiffies;
     uint64_t _lastSentCount;
     uint64_t _lastRecvCount;
-    size_t _totalSysMemKb;
-    size_t _totalAvailMemKb;
     std::string _forkitLogLevel;
+
+    /// When set, the metrics will be dumped into the log and stderr.
+    std::atomic_bool _dumpMetrics;
 
     struct MonitorConnectRecord
     {
@@ -232,6 +259,8 @@ private:
 
     // map to make sure only connection with unique monitor uri exists
     std::map<std::string, std::shared_ptr<MonitorSocketHandler>> _monitorSockets;
+
+    std::atomic<bool> _closeMonitor = false;
 };
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

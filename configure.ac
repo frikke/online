@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.63])
 
-AC_INIT([coolwsd], [23.05.1.2], [https://github.com/CollaboraOnline/online/issues], [coolwsd], [https://collaboraonline.github.io/])
+AC_INIT([coolwsd], [24.04.12.2], [https://github.com/CollaboraOnline/online/issues], [coolwsd], [https://collaboraonline.github.io/])
 LT_INIT([shared, disable-static, dlopen])
 
 AM_INIT_AUTOMAKE([1.10 foreign subdir-objects tar-pax -Wno-portability])
@@ -48,7 +48,7 @@ AC_DEFINE_UNQUOTED([COOLWSD_VERSION],[["$COOLWSD_VERSION"]],[Collabora Online We
 
 # try to add a git hash for a version if we're developing
 COOLWSD_VERSION_HASH="$COOLWSD_VERSION"
-git_hash=`cd ${srcdir} && ( cat dist_git_hash 2> /dev/null || git log -1 --format=%h 2> /dev/null )`
+git_hash=`cd ${srcdir} && ( cat dist_git_hash 2> /dev/null || git log -1 --format=%h --abbrev=10 2> /dev/null )`
 if test "z$git_hash" != "z"; then
    COOLWSD_VERSION_HASH=$git_hash
 fi
@@ -84,11 +84,6 @@ fi
 
 AC_LANG_PUSH([C++])
 
-AS_IF([test `uname -s` = Linux -a "$host_os" != "emscripten"],
-      [AC_PATH_PROG([SETCAP], setcap,[],[/bin:/usr/bin:/sbin:/usr/sbin])]
-       AS_IF([test -z "$SETCAP"],
-       [AC_MSG_ERROR([The setcap command is needed. It might be in a package called libcap-progs.])]))
-
 # check for python modules
 for MODULE in lxml polib; do
     AC_MSG_CHECKING([for ${MODULE} for python3])
@@ -113,14 +108,18 @@ AC_LINK_IFELSE([AC_LANG_SOURCE([
       return v;
     }
     ])],
-               [AC_MSG_RESULT([No])],
-               [AC_MSG_RESULT([Yes])
+               [AC_MSG_RESULT([no])],
+               [AC_MSG_RESULT([yes])
                 LIBS="$LIBS -latomic"])
 
 # Declare options
 AC_ARG_ENABLE([debug],
               AS_HELP_STRING([--enable-debug],
                              [Enable debugging, link with debugging version of Poco libraries]))
+
+AC_ARG_ENABLE([hardening-flags],
+              AS_HELP_STRING([--disable-hardening-flags],
+                             [Disable detection and use of compiler hardening flags]))
 
 AC_ARG_ENABLE([bundle],
               AS_HELP_STRING([--enable-bundle],
@@ -214,8 +213,9 @@ AC_ARG_WITH(android-abi,
                             by colons).  The supported ABIs are: armeabi-v7a, arm64-v8a, x86 and x86_64.
                             Please note that you need to specify the parameters for --with-lo-builddir,
                             --with-poco-includes and --with-poco-libs in the order of armeabi-v7a:arm64-v8a:x86:x86_64.
-                            For example, when you use --with-android-abi=x86_64,
-                            you have to specify --with-lo-builddir=:::/path/to/x86-64/builddir]),
+                            For example, when you use --with-android-abi="x86_64 x86",
+                            you have to specify --with-lo-builddir=::/path/to/x86/builddir:/path/to/x86-64/builddir.
+                            If you are building for only a single ABI you may omit the colons.]),
 ,)
 
 AC_ARG_WITH([app-name],
@@ -265,9 +265,15 @@ AC_ARG_WITH([lo-builddir],
                             file and change the references to "../ios-device" to refer to the corresponding
                             LibreOffice core source directory (which typically would be the same as the build
                             directory you specify with this option).
-                            In case of Android, you can provide 2 builddirs
-                            separated by a colon ':' - the first is for
-                            armeabi-v7a, the second is for arm64-v8a]))
+
+                            For Android, if building for multiple ABIs, you should specify multiple trees in the
+                            format --with-lo-builddir=/path/to/armeabi-v7a/builddir:/path/to/arm64-v8a/builddir:/path/to/x86/builddir:/path/to/x86_64/builddir.
+                            You may omit any ABIs you are not building for, except for armeabi-v7a which must
+                            always be provided.
+
+                            If you are building Android for a single ABI only, you may optionally specify only
+                            the core for your ABI without any colons. In this case, providing an armeabi-v7a core
+                            is not a requirement]))
 
 AC_ARG_WITH([logfile],
             AS_HELP_STRING([--with-logfile=<path>],
@@ -280,26 +286,22 @@ AC_ARG_WITH([trace-event-file],
 AC_ARG_WITH([poco-includes],
             AS_HELP_STRING([--with-poco-includes=<path>],
                            [Path to the "include" directory with the Poco
-                            headers.  If you are building for Android 64bit,
-                            you need two, separated by a colon ':'.]))
+                            headers. For Android, this has the same format as --with-lo-builddir]))
 
 AC_ARG_WITH([zstd-libs],
             AS_HELP_STRING([--with-zstd-libs=<path>],
                            [Path to the directory containing libzstd.a
-                            libraries.  If you are building for Android 64bit,
-                            you need two, separated by a colon ':'.]))
+                            libraries. For Android, this has the same format as --with-lo-builddir]))
 
 AC_ARG_WITH([zstd-includes],
             AS_HELP_STRING([--with-zstd-includes=<path>],
                            [Path to the "include" directory with the zstd
-                            headers.  If you are building for Android 64bit,
-                            you need two, separated by a colon ':'.]))
+                            headers. For Android, this has the same format as --with-lo-builddir]))
 
 AC_ARG_WITH([poco-libs],
             AS_HELP_STRING([--with-poco-libs=<path>],
                            [Path to the "lib" directory with the Poco
-                            libraries.  If you are building for Android 64bit,
-                            you need two, separated by a colon ':'.]))
+                            libraries.  For Android, this has the same format as --with-lo-builddir]))
 
 AC_ARG_WITH([libpng-includes],
             AS_HELP_STRING([--with-libpng-includes=<path>],
@@ -346,7 +348,8 @@ AC_ARG_WITH([infobar-url],
 AC_ARG_WITH([coverage],
              AS_HELP_STRING([--with-coverage=<gcov>],
                             [Enable a code-coverage method. Currently only gcov is supported (works with both gcc and clang).
-                            Output HTML in gcov/ directory.]))
+                            Output HTML in gcov/ directory.
+                            Generate report with 'make coverage-report'. Clean coverage files with 'make coverage-clean']))
 
 AC_ARG_WITH([sanitizer],
              AS_HELP_STRING([--with-sanitizer],
@@ -361,9 +364,10 @@ AC_ARG_WITH([compiler-plugins],
                 [Experimental! Unlikely to work for anyone except Noel! Enable compiler plugins that will perform additional checks during
                  building.]))
 
-AC_ARG_ENABLE([setcap],
-            AS_HELP_STRING([--disable-setcap],
-                          [Do not set capabilities on files. For packaging builds]))
+AC_ARG_ENABLE(coplugin,
+    AS_HELP_STRING([--enable-coplugin],
+        [Enables building of a clang plugin that performs COOL-specific checks.])
+)
 
 AC_ARG_ENABLE([werror],
             AS_HELP_STRING([--disable-werror],
@@ -400,7 +404,6 @@ AC_ARG_ENABLE([experimental],
               AS_HELP_STRING([--enable-experimental],
                              [Enable experimental features and behavior]))
 
-
 # Handle options
 AS_IF([test "$enable_debug" = yes -a -n "$with_poco_libs"],
       [POCO_DEBUG_SUFFIX=d],
@@ -414,6 +417,8 @@ COOLWSD_LOG_TO_FILE="false"
 COOLWSD_LOGFILE="/var/log/coolwsd.log"
 COOLWSD_TRACEEVENTFILE="/var/log/coolwsd.trace.json"
 COOLWSD_ANONYMIZE_USER_DATA=false
+COOLWSD_LOG_UICMD_TO_FILE="false"
+COOLWSD_LOGFILE_UICMD="/var/log/coolwsd-ui-cmd.log"
 BROWSER_LOGGING="false"
 debug_msg="secure mode: product build"
 anonym_msg=""
@@ -422,10 +427,17 @@ experimental_msg="disabled by default"
 bundle_msg="using uglified bundled JS and CSS"
 LOK_LOG_ASSERTIONS=0
 log_asserts_msg="disabled"
+SSL_VERIFY="true"
+SERVER_SIGNATURE="false"
+
+# a reasonable default
+NUM_PRESPAWN_CHILDREN=4
+
 AC_MSG_CHECKING([whether to enable debug build])
 if test "$enable_debug" = "yes"; then
    AC_MSG_RESULT([yes])
    AC_DEFINE([ENABLE_DEBUG],1,[Whether to compile in some extra debugging support code and disable some security pieces])
+   AC_DEFINE([CONFIG_STATIC],,[Static config values are disabled in debug builds to allow for overriding in tests])
    ENABLE_DEBUG=true
    ENABLE_DEBUG_PROTOCOL=true
    COOLWSD_LOGLEVEL="trace"
@@ -433,8 +445,15 @@ if test "$enable_debug" = "yes"; then
    COOLWSD_LOGFILE="/tmp/coolwsd.log"
    COOLWSD_TRACEEVENTFILE="/tmp/coolwsd.trace.json"
    COOLWSD_ANONYMIZE_USER_DATA=false
+   COOLWSD_LOG_UICMD_TO_FILE="true"
+   COOLWSD_LOGFILE_UICMD="/tmp/coolwsd-ui-cmd.log"
    BROWSER_LOGGING="true"
    debug_msg="low security debugging mode"
+   SSL_VERIFY="false"
+   SERVER_SIGNATURE="true"
+
+   # helps attaching to the right process
+   NUM_PRESPAWN_CHILDREN=1
 
    AC_MSG_CHECKING([whether to bundle JS and CSS files])
    if test "$enable_bundle" != "yes"; then
@@ -456,12 +475,15 @@ if test "$enable_debug" = "yes"; then
 else
     AC_MSG_RESULT([no (Release build)])
     AC_DEFINE([ENABLE_DEBUG],0,[Whether to compile in some extra debugging support code and disable some security pieces])
+    AC_DEFINE([CONFIG_STATIC],static,[Static config values are enabled in release builds for performance])
 fi
 AC_SUBST(ENABLE_DEBUG)
 AC_SUBST(ENABLE_BUNDLE)
 AC_SUBST(COOLWSD_LOGLEVEL)
 AC_SUBST(COOLWSD_LOG_TO_FILE)
+AC_SUBST(COOLWSD_LOG_UICMD_TO_FILE)
 AC_SUBST(BROWSER_LOGGING)
+AC_SUBST(NUM_PRESPAWN_CHILDREN)
 
 if test "$enable_debug_protocol" = no; then
    ENABLE_DEBUG_PROTOCOL=false
@@ -480,6 +502,9 @@ if test -n "$with_logfile" ; then
    COOLWSD_LOGFILE="$with_logfile"
 fi
 AC_SUBST(COOLWSD_LOGFILE)
+AC_DEFINE_UNQUOTED([COOLWSD_LOGFILE],["$COOLWSD_LOGFILE"],[Default location of coolwsd log file])
+AC_SUBST(COOLWSD_LOGFILE_UICMD)
+AC_DEFINE_UNQUOTED([COOLWSD_LOGFILE_UICMD],["$COOLWSD_LOGFILE_UICMD"],[Default location of coolwsd UI command log file])
 
 if test -n "$with_trace_event_file" ; then
    COOLWSD_TRACEEVENTFILE="$with_trace_event_file"
@@ -508,8 +533,16 @@ fi
 if test "$enable_experimental" = "yes" ; then
   ENABLE_EXPERIMENTAL=true
   experimental_msg="enabled by default"
+  SSL_VERIFY="false"
 fi
 AC_SUBST(ENABLE_EXPERIMENTAL)
+
+AC_MSG_CHECKING([if ssl verification is enabled by default])
+AC_MSG_RESULT([$SSL_VERIFY])
+AC_DEFINE_UNQUOTED([SSL_VERIFY],["$SSL_VERIFY"],[Default SSL Verification mode])
+AC_SUBST(SSL_VERIFY)
+
+AC_SUBST(SERVER_SIGNATURE)
 
 dnl check for a file at a path with an env-var with a given suffix
 AC_DEFUN([CHK_FILE_VAR], dnl env-var, suffix, file-to-match, msg
@@ -580,6 +613,16 @@ if test \( "$enable_iosapp" = "yes" -a `uname -s` = "Darwin" \) -o \( "$enable_a
          LOBUILDDIR_X86=`echo $with_lo_builddir | cut -d: -f3`
          LOBUILDDIR_X86_64=`echo $with_lo_builddir | cut -d: -f4`
       fi
+
+      if test -z "$LOBUILDDIR_ARM64_V8A" ; then
+         LOBUILDDIR_ARM64_V8A="$LOBUILDDIR"
+      fi
+      if test -z "$LOBUILDDIR_X86" ; then
+         LOBUILDDIR_X86="$LOBUILDDIR"
+      fi
+      if test -z "$LOBUILDDIR_X86_64" ; then
+         LOBUILDDIR_X86_64="$LOBUILDDIR"
+      fi
    fi
 
    # Get the git hash of the core build
@@ -629,6 +672,16 @@ if test \( "$enable_iosapp" = "yes" -a `uname -s` = "Darwin" \) -o \( "$enable_a
          POCOINCLUDE_X86=`echo $with_poco_includes | cut -d: -f3`
          POCOINCLUDE_X86_64=`echo $with_poco_includes | cut -d: -f4`
       fi
+
+      if test -z "$POCOINCLUDE_ARM64_V8A" ; then
+         POCOINCLUDE_ARM64_V8A="$POCOINCLUDE"
+      fi
+      if test -z "$POCOINCLUDE_X86" ; then
+         POCOINCLUDE_X86="$POCOINCLUDE"
+      fi
+      if test -z "$POCOINCLUDE_X86_64" ; then
+         POCOINCLUDE_X86_64="$POCOINCLUDE"
+      fi
    fi
 
    # Sanity checks
@@ -649,6 +702,16 @@ if test \( "$enable_iosapp" = "yes" -a `uname -s` = "Darwin" \) -o \( "$enable_a
          POCOLIB_ARM64_V8A=`echo $with_poco_libs | cut -d: -f2`
          POCOLIB_X86=`echo $with_poco_libs | cut -d: -f3`
          POCOLIB_X86_64=`echo $with_poco_libs | cut -d: -f4`
+      fi
+
+      if test -z "$POCOLIB_ARM64_V8A" ; then
+         POCOLIB_ARM64_V8A="$POCOLIB"
+      fi
+      if test -z "$POCOLIB_X86" ; then
+         POCOLIB_X86="$POCOLIB"
+      fi
+      if test -z "$POCOLIB_X86_64" ; then
+         POCOLIB_X86_64="$POCOLIB"
       fi
    fi
 
@@ -675,6 +738,16 @@ if test \( "$enable_iosapp" = "yes" -a `uname -s` = "Darwin" \) -o \( "$enable_a
          ZSTDINCLUDE_X86=`echo $with_zstd_includes | cut -d: -f3`
          ZSTDINCLUDE_X86_64=`echo $with_zstd_includes | cut -d: -f4`
       fi
+
+      if test -z "$ZSTDINCLUDE_ARM64_V8A" ; then
+         ZSTDINCLUDE_ARM64_V8A="$ZSTDINCLUDE"
+      fi
+      if test -z "$ZSTDINCLUDE_X86" ; then
+         ZSTDINCLUDE_X86="$ZSTDINCLUDE"
+      fi
+      if test -z "$ZSTDINCLUDE_X86_64" ; then
+         ZSTDINCLUDE_X86_64="$ZSTDINCLUDE"
+      fi
    fi
 
    # Sanity checks
@@ -690,6 +763,16 @@ if test \( "$enable_iosapp" = "yes" -a `uname -s` = "Darwin" \) -o \( "$enable_a
          ZSTDLIB_ARM64_V8A=`echo $with_zstd_libs | cut -d: -f2`
          ZSTDLIB_X86=`echo $with_zstd_libs | cut -d: -f3`
          ZSTDLIB_X86_64=`echo $with_zstd_libs | cut -d: -f4`
+      fi
+
+      if test -z "$ZSTDLIB_ARM64_V8A" ; then
+         ZSTDLIB_ARM64_V8A="$ZSTDLIB"
+      fi
+      if test -z "$ZSTDLIB_X86" ; then
+         ZSTDLIB_X86="$ZSTDLIB"
+      fi
+      if test -z "$ZSTDLIB_X86_64" ; then
+         ZSTDLIB_X86_64="$ZSTDLIB"
       fi
    fi
 
@@ -846,7 +929,7 @@ WASM_BUILDDIR="$with_wasm_fallback"
 AC_SUBST(WASM_BUILDDIR)
 
 dnl Temporary hack: We hardcode /sample.docx in a few places, so make sure that file is there
-AS_IF(["$host_os" = "emscripten"],
+AS_IF([test "$host_os" = "emscripten"],
       [AC_MSG_CHECKING([that temporarily there is a sample document with a fixed name])
       AS_IF([test -z "$with_wasm_additional_files"],
             [AC_MSG_ERROR([You must use the --with-wasm-additional-files option for now])])
@@ -865,6 +948,9 @@ dnl ENABLE_WASM means that we are building the WASM "app" that will run locally 
 dnl client when necessary. ENABLE_WASM_FALLBACK and ENABLE_WASM can't both be on simultaneously.
 
 AM_CONDITIONAL([ENABLE_WASM], [test "$host_os" = "emscripten"])
+AS_IF([test "$host_os" = "emscripten"],
+      [AC_DEFINE([WASMAPP],1,[Define to 1 if this is the WASM app build.])],
+      [AC_DEFINE([WASMAPP],0,[Define to 1 if this is the WASM app build.])])
 
 MAX_CONNECTIONS=9999
 AS_IF([test -n "$with_max_connections" && test "$with_max_connections" -gt "0"],
@@ -899,17 +985,26 @@ fi
 
 AC_DEFINE_UNQUOTED([INFOBAR_URL],["$INFOBAR_URL"],[Infobar URL.])
 
-WELCOME_CONFIG_FRAGMENT=/dev/null
+WELCOME_CONFIG_FRAGMENT=
+HOME_MODE_CONFIGURATION=
 ENABLE_WELCOME_MESSAGE=0
 WELCOME_URL=
 if test -n "$with_welcome_url"; then
     WELCOME_URL=$with_welcome_url
     ENABLE_WELCOME_MESSAGE=1
+    HOME_MODE_CONFIGURATION="<home_mode>
+        <enable desc=\"Home users can enable this setting, which in turn disables welcome screen and user feedback popups, but also limits concurrent open connections to 20 and concurrent open documents to 10. The default means that number of concurrent open connections and concurrent open documents are unlimited, but welcome screen and user feedback cannot be switched off.\" type=\"bool\" default=\"false\">false</enable>
+    </home_mode>"
 else
-    WELCOME_CONFIG_FRAGMENT=$srcdir/coolwsd-welcome.xml
+    WELCOME_CONFIG_FRAGMENT="<welcome>
+      <enable type=\"bool\" desc=\"Controls whether the welcome screen should be shown to the users on new install and updates. When enabled, your custom welcome screen must be created at /usr/share/coolwsd/browser/dist/welcome/welcome.html.\" default=\"false\">false</enable>
+    </welcome>"
 fi
 
-AC_SUBST_FILE([WELCOME_CONFIG_FRAGMENT])
+AC_SUBST([WELCOME_CONFIG_FRAGMENT])
+AM_SUBST_NOTMAKE(WELCOME_CONFIG_FRAGMENT)
+AC_SUBST([HOME_MODE_CONFIGURATION])
+AM_SUBST_NOTMAKE(HOME_MODE_CONFIGURATION)
 AC_DEFINE_UNQUOTED([ENABLE_WELCOME_MESSAGE],$ENABLE_WELCOME_MESSAGE,[Should the Release notes message be shown on upgrade])
 AM_CONDITIONAL([ENABLE_WELCOME_MESSAGE], [test "$ENABLE_WELCOME_MESSAGE" = "1"])
 AC_DEFINE_UNQUOTED([WELCOME_URL],["$WELCOME_URL"],[The welcome url of the build.])
@@ -917,7 +1012,7 @@ AC_DEFINE_UNQUOTED([WELCOME_URL],["$WELCOME_URL"],[The welcome url of the build.
 # Test for build environment
 
 AS_IF([test "$ENABLE_GTKAPP" != true],
-[CXXFLAGS="$CXXFLAGS -Wall -Wextra -Wshadow -Wundef"])
+      [CXXFLAGS="$CXXFLAGS -Wall -Wextra -Woverloaded-virtual -Wshadow -Wundef"])
 
 CFLAGS="$CFLAGS -Wall -Wextra"
 
@@ -930,15 +1025,90 @@ else
     AC_MSG_RESULT([no])
 fi
 
+AC_MSG_CHECKING([whether to use extra compiler hardening flags])
+if test "$enable_hardening_flags" = no -o "$host_os" = "emscripten" -o "x$with_sanitizer" != "x"; then
+    AC_MSG_RESULT([no])
+ else
+    AC_MSG_RESULT([yes])
+
+    AC_LANG_PUSH([C])
+    AC_MSG_CHECKING([whether $CC supports -grecord-gcc-switches])
+    save_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Werror -grecord-gcc-switches"
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM(, [[return 0;]])],
+        [AC_MSG_RESULT([yes]); HARDENING_CFLAGS="$HARDENING_CFLAGS -grecord-gcc-switches"],
+        [AC_MSG_RESULT([no])])
+    CFLAGS=$save_CFLAGS
+
+    AC_MSG_CHECKING([whether $CC supports -D_FORTIFY_SOURCE=2])
+    save_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Werror -Wp,-U_FORTIFY_SOURCE,-D_FORTIFY_SOURCE=2"
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM([[#include <string.h>]], [[return 0;]])],
+        [AC_MSG_RESULT([yes]); HARDENING_CFLAGS="$HARDENING_CFLAGS -Wp,-U_FORTIFY_SOURCE,-D_FORTIFY_SOURCE=2"],
+        [AC_MSG_RESULT([no])])
+    CFLAGS=$save_CFLAGS
+
+    AC_MSG_CHECKING([whether $CC supports -D_GLIBCXX_ASSERTIONS])
+    save_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Werror -Wp,-D_GLIBCXX_ASSERTIONS"
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM(, [[return 0;]])],
+        [AC_MSG_RESULT([yes]); HARDENING_CFLAGS="$HARDENING_CFLAGS -Wp,-D_GLIBCXX_ASSERTIONS"],
+        [AC_MSG_RESULT([no])])
+    CFLAGS=$save_CFLAGS
+
+    AC_MSG_CHECKING([whether $CC supports -fstack-protector-strong])
+    save_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Werror -fstack-protector-strong"
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM(, [[return 0;]])],
+        [AC_MSG_RESULT([yes]); HARDENING_CFLAGS="$HARDENING_CFLAGS -fstack-protector-strong"],
+        [AC_MSG_RESULT([no])])
+    CFLAGS=$save_CFLAGS
+
+    AC_MSG_CHECKING([whether $CC supports -fstack-clash-protection])
+    save_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Werror -fstack-clash-protection"
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM(, [[return 0;]])],
+        [AC_MSG_RESULT([yes]); HARDENING_CFLAGS="$HARDENING_CFLAGS -fstack-clash-protection"],
+        [AC_MSG_RESULT([no])])
+    CFLAGS=$save_CFLAGS
+
+    AC_MSG_CHECKING([whether $CC supports -fcf-protection])
+    save_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Werror -fcf-protection"
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM(, [[return 0;]])],
+        [AC_MSG_RESULT([yes]); HARDENING_CFLAGS="$HARDENING_CFLAGS -fcf-protection"],
+        [AC_MSG_RESULT([no])])
+    CFLAGS=$save_CFLAGS
+
+    AC_LANG_POP([C])
+
+    CFLAGS="$CFLAGS $HARDENING_CFLAGS"
+    CXXFLAGS="$CXXFLAGS $HARDENING_CFLAGS"
+fi
+
 # Code Coverage.
 AC_MSG_CHECKING([whether code-coverage is enabled])
 if test "x$with_coverage" != "x"; then
-    AC_MSG_RESULT([yes ($with_coverage)])
-    CODE_COVERAGE=1
-    CXXFLAGS="$CXXFLAGS --coverage"
-    CFLAGS="$CFLAGS --coverage"
-    LDFLAGS="$LDFLAGS -Wl,--dynamic-list-data --coverage"
-    coverage_msg="Code-Coverage is enabled"
+
+    AC_DEFUN([AC_PROG_LCOV], [AC_CHECK_PROG(LCOV,lcov,yes)])
+    AC_PROG_LCOV
+    if test x"${LCOV}" == x"yes" ; then
+        AC_MSG_RESULT([yes ($with_coverage)])
+        CODE_COVERAGE=1
+        CXXFLAGS="$CXXFLAGS --coverage"
+        CFLAGS="$CFLAGS --coverage"
+        LDFLAGS="$LDFLAGS -Wl,--dynamic-list-data --coverage"
+        coverage_msg="Code-Coverage is enabled"
+    else
+        AC_MSG_ERROR([Please install lcov (v1.16 preferred) to enable code-coverage])
+    fi
+
 else
     AC_MSG_RESULT([no])
     CODE_COVERAGE=0
@@ -976,7 +1146,7 @@ if test "x$with_sanitizer" != "x"; then
     for flag in -static-libasan -static-libsan ; do
         AC_MSG_CHECKING([whether to use $flag])
         save_CXXFLAGS=$CXXFLAGS
-        CXXFLAGS="$CXXFLAGS -O1 -fno-omit-frame-pointer -fsanitize=$with_sanitizer -frtti $flag -Werror"
+        CXXFLAGS="$CXXFLAGS -O1 -fno-omit-frame-pointer -fsanitize=$with_sanitizer -frtti $flag"
         AC_LANG_PUSH([C++])
         AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
             ]])],[CXXFLAGS_CXXSTD=$flag])
@@ -990,18 +1160,18 @@ if test "x$with_sanitizer" != "x"; then
             AC_MSG_RESULT([no])
         fi
     done
-    SANITIZER_FLAGS="-O1 -fno-omit-frame-pointer -fsanitize=$with_sanitizer -frtti $LIBSAN"
-    CXXFLAGS="$CXXFLAGS $SANITIZER_FLAGS"
+    SANITIZER_FLAGS="-O1 -fno-omit-frame-pointer -fsanitize=$with_sanitizer $LIBSAN"
+    CXXFLAGS="$CXXFLAGS -frtti $SANITIZER_FLAGS"
     CFLAGS="$CFLAGS $SANITIZER_FLAGS"
 else
     AC_MSG_RESULT([no])
 fi
 
-# Check for C++17 support.
+# Check for C++20 support.
 HAVE_CXXSTD=
 CXXFLAGS_CXXSTD=
-AC_MSG_CHECKING([whether $CXX supports C++17])
-for flag in -std=c++17 -std=c++1z ; do
+AC_MSG_CHECKING([whether $CXX supports C++20])
+for flag in -std=c++20 -std=c++2a ; do
     save_CXXFLAGS=$CXXFLAGS
     CXXFLAGS="$CXXFLAGS $flag -Werror"
     AC_LANG_PUSH([C++])
@@ -1024,11 +1194,12 @@ if test "$HAVE_CXXSTD" = TRUE; then
     AC_MSG_RESULT([yes ($CXXFLAGS_CXXSTD)])
 else
     AC_MSG_RESULT([no])
-    AC_MSG_ERROR(Compiler doesn't support C++17)
+    AC_MSG_ERROR(Compiler doesn't support C++20)
 fi
 
 # Check if we have clang, rather than gcc, which
 # doesn't like -pthread on the linker command-line.
+HAVE_CLANG=false
 AC_MSG_CHECKING([whether the compiler is clang])
 AC_COMPILE_IFELSE([AC_LANG_SOURCE([
     #if !defined(__clang__)
@@ -1036,76 +1207,13 @@ AC_COMPILE_IFELSE([AC_LANG_SOURCE([
     #endif
 ])],
                     [AC_MSG_RESULT([yes])
-                    AC_DEFINE([HAVE_CLANG],1,[whether the C++ compiler is clang])],
+                    AC_DEFINE([HAVE_CLANG],true,[whether the C++ compiler is clang])],
                     [AC_MSG_RESULT([no])
-                    AC_DEFINE([HAVE_CLANG],0,[whether the C++ compiler is clang])])
-AM_CONDITIONAL([HAVE_CLANG], [test "$HAVE_CLANG" = "1"])
+                    AC_DEFINE([HAVE_CLANG],false,[whether the C++ compiler is clang])])
+AM_CONDITIONAL([HAVE_CLANG], [test "$HAVE_CLANG" = "true"])
+AC_SUBST(HAVE_CLANG)
 
-AS_IF([test "$ENABLE_GTKAPP" != true],
-[CXXFLAGS="$CXXFLAGS $CXXFLAGS_CXXSTD"])
-
-STD_FILESYSTEM=
-if test "$HAVE_CXXSTD" = TRUE -a "$ENABLE_ANDROIDAPP" != "true" ; then
-    save_CXXFLAGS=$CXXFLAGS
-    CXXFLAGS="$CXXFLAGS -Werror"
-    save_LIBS=$LIBS
-    LIBS="$save_LIBS -lstdc++fs"
-    AC_LANG_PUSH([C++])
-    AC_LINK_IFELSE([AC_LANG_SOURCE([[
-        #include <experimental/filesystem>
-        int main()
-        {
-            if (!std::experimental::filesystem::temp_directory_path().empty())
-                return 0;
-            return 1;
-        }
-        ]])],[STD_FILESYSTEM=experimental])
-    AC_LINK_IFELSE([AC_LANG_SOURCE([[
-        #include <filesystem>
-        int main()
-        {
-            if (!std::filesystem::temp_directory_path().empty())
-                return 0;
-            return 1;
-        }
-        ]])],[STD_FILESYSTEM=TRUE])
-    AC_LANG_POP([C++])
-    CXXFLAGS=$save_CXXFLAGS
-    LIBS=$save_LIBS
-fi
-
-if test -n "$STD_FILESYSTEM" ; then
-    LIBS="$LIBS -lstdc++fs"
-    AC_DEFINE([HAVE_STD_FILESYSTEM],1,[Whether the used C++ has support for std::filesystem.])
-    if test "$STD_FILESYSTEM" = "experimental" ; then
-        AC_DEFINE([HAVE_STD_FILESYSTEM_EXPERIMENTAL],1,[Whether the std::filesystem is in the experimental header.])
-    else
-        AC_DEFINE([HAVE_STD_FILESYSTEM_EXPERIMENTAL],0,[Whether the std::filesystem is in the experimental header.])
-    fi
-else
-    AC_DEFINE([HAVE_STD_FILESYSTEM],0,[Whether the used C++ has support for std::filesystem.])
-    AC_DEFINE([HAVE_STD_FILESYSTEM_EXPERIMENTAL],0,[Whether the std::filesystem is in the experimental header.])
-fi
-
-SYS_RANDOM=
-AC_LANG_PUSH([C++])
-AC_LINK_IFELSE(
-    [AC_LANG_SOURCE([[
-    #include <sys/random.h>
-    int main()
-    {
-        char buffer[8];
-        getrandom(buffer, sizeof(buffer), GRND_NONBLOCK);
-    }
-    ]])],
-    [SYS_RANDOM=TRUE])
-AC_LANG_POP([C++])
-
-if test "$SYS_RANDOM" == "TRUE" ; then
-    AC_DEFINE([HAVE_SYS_RANDOM_H],1,[Define to 1 if you have the <sys/random.h> header file.])
-else
-    AC_DEFINE([HAVE_SYS_RANDOM_H],0,[Define to 1 if you have the <sys/random.h> header file.])
-fi
+CXXFLAGS="$CXXFLAGS $CXXFLAGS_CXXSTD"
 
 AS_IF([test -n "$LOKIT_PATH"],
       [CPPFLAGS="$CPPFLAGS -I${LOKIT_PATH}"])
@@ -1115,7 +1223,7 @@ AS_IF([test "$ENABLE_IOSAPP" != "true" -a "$ENABLE_ANDROIDAPP" != "true"],
       [AC_MSG_CHECKING([for LibreOffice path])
       if test -n "$with_lo_path"; then
           # strip trailing '/' from LO_PATH, 'ln -s' with such path will otherwise fail
-          LO_PATH="${with_lo_path%/}"
+          LO_PATH=`readlink -f ${with_lo_path%/}`
           AC_MSG_RESULT([found])
       else
           AC_MSG_RESULT([not found])
@@ -1131,6 +1239,7 @@ AC_MSG_CHECKING([whether to run tests against a LibreOffice])
 version_file="$with_lo_path/program/versionrc"
 if test -f $version_file; then
     JAILS_PATH="\${abs_top_builddir}/jails"
+    CACHE_PATH="\${abs_top_builddir}/cache"
     SYSTEMPLATE_PATH="\${abs_top_builddir}/systemplate"
     have_lo_path=true
     lo_msg="test against $LO_PATH"
@@ -1143,6 +1252,7 @@ fi
 AC_SUBST(LO_PATH)
 AC_DEFINE_UNQUOTED([LO_PATH],["$LO_PATH"],[Path to LibreOffice installation])
 AC_SUBST(JAILS_PATH)
+AC_SUBST(CACHE_PATH)
 AC_SUBST(SYSTEMPLATE_PATH)
 AM_CONDITIONAL(HAVE_LO_PATH,[test "$have_lo_path" = "true"])
 
@@ -1200,7 +1310,11 @@ AS_IF([test `uname -s` = Linux -a "$ENABLE_ANDROIDAPP" != "true" -a "$host_os" !
                       [],
                       [AC_MSG_ERROR([libcap not available?])])])
 
+dnl NB. this is a gtk3 frontend.
+webkit_try_older=
 AS_IF([test "$ENABLE_GTKAPP" = true],
+      [PKG_CHECK_MODULES([WEBKIT],[webkit2gtk-4.1],,[webkit_try_older=true])])
+AS_IF([test "$webkit_try_older" = true],
       [PKG_CHECK_MODULES([WEBKIT],[webkit2gtk-4.0])])
 
 AM_CONDITIONAL([ENABLE_DEBUG], [test "$ENABLE_DEBUG" = "true"])
@@ -1208,14 +1322,14 @@ AM_CONDITIONAL([ENABLE_DEBUG], [test "$ENABLE_DEBUG" = "true"])
 mobile_app=
 ENABLE_MOBILEAPP=
 MOBILEAPP=0
-AC_MSG_CHECKING([Is this a mobile app])
+AC_MSG_CHECKING([if this is a mobile app])
 if test "$enable_gtkapp" = "yes" -o "$enable_iosapp" = "yes" -o "$enable_androidapp" = "yes" -o "$host_os" = "emscripten" ; then
-     AC_MSG_RESULT([Yes])
+     AC_MSG_RESULT([yes])
      mobile_app=true;
      MOBILEAPP=1
      ENABLE_MOBILEAPP=true
 else
-     AC_MSG_RESULT([No])
+     AC_MSG_RESULT([no])
 fi
 AC_DEFINE_UNQUOTED([MOBILEAPP],[$MOBILEAPP],[Define to 1 if this is a mobileapp (eg. Android) build.])
 AC_SUBST(ENABLE_MOBILEAPP)
@@ -1226,9 +1340,61 @@ if test "$host_os" = "emscripten" ; then
 fi
 AC_SUBST(ENABLE_EMSCRIPTENAPP)
 
+has_simd=no
+if test "$mobile_app" != "true"; then
+    # Check for SIMD / AVX2 acceleration compile-time goodness
+    SIMD_CFLAGS="-mavx2 -O3"
+    AC_MSG_CHECKING([whether $CC has AVX2 SIMD support])
+
+    save_CFLAGS=$CFLAGS
+    AC_LANG_PUSH([C])
+    CFLAGS="$CFLAGS $SIMD_CFLAGS"
+
+    AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+        #include <immintrin.h>
+        int main () {
+            __builtin_cpu_init();
+            __m256i vec = _mm256_set1_epi32(0);
+            (void)vec;
+            return __builtin_cpu_supports ("avx2");
+        }])],
+        [has_simd=yes],
+        [has_simd=no])
+
+    AC_LANG_POP([C])
+    CFLAGS=$save_CFLAGS
+
+    AC_MSG_RESULT([${has_simd}])
+fi
+
+if test "${has_simd}" = "no" ; then
+   SIMD_CFLAGS=
+   AC_DEFINE([ENABLE_SIMD],0,[Whether to enable SIMD])
+else
+   AC_DEFINE([ENABLE_SIMD],1,[Whether to enable SIMD])
+fi
+AC_SUBST(SIMD_CFLAGS)
+
+
+has_pfm=no
+LIBPFM_LIBS=
+if test "$mobile_app" != "true"; then
+    AC_MSG_CHECKING([whether we have perf counter support])
+    AC_CHECK_LIB(pfm, pfm_initialize, [has_pfm=yes], [has_pfm=no])
+    AC_MSG_RESULT([${has_pfm}])
+fi
+
+if test "${has_pfm}" = "no" ; then
+   AC_DEFINE([ENABLE_PFM],0,[Whether to enable PFM])
+else
+   AC_DEFINE([ENABLE_PFM],1,[Whether to enable PFM])
+   LIBPFM_LIBS="$LIBS -lpfm"
+fi
+AC_SUBST(LIBPFM_LIBS)
+
 ENABLE_SSL=true
 if test "$enable_ssl" != "no" -a "$mobile_app" != "true"; then
-   ssl_msg="ssl enabled"
+   ssl_msg="ssl enabled. cert verification: $SSL_VERIFY"
    ENABLE_SSL=true
    AC_DEFINE([ENABLE_SSL],1,[Whether to enable SSL])
 else
@@ -1290,18 +1456,17 @@ AS_IF([test "$ENABLE_IOSAPP" != "true" -a "$ENABLE_ANDROIDAPP" != "true" -a "$ho
        fi
 
        PKG_CHECK_MODULES([OPENSSL], [openssl])
-       AC_MSG_CHECKING([Whether OpenSSL has PKCS5_PBKDF2_HMAC()])
+       AC_MSG_CHECKING([whether OpenSSL is recent enough])
        AC_COMPILE_IFELSE([AC_LANG_SOURCE([
        #include <openssl/opensslv.h>
-       #if OPENSSL_VERSION_NUMBER < 0x10001000L
-       #error PKCS5_PBKDF2_HMAC() is in OpenSSL 1.0.1 or newer
+
+       /* OpenSSL 3.0.0 is the current mainline. */
+       #if OPENSSL_VERSION_NUMBER < 0x30000000
+       #error OpenSSL 3.0.0 or newer is required, override at your own risk
        #endif
        ])],
-                         [AC_MSG_RESULT([yes])
-                          AC_DEFINE([HAVE_PKCS5_PBKDF2_HMAC],1,[whether OpenSSL has PKCS5_PBKDF2_HMAC()])],
-                         [AC_MSG_RESULT([no])
-                          AC_MSG_WARN([OpenSSL is too old. Secure password storage for Admin Console is not supported.])
-                          AC_DEFINE([HAVE_PKCS5_PBKDF2_HMAC],0,[Whether OpenSSL has PKCS5_PBKDF2_HMAC()])])
+                         AC_MSG_RESULT([yes]),
+                         [AC_MSG_ERROR([OpenSSL is too old. Please use a more recent version.])])
 
        AC_MSG_CHECKING([POCO version])
        AC_COMPILE_IFELSE([AC_LANG_SOURCE([
@@ -1314,7 +1479,7 @@ AS_IF([test "$ENABLE_IOSAPP" != "true" -a "$ENABLE_ANDROIDAPP" != "true" -a "$ho
                          [AC_MSG_ERROR([The POCO version is too old])])
 
        # If poco is built with --unbundled, it uses the system pcre library
-       AC_MSG_CHECKING([If we need to link with -lpcre])
+       AC_MSG_CHECKING([if we need to link with -lpcre])
        AC_LINK_IFELSE([AC_LANG_SOURCE([
        #include <Poco/RegularExpression.h>
        int main(int argc, char **argv)
@@ -1325,8 +1490,8 @@ AS_IF([test "$ENABLE_IOSAPP" != "true" -a "$ENABLE_ANDROIDAPP" != "true" -a "$ho
            return e.match(argv[[1]], m);
        }
        ])],
-                      [AC_MSG_RESULT([No])],
-                      [AC_MSG_RESULT([Yes])
+                      [AC_MSG_RESULT([no])],
+                      [AC_MSG_RESULT([yes])
                        LIBS="$LIBS -lpcre"])
 
        ])
@@ -1337,11 +1502,7 @@ AS_IF([test `uname -s` = "Linux" -o `uname -s` = "FreeBSD" -o `uname -s` = "Darw
       # optional. If node and npm are not available, cool will have to be built on a Linux box.
       [AC_PATH_PROG(NODE, node, no)
        if test "$NODE" = "no"; then
-           if test `uname -s` = "Darwin"; then
-               AC_MSG_WARN([The cool bits will have to be built on a Linux machine and copied over])
-           else
-               AC_MSG_ERROR([node required to build cool, but not installed])
-           fi
+            AC_MSG_ERROR([node required to build cool, but not installed])
        else
            NODE_VER=`node --version | sed 's/^v//' | awk -F. '{ print (($1 * 100) + $2) * 100 + $3;}'`
            if test "$NODE_VER" -lt 100000; then
@@ -1379,7 +1540,19 @@ AS_IF([test `uname -s` = "FreeBSD"],
 AS_IF([test -n "$with_compiler_plugins"],
       [CPPFLAGS="$CPPFLAGS -Xclang -load -Xclang ${with_compiler_plugins}/compilerplugins/obj/plugin.so -Xclang -add-plugin -Xclang loplugin -Xclang -plugin-arg-loplugin -Xclang --cool-base-path=\${abs_top_srcdir}"])
 
-COOLWSD_CONFIGDIR=${sysconfdir}/${PACKAGE}
+# Clang plugin.
+AC_MSG_CHECKING([whether to build a clang plugin])
+if test "$enable_coplugin" = "yes"; then
+    AC_MSG_RESULT([yes])
+    CPPFLAGS="$CPPFLAGS -Xclang -load -Xclang \${abs_top_srcdir}/clang/plugin.so -Xclang -add-plugin -Xclang coplugin"
+else
+    AC_MSG_RESULT([no])
+fi
+
+if test "x${prefix}" = "xNONE"; then
+    prefix=/usr/local
+fi
+eval COOLWSD_CONFIGDIR="${sysconfdir}/${PACKAGE}"
 AC_SUBST(COOLWSD_CONFIGDIR)
 
 COOLWSD_DATADIR=${datadir}/${PACKAGE}
@@ -1391,20 +1564,11 @@ if test -n "$with_user_id"; then
 fi
 AC_DEFINE_UNQUOTED([COOL_USER_ID],["$COOL_USER_ID"],[The user-name which is allowed to run coolwsd and its tools])
 
-AM_CONDITIONAL([ENABLE_SETCAP], [test "$enable_setcap" != "no" -a `uname -s` = "Linux" -a "$enable_fuzzers" != "yes" -a "$host_os" != "emscripten"])
-
-ENABLE_SETCAP=
-if test "$enable_setcap" != "no" -a `uname -s` = "Linux" -a "$enable_fuzzers" != "yes" -a "$host_os" != "emscripten"; then
-    ENABLE_SETCAP=true
-    setcap_msg="setcap enabled"
-else
-    setcap_msg="setcap disabled"
-fi
-
-AC_SUBST(ENABLE_SETCAP)
-
 AC_CONFIG_LINKS([discovery.xml:discovery.xml])
 AC_CONFIG_LINKS([browser/package.json:browser/package.json])
+AC_CONFIG_LINKS([browser/.eslintrc:browser/.eslintrc])
+AC_CONFIG_LINKS([cypress_test/.eslintrc:cypress_test/.eslintrc])
+AC_CONFIG_LINKS([browser/.prettierrc:browser/.prettierrc])
 AC_CONFIG_LINKS([cypress_test/package.json:cypress_test/package.json])
 AC_CONFIG_COMMANDS_PRE([
 if test "$srcdir" != '.'; then
@@ -1545,7 +1709,7 @@ AC_SUBST(UNLOCK_TITLE)
 
 UNLOCK_LINK=
 if test "$enable_feature_lock" = "yes"; then
-    UNLOCK_LINK="https://www.collaboraoffice.com/subscriptions/"
+    UNLOCK_LINK="https://www.collaboraonline.com/subscriptions/"
 fi
 AC_DEFINE_UNQUOTED([UNLOCK_LINK],["$UNLOCK_LINK"],[Default value of feature_lock.unlock_link])
 AC_SUBST(UNLOCK_LINK)
@@ -1599,7 +1763,7 @@ if test "$enable_feature_lock" = "yes"; then
         <unlock_title desc=\"Title to show user when prompting the unlock popup\" default=\"$UNLOCK_TITLE\">$UNLOCK_TITLE</unlock_title>
         <unlock_link desc=\"Link from where user can unlock the features\" default=\"$UNLOCK_LINK\">$UNLOCK_LINK</unlock_link>
         <unlock_description desc=\"Description about unlocking features\" default=\"$UNLOCK_DESCRIPTION\">$UNLOCK_DESCRIPTION</unlock_description>
-        <unlock_image desc=\"URL of image shown when unlock dialog get displayed\" default=\"\"></unlock_image><!-- URL structure - https://<hostname>/static/<image_endpoint> -->
+        <unlock_image desc=\"URL of image shown when unlock dialog get displayed\" default=\"\"></unlock_image>
         <writer_unlock_highlights desc=\"Short note about Writer benefits of unlocking\" default=\"$WRITER_UNLOCK_HIGHLIGHTS\">$WRITER_UNLOCK_HIGHLIGHTS</writer_unlock_highlights>
         <calc_unlock_highlights desc=\"Short note about Calc benefits of unlocking\" default=\"$CALC_UNLOCK_HIGHLIGHTS\">$CALC_UNLOCK_HIGHLIGHTS</calc_unlock_highlights>
         <impress_unlock_highlights desc=\"Short note about Impress benefits of unlocking\" default=\"$IMPRESS_UNLOCK_HIGHLIGHTS\">$IMPRESS_UNLOCK_HIGHLIGHTS</impress_unlock_highlights>
@@ -1653,8 +1817,8 @@ AC_CONFIG_FILES([Makefile
                  wasm/Makefile
                  test/Makefile
                  browser/Makefile
+                 browser/l10n/Makefile
                  browser/npm-shrinkwrap.json
-                 coolkitconfig.xcu
                  coolwsd.spec
                  coolwsd.xml
                  debian/coolwsd.postinst])
@@ -1748,7 +1912,9 @@ AS_IF([test "$ENABLE_IOSAPP" = "true"],
        fi
       ],
       [
-       echo "
+      ])
+
+echo "
 Configuration:
     LOKit path                ${lokit_msg}
     LO path                   $LO_PATH
@@ -1759,7 +1925,6 @@ Configuration:
     Test assertion logging    $log_asserts_msg
     Uglification and bundling $bundle_msg
     Anonymization             $anonym_msg
-    Set capabilities          $setcap_msg
     Browsersync               $browsersync_msg
     cypress                   $cypress_msg
     C++ compiler flags        $CXXFLAGS
@@ -1771,6 +1936,5 @@ echo "    \$ make run # to start coolwsd
     \$ make sync-writer|calc|impress # to start browsersync with specified app
 "
 fi
-      ])
 
 dnl vim:set shiftwidth=4 softtabstop=4 expandtab:

@@ -23,6 +23,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -68,16 +69,20 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.libreoffice.androidlib.lok.LokClipboardData;
 import org.libreoffice.androidlib.lok.LokClipboardEntry;
 
@@ -96,6 +101,7 @@ public class LOActivity extends AppCompatActivity {
     private static final String CLIPBOARD_COOL_SIGNATURE = "cool-clip-magic-4a22437e49a8-";
     public static final String RECENT_DOCUMENTS_KEY = "RECENT_DOCUMENTS_LIST";
     private static String USER_NAME_KEY = "USER_NAME";
+    public static final String NIGHT_MODE_KEY = "NIGHT_MODE";
 
     private File mTempFile = null;
 
@@ -349,6 +355,8 @@ public class LOActivity extends AppCompatActivity {
             webSettings.setJavaScriptEnabled(true);
             mWebView.addJavascriptInterface(this, "COOLMessageHandler");
 
+            webSettings.setDomStorageEnabled(true);
+
             // allow debugging (when building the debug version); see details in
             // https://developers.google.com/web/tools/chrome-devtools/remote-debugging/webviews
             boolean isChromeDebugEnabled = sPrefs.getBoolean("ENABLE_CHROME_DEBUGGING", false);
@@ -410,7 +418,7 @@ public class LOActivity extends AppCompatActivity {
         Log.i(TAG, "onNewIntent");
 
         if (documentLoaded) {
-            postMobileMessageNative("save dontTerminateEdit=true dontSaveIfUnmodified=true");
+            postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
         }
 
         final Intent finalIntent = intent;
@@ -602,7 +610,7 @@ public class LOActivity extends AppCompatActivity {
     protected void onPause() {
         // A Save similar to an autosave
         if (documentLoaded)
-            postMobileMessageNative("save dontTerminateEdit=true dontSaveIfUnmodified=true");
+            postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
 
         super.onPause();
         Log.d(TAG, "onPause() - hinting to save, we might need to return to the doc");
@@ -637,6 +645,7 @@ public class LOActivity extends AppCompatActivity {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
         if (resultCode != RESULT_OK) {
             if (requestCode == REQUEST_SELECT_IMAGE_FILE) {
                 valueCallback.onReceiveValue(null);
@@ -655,18 +664,15 @@ public class LOActivity extends AppCompatActivity {
             requestCopy = true;
             if (getMimeType().equals("text/plain")) {
                 requestCode = REQUEST_SAVEAS_ODT;
-            }
-            else if (getMimeType().equals("text/comma-separated-values")) {
+            } else if (getMimeType().equals("text/comma-separated-values")) {
                 requestCode = REQUEST_SAVEAS_ODS;
-            }
-            else if (getMimeType().equals("application/vnd.ms-excel.sheet.binary.macroenabled.12")) {
+            } else if (getMimeType().equals("application/vnd.ms-excel.sheet.binary.macroenabled.12")) {
                 requestCode = REQUEST_SAVEAS_ODS;
-            }
-            else {
+            } else {
                 String filename = getFileName(true);
                 String extension = filename.substring(filename.lastIndexOf('.') + 1);
                 requestCode = getRequestIDForFormat(extension);
-                assert(requestCode != 0);
+                assert (requestCode != 0);
             }
         }
         switch (requestCode) {
@@ -703,8 +709,7 @@ public class LOActivity extends AppCompatActivity {
                         inputStream = new FileInputStream(tempFile);
                         try {
                             outputStream = getContentResolver().openOutputStream(intent.getData(), "wt");
-                        }
-                        catch (FileNotFoundException e) {
+                        } catch (FileNotFoundException e) {
                             Log.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
                             outputStream = getContentResolver().openOutputStream(intent.getData());
                         }
@@ -729,7 +734,7 @@ public class LOActivity extends AppCompatActivity {
                         }
                     }
                     if (requestCopy == true) {
-                        assert(_tempFile != null);
+                        assert (_tempFile != null);
                         mTempFile = _tempFile;
                         getIntent().setData(intent.getData());
                         /** add the document to recents */
@@ -737,7 +742,7 @@ public class LOActivity extends AppCompatActivity {
                         // This will actually change the doc permission to write
                         // It's a toggle for blue edit button, but also changes permission
                         // Toggle is achieved by calling setPermission('edit') in javascript
-                        callFakeWebsocketOnMessage("'mobile: readonlymode'");
+                        callFakeWebsocketOnMessage("mobile: readonlymode");
                         isDocEditable = true;
                     }
                     return;
@@ -810,10 +815,10 @@ public class LOActivity extends AppCompatActivity {
 
         if (mMobileWizardVisible) {
             // just return one level up in the mobile-wizard (or close it)
-            callFakeWebsocketOnMessage("'mobile: mobilewizardback'");
+            callFakeWebsocketOnMessage("mobile: mobilewizardback");
             return;
         } else if (mIsEditModeActive) {
-            callFakeWebsocketOnMessage("'mobile: readonlymode'");
+            callFakeWebsocketOnMessage("mobile: readonlymode");
             return;
         }
 
@@ -858,12 +863,32 @@ public class LOActivity extends AppCompatActivity {
 
         if (isLargeScreen() && !isChromeOS())
             finalUrlToLoad += "&userinterfacemode=notebookbar";
+
+        if(isDarkMode()) {
+            finalUrlToLoad += "&darkTheme=true";
+        }
+
         // load the page
         mWebView.loadUrl(finalUrlToLoad);
 
         documentLoaded = true;
 
         loadDocumentMillis = android.os.SystemClock.uptimeMillis();
+    }
+
+    private boolean isDarkMode() {
+        SharedPreferences recentPrefs = getSharedPreferences(EXPLORER_PREFS_KEY, MODE_PRIVATE);
+        int mode = recentPrefs.getInt(NIGHT_MODE_KEY, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+        switch (mode) {
+            case -1:
+                int darkModeFlag = getBaseContext().getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+                return darkModeFlag == Configuration.UI_MODE_NIGHT_YES;
+            case 1:
+                return false;
+            case 2:
+                return true;
+        }
+        return false;
     }
 
     static {
@@ -937,6 +962,17 @@ public class LOActivity extends AppCompatActivity {
      * Passing message the other way around - from Java to the FakeWebSocket in JS.
      */
     void callFakeWebsocketOnMessage(final String message) {
+        String base64Message = Base64.getEncoder().encodeToString(message.getBytes());
+
+        rawCallFakeWebsocketOnMessage("b64d('" + base64Message + "')");
+    }
+
+    /**
+     * Similar to callFakeWebsocketOnMessage but 'message' is instead any expression evaluable as
+     * JavaScript. For example, you should use this to pass Base64ToArrayBuffer invocations to
+     * the fake websocket
+     */
+    void rawCallFakeWebsocketOnMessage(final String message) {
         // call from the UI thread
         if (mWebView != null)
             mWebView.post(new Runnable() {
@@ -960,31 +996,74 @@ public class LOActivity extends AppCompatActivity {
             });
 
         // update progress bar when loading
-        if (message.startsWith("'statusindicator") || message.startsWith("'error:")) {
-            runOnUiThread(new Runnable() {
-                public void run() {
-                    // update progress bar if it exists
-                    final String statusIndicatorSetValue = "'statusindicatorsetvalue: ";
-                    if (message.startsWith(statusIndicatorSetValue)) {
-                        int start = statusIndicatorSetValue.length();
-                        int end = message.indexOf("'", start);
+        if (b64MessageStartsWith(message, "progress")) {
+            runOnUiThread(() -> {
+                JSONObject messageJSON;
+                String messageID;
+                String decodedMessage = b64d(message);
 
-                        int progress = 0;
-                        try {
-                            progress = Integer.parseInt(message.substring(start, end));
-                        } catch (Exception e) {
-                        }
-
-                        mProgressDialog.determinateProgress(progress);
-                    }
-                    else if (message.startsWith("'statusindicatorfinish:") || message.startsWith("'error:")) {
-                        mProgressDialog.dismiss();
-                        if (BuildConfig.GOOGLE_PLAY_ENABLED && rateAppController != null)
-                            rateAppController.askUserForRating();
-                    }
+                int jsonStart = decodedMessage.indexOf("{");
+                if (jsonStart == -1) {
+                    return;
                 }
+
+                try {
+                    messageJSON = new JSONObject(decodedMessage.substring(jsonStart));
+                    messageID = messageJSON.getString("id");
+                } catch (JSONException e) {
+                    return;
+                }
+
+                if (messageID.equals("finish")) {
+                    mProgressDialog.dismiss();
+                    if (BuildConfig.GOOGLE_PLAY_ENABLED && rateAppController != null)
+                        rateAppController.askUserForRating();
+                    return;
+                }
+
+                try {
+                    String text = messageJSON.getString("text");
+                    mProgressDialog.mTextView.setText(text);
+                } catch (JSONException ignored) {}
+
+                try {
+                    int progress = messageJSON.getInt("value");
+                    mProgressDialog.determinateProgress(progress);
+                } catch (JSONException ignored) {}
             });
+        } else if (b64MessageStartsWith(message, "error:")) {
+            runOnUiThread(() -> mProgressDialog.dismiss());
         }
+    }
+
+    /**
+     * determine if a base64-encoded message which would normally be decoded with b64d on the online-side starts with a specific string
+     * useful to see if a message is a specific command...
+     *
+     * @param message The message to test for the prefix, including the "b64d('" decoder wrapping
+     * @param prefix The prefix to test for, not including any sort of wrapping
+     * @return true if the decoded message starts with the prefix, else false
+     */
+    private static boolean b64MessageStartsWith(String message, String prefix) {
+        String base64Message = Base64.getEncoder().withoutPadding().encodeToString(prefix.getBytes());
+
+        return message.startsWith("b64d('" + base64Message);
+    }
+
+    /**
+     * decode a base64-encoded message which would normally be decoded with b64d on the online-side
+     *
+     * @param message The message to decode, including the "b64d('{message}')" decoder wrapping
+     * @return The decoded message
+     */
+    private static String b64d(String message) {
+        assert message.startsWith("b64d('");
+        assert message.endsWith("')");
+
+        String messageContent = message.substring("b64d('".length(), message.length() - "')".length());
+
+        byte[] decodedContent = Base64.getDecoder().decode(messageContent);
+        return new String(decodedContent);
     }
 
     /**
@@ -1124,7 +1203,7 @@ public class LOActivity extends AppCompatActivity {
         try {
             cursor = getContentResolver().query(getIntent().getData(), null, null, null, null);
             if (cursor != null && cursor.moveToFirst())
-                filename = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+                filename = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME));
         } catch (Exception e) {
             return null;
         }

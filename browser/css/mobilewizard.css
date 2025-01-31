@@ -15,6 +15,10 @@ span.menu-entry-icon img {
 	margin: 4px !important;
 }
 
+span.menu-entry-icon {
+	padding-left: 2%;
+}
+
 #mobile-wizard.menuwizard .mobile-wizard-back.close-button{
 	visibility: hidden !important;
 }
@@ -192,9 +196,7 @@ p.mobile-wizard.ui-combobox-text {
 	padding-left: 2% !important;
 	width: 100%;
 }
-.menu-entry-icon.inserttable, .menu-entry-icon.insertfield, .menu-entry-icon.insertheaderfooter, .menu-entry-icon.formattingmark, .menu-entry-icon.formatformmenu {
-	padding-left: 2% !important;
-}
+
 #BackgroundColor > .ui-header-left {
 	width: 100% !important;
 }
@@ -343,12 +345,12 @@ p.mobile-wizard.ui-combobox-text.selected {
 	justify-content: space-between;
 }
 
-.ui-header.mobile-wizard.disabled .ui-header-left * {
+.ui-explorable-entry.mobile-wizard.disabled .ui-header .ui-header-left * {
 	color: var(--color-text-lighter) !important;
 }
 
 .ui-header.mobile-wizard:active, .mobile-wizard.ui-combobox-text:active, .ui-header.mobile-wizard:focus, .mobile-wizard.ui-combobox-text:focus, .ui-header.mobile-wizard:hover, .mobile-wizard.ui-combobox-text:hover {
-	background-color: #eee;
+	background-color: var(--color-background-dark);
 }
 
 #mobile-wizard .ui-header.mobile-wizard-widebutton {
@@ -404,19 +406,7 @@ p.mobile-wizard.ui-combobox-text.selected {
 }
 
 .sub-menu-title {
-	padding-left: 14%;
-}
-.sub-menu-title::before {
-	width: 22px;
-	height: 22px;
-	content: ' ';
-	display: block;
-	position: absolute;
-	left: 4%;
-	margin: 0px 4px;
-	background-color: #eee;
-	border-radius: 20px;
-	margin-right: 4%;
+	padding-left: 4%;
 }
 .sub-menu-arrow {
 	-webkit-transform: rotate(180deg);
@@ -475,9 +465,10 @@ p.mobile-wizard.ui-combobox-text.selected {
 .ui-tabs.mobile-wizard {
 	text-align: center;
 	height: 42px;
-	display: table;
+	display: flex;
 	width: 100%;
 	padding: 0px;
+	overflow-x: auto;
 }
 
 #mobile-wizard-tabs {
@@ -487,20 +478,13 @@ p.mobile-wizard.ui-combobox-text.selected {
 	background-color: var(--color-background-lighter);
 }
 
-#mobile-wizard-header {
-	position: sticky;
-	top: 0;
-	background-color: var(--color-background-lighter);
-	z-index: 2;
-}
-
 .ui-tab.mobile-wizard {
+	flex: auto;
 	display: table-cell;
-	width: 49%;
 	height: 36px;
 	line-height: 36px;
 	vertical-align: middle;
-	margin: 0px 1%;
+	margin: 0px 5%;
 	border-radius: 10px;
 	border: none;
 	color: var(--color-text-lighter);
@@ -578,7 +562,7 @@ p.mobile-wizard.ui-combobox-text.selected {
 	padding-top: 0px;
 }
 .mobile-wizard input.spinfield:disabled {
-	background: linear-gradient(to right, white 0%, #ebebe4 15%, #ebebe4 40%, white 100%);
+	background: linear-gradient(to right, var(--color-background-lighter) 0%, var(--color-background-dark) 15%, var(--color-background-dark) 40%, var(--color-background-lighter) 100%);
 	color: var(--color-text-lighter) !important;
 	border-radius: var(--border-radius);
 	height: 48px !important;
@@ -658,7 +642,7 @@ a.leaflet-control-zoom-in {
 #slide-sorter .preview-img:hover{
 	border-color: var(--color-primary-darker);
 }
-#slide-sorter .preview-img-currentpart, #mobile-wizard-header .preview-img-currentpart{
+#slide-sorter .preview-img-currentpart{
 	border-color: var(--color-primary-dark);
 	border-style: solid;
 	border-radius: var(--border-radius);
@@ -711,15 +695,11 @@ a.leaflet-control-zoom-in {
 	visibility: hidden;
 }
 #MergeCells > span{
-	color: rgb(var(--blue1-txt-primary-color));
+	color: rgb(var(--doc-type));
 	text-align: end;
 	vertical-align: bottom;
 }
-#DeleteTable{
-	background-color: #fbf4f5;
-	border-radius: var(--border-radius);
-	padding-right: 4% !important;
-}
+
 #DeleteTable > span{
 	font-weight: bold;
 	color: var(--color-error);
@@ -749,13 +729,19 @@ a.leaflet-control-zoom-in {
 #mobile-wizard #leadingzeroeslabel, #mobile-wizard #leftindentlabel,
 #mobile-wizard #orientationlabel, #mobile-wizard #cellbackgroundlabel,
 #mobile-wizard .mobile-wizard.ui-text {
-	border-bottom: 1px solid var(--color-primary-dark);
-	color: var(--color-primary) !important;
-	margin-left: 4%;
+	border-top: 1px solid var(--color-border);
+	color: var(--color-main-text) !important;
+	margin: 0 4%;
+	padding: 0px;
 	width: 92%;
+	line-height: var(--header-height);
 	font-size: var(--default-font-size);
-	font-weight: bold;
 	clear: both;
+}
+
+#mobile-wizard.snackbar .mobile-wizard.ui-text {
+	border: none;
+	line-height: inherit;
 }
 
 #mobile-wizard [id^='info-modal-label'].mobile-wizard.ui-text {
@@ -838,8 +824,13 @@ div#mobile-wizard-content .spinfieldcontainer .spinfieldimage.disabled {
 #mobile-wizard #top{background: url('images/sc_aligntop.svg') no-repeat center;}
 #mobile-wizard #bottom{background: url('images/sc_alignbottom.svg') no-repeat center;}
 #mobile-wizard #standard{background: url('images/sc_alignverticalcenter.svg') no-repeat center;}
-.checkbutton{
+#mobile-wizard .checkbutton,
+#mobile-wizard .radiobutton{
 	clear: both;
+	width: 92%;
+	margin: 0 4%;
+	display: flex;
+	align-items: center;
 }
 .checkbutton label {
 	line-height: 44px;
@@ -863,7 +854,7 @@ div#mobile-wizard-content .spinfieldcontainer .spinfieldimage.disabled {
 #mobile-wizard input[type='checkbox']{
 	width: var(--btn-size);
 	height: var(--btn-size);
-	margin: 10px 20px 10px 0px !important;
+	margin: 10px 10px 10px auto !important;
 	float: right;
 	-webkit-appearance: none;
 	-moz-appearance: none;
@@ -899,8 +890,7 @@ div#mobile-wizard-content .spinfieldcontainer .spinfieldimage.disabled {
 	border-radius: 50%;
 	width: var(--btn-size);
 	height: var(--btn-size);
-	margin: 10px 20px 10px 0px !important;
-	float: right;
+	margin: 10px 10px 10px auto !important;
 	-webkit-appearance: none;
 	-moz-appearance: none;
 	-o-appearance: none;
@@ -1015,7 +1005,7 @@ label.disabled {
 
 .ui-edit.mobile-wizard,
 .ui-textarea.mobile-wizard,
-#hyperlink-link-box-label.mobile-wizard {
+#mobile-wizard-content .cool-annotation-table {
 	/*
 	, textarea was also here assign but it was messing up with all textareas (annotations on desktop and mobile):
 	- added 93038: jsdialog: style dialogs; a5016d547c6242f6f9b28748b5724b0bc10cdb67
@@ -1023,6 +1013,11 @@ label.disabled {
 	width: -moz-available;
 	width: -webkit-fill-available;
 	margin: 10px 5% !important;
+}
+
+.ui-textarea.mobile-wizard {
+	background-color: var(--color-background-dark);
+	border: 1px solid var(--color-border);
 }
 
 #mobile-wizard #label9, #documentlabel-mobile {
@@ -1068,7 +1063,6 @@ label.disabled {
 	width: -moz-available !important;
 }
 
-#mobile-wizard-popup .ui-header[id^='comment'],
 #mobile-wizard .ui-header[id^='comment'] {
 	padding: 5px 10px 10px !important;
 	display: table;
@@ -1078,18 +1072,15 @@ label.disabled {
 
 /* Annotations - comments */
 
-#mobile-wizard-popup .cool-annotation-content-author,
 #mobile-wizard .cool-annotation-content-author {
 	font-weight: bold;
 }
 
-#mobile-wizard-popup .cool-annotation-author *,
 #mobile-wizard .cool-annotation-author * {
 	color: var(--color-text-lighter) !important;
 	font-size: var(--default-font-size);
 }
 
-#mobile-wizard-popup .cool-annotation-reply-count,
 #mobile-wizard .cool-annotation-reply-count {
 	grid-column: 2;
 	grid-row: 1;
@@ -1100,32 +1091,21 @@ label.disabled {
 	color: #636363;
 }
 
-#mobile-wizard-popup .cool-annotation-table,
 #mobile-wizard .cool-annotation-table {
 	grid-column: 1 / 2;
 	grid-row: 1;
 }
 
-#mobile-wizard-popup .cool-dont-break,
 #mobile-wizard .cool-dont-break {
 	grid-column: 1 / 2;
 	grid-row: 2;
 }
 
-#mobile-wizard-popup .cool-annotation-content-wrapper,
-#mobile-wizard-popup .cool-annotation-redline-content-wrapper,
 #mobile-wizard .cool-annotation-content-wrapper,
 #mobile-wizard .cool-annotation-redline-content-wrapper {
 	display: grid !important;
 }
 
-#mobile-wizard-popup .cool-annotation-content-wrapper {
-	width: 100% !important;
-	width: -webkit-fill-available !important;
-	width: -moz-available !important;
-}
-
-#mobile-wizard-popup .sub-menu-arrow,
 #mobile-wizard .sub-menu-arrow {
 	grid-column: 2;
 	grid-row: 1;
@@ -1140,7 +1120,6 @@ label.disabled {
 	display: none;
 }
 
-#mobile-wizard-popup .empty-comment-wizard-container,
 #mobile-wizard .empty-comment-wizard-container {
 	height: 100%;
 	margin: 0;
@@ -1151,7 +1130,6 @@ label.disabled {
 	background: var(--color-main-background);
 }
 
-#mobile-wizard-popup .empty-comment-wizard-img,
 #mobile-wizard .empty-comment-wizard-img {
 	width: 78px;
 	flex: 2;
@@ -1159,7 +1137,6 @@ label.disabled {
 	opacity: 0.5;
 }
 
-#mobile-wizard-popup .empty-comment-wizard,
 #mobile-wizard .empty-comment-wizard {
 	flex: 1;
 	font-size: xx-large;
@@ -1168,7 +1145,6 @@ label.disabled {
 	padding-bottom: 32px;
 }
 
-#mobile-wizard-popup .empty-comment-wizard-link,
 #mobile-wizard .empty-comment-wizard-link{
 	color: var(--color-primary);
 	display: flex;
@@ -1178,15 +1154,22 @@ label.disabled {
 	text-decoration: none;
 }
 
-#mobile-wizard-popup .cool-annotation,
 #mobile-wizard .cool-annotation,
 .ui-explorable-entry .cool-annotation {
 	position: relative !important;
 	z-index: auto;
+	width: inherit;
 }
 
 .ui-explorable-entry .cool-annotation-header {
 	height: auto !important;
+}
+
+#new-annotation-dialog .ui-textarea a:link,
+#new-annotation-dialog .ui-textarea a:visited,
+#mobile-wizard .cool-annotation-content a:link,
+#mobile-wizard .cool-annotation-content a:visited {
+	color: var(--color-hyperlink);
 }
 
 /* Fontwork property panel */
@@ -1257,23 +1240,33 @@ label.disabled {
 	display: none;
 }
 
-/* Mobile wizard popup */
-#mobile-wizard-popup .lokdialog.ui-dialog-content {
-	overflow-x: hidden;
-}
-
-[id$='contentControlModalpopup'].mobile-wizard {
+[id$='contentControlModalpopup'].mobile-wizard, [id$='mentionPopup'].mobile-wizard {
 	display: flex;
 	flex: 1;
 	align-self: stretch;
 }
 
-#contentControlList.mobile-wizard {
+#contentControlList.mobile-wizard .ui-treeview-entry:not(:last-child),
+#mentionPopupList.mobile-wizard .ui-treeview-entry:not(:last-child) {
+	border-bottom: 1px solid var(--color-border-lighter);
+}
+
+#contentControlList.mobile-wizard, #mentionPopupList.mobile-wizard {
 	margin: 0;
 	border-color: transparent;
 	width: 100%;
+	max-height: none;
 }
 
-#contentControlList.mobile-wizard li:not(:last-child) {
-	border-bottom: 1px solid var(--color-border-lighter);
+#new-annotation-dialog #mentionPopupList.mobile-wizard {
+	margin-left: 5%;
+	margin-right: 5%;
+	height: 20vh;
+	width: auto;
+	border: 1px solid var(--color-border);
+}
+
+.unotoolbutton.mobile-wizard .unobutton img{
+	width: 24px;
+	height: 24px;
 }

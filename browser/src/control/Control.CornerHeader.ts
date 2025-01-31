@@ -1,7 +1,16 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.CornerHeader
-*/
+ */
 
 /*
 	Calc only.
@@ -11,38 +20,25 @@
 
 namespace cool {
 
-export class CornerHeader extends CanvasSectionObject {
+export class CornerHeader extends app.definitions.canvasSectionObject {
+	name: string = L.CSections.CornerHeader.name;
+	anchor: any = [[L.CSections.ColumnGroup.name, 'bottom', 'top'], [L.CSections.RowGroup.name, 'right', 'left']];
+	size: number[] = [48 * app.dpiScale, 19 * app.dpiScale]; // These values are static.
+	processingOrder: number = L.CSections.CornerHeader.processingOrder;
+	drawingOrder: number = L.CSections.CornerHeader.drawingOrder;
+	zIndex: number = L.CSections.CornerHeader.zIndex;
+	sectionProperties: any = { cursor: 'pointer' }
 
 	_map: any;
 	_textColor: string;
 
-	constructor() {
-
-		super({
-			name: L.CSections.CornerHeader.name,
-			anchor: [[L.CSections.ColumnGroup.name, 'bottom', 'top'], [L.CSections.RowGroup.name, 'right', 'left']],
-			position: [0, 0], // If column group or row group sections exist, myTopleft will be set according to their positions.
-			size: [48 * app.dpiScale, 19 * app.dpiScale], // These values are static.
-			expand: '', // Don't expand.
-			processingOrder: L.CSections.CornerHeader.processingOrder,
-			drawingOrder: L.CSections.CornerHeader.drawingOrder,
-			zIndex: L.CSections.CornerHeader.zIndex,
-			interactable: true,
-			sectionProperties: {
-				cursor: 'pointer'
-			},
-		});
-	}
+	constructor() { super(); }
 
 	onInitialize():void {
 		this._map = L.Map.THIS;
-
-		const baseElem = document.getElementsByTagName('body')[0];
-		const elem = L.DomUtil.create('div', 'spreadsheet-header-row', baseElem);
-		this._textColor = L.DomUtil.getStyle(elem, 'color');
-		this.backgroundColor = L.DomUtil.getStyle(elem, 'background-color'); // This is a section property.
-		this.borderColor = L.DomUtil.getStyle(elem, 'border-top-color'); // This is a section property.
-		L.DomUtil.remove(elem);
+		
+		this._map.on('darkmodechanged', this._initCornerHeaderStyle, this);
+		this._initCornerHeaderStyle();
 	}
 
 	onClick(): void {
@@ -65,6 +61,15 @@ export class CornerHeader extends CanvasSectionObject {
 
 	onMouseLeave(): void {
 		this.containerObject.getCanvasStyle().cursor = 'default';
+	}
+
+	_initCornerHeaderStyle(): void {
+		const baseElem = document.getElementsByTagName('body')[0];
+		const elem = L.DomUtil.create('div', 'spreadsheet-header-row', baseElem);
+		this._textColor = L.DomUtil.getStyle(elem, 'color');
+		this.backgroundColor = L.DomUtil.getStyle(elem, 'background-color'); // This is a section property.
+		this.borderColor = L.DomUtil.getStyle(elem, 'border-top-color'); // This is a section property.
+		L.DomUtil.remove(elem);
 	}
 }
 

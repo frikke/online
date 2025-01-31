@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -31,6 +35,8 @@
 using Poco::TemporaryFile;
 using Poco::Util::Application;
 
+bool EnableExperimental = false;
+
 extern "C"
 {
     static void myCallback(int type, const char* payload, void*)
@@ -45,6 +51,7 @@ class LOKitClient: public Application
 {
 public:
 protected:
+    // coverity[root_function] : don't warn about uncaught exceptions
     int main(const std::vector<std::string>& args) override
     {
         if (args.size() != 2)
@@ -107,10 +114,6 @@ protected:
                     continue;
                 }
                 std::cout << LOKitHelper::documentStatus(loKitDocument) << std::endl;
-                for (int i = 0; i < loKitDocument->pClass->getParts(loKitDocument); i++)
-                {
-                    std::cout << "  " << i << ": '" << loKitDocument->pClass->getPartName(loKitDocument, i) << '\'' << std::endl;
-                }
             }
             else if (tokens.equals(0, "tile"))
             {
@@ -173,6 +176,7 @@ void alertAllUsers(const std::string& cmd, const std::string& kind)
 
 }
 
+// coverity[root_function] : don't warn about uncaught exceptions
 POCO_APP_MAIN(LOKitClient)
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

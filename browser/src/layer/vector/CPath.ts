@@ -1,3 +1,5 @@
+/* -*- js-indent-level: 8 -*- */
+
 declare var L: any;
 
 /*
@@ -14,6 +16,7 @@ abstract class CPath extends CEventsHandler {
 	lineCap: CanvasLineCap = 'round';
 	lineJoin: CanvasLineJoin = 'round';
 	fill: boolean = false;
+	fillGradient: boolean = false;
 	fillColor: string = this.color;
 	fillOpacity: number = 0.2;
 	fillRule: CanvasFillRule = 'evenodd';
@@ -31,7 +34,6 @@ abstract class CPath extends CEventsHandler {
 	zIndex: number = 0;
 
 	static countObjects: number = 0;
-	static isTouchDevice: boolean = false; // Need to set this from current L.Browser.touch
 	private id: number;
 	private isDeleted: boolean = false;
 	private testDiv: HTMLDivElement;
@@ -184,10 +186,18 @@ abstract class CPath extends CEventsHandler {
 			splitPanesContext.getPxBoundList() :
 			[viewBounds];
 
+		let maxXBound = 0;
+		let maxYBound = 0;
+
+		for (const paneBounds of paneBoundsList) {
+			maxXBound = Math.max(maxXBound, paneBounds.min.x);
+			maxYBound = Math.max(maxYBound, paneBounds.min.y);
+		}
+
 		for (var i = 0; i < paneBoundsList.length; ++i) {
 			var panePaintArea = paintArea ? paintArea.clone() : paneBoundsList[i].clone();
+			var paneArea = paneBoundsList[i];
 			if (paintArea) {
-				var paneArea = paneBoundsList[i];
 
 				if (!paneArea.intersects(panePaintArea))
 					continue;
@@ -199,13 +209,27 @@ abstract class CPath extends CEventsHandler {
 				panePaintArea.max.y = Math.min(panePaintArea.max.y, paneArea.max.y);
 			}
 
-			this.updatePath(panePaintArea, paneBoundsList[i]);
+			let freezeX: boolean;
+			let freezeY: boolean;
+			if (paneArea.min.x === 0 && maxXBound !== 0) {
+				freezeX = true;
+			} else {
+				freezeX = false;
+			}
+
+			if (paneArea.min.y === 0 && maxYBound !== 0) {
+				freezeY = true;
+			} else {
+				freezeY = false;
+			}
+
+			this.updatePath(panePaintArea, paneArea, { freezeX, freezeY });
 		}
 
 		this.updateTestData();
 	}
 
-	updatePath(paintArea?: cool.Bounds, paneBounds?: cool.Bounds) {
+	updatePath(paintArea?: cool.Bounds, paneBounds?: cool.Bounds, freezePane?: { freezeX: boolean, freezeY: boolean }) {
 		// Overridden in implementations.
 	}
 
@@ -238,7 +262,14 @@ abstract class CPath extends CEventsHandler {
 
 	clickTolerance(): number {
 		// used when doing hit detection for Canvas layers
-		return (this.stroke ? this.weight / 2 : 0) + (CPath.isTouchDevice ? 10 : 0);
+		return (
+			(this.stroke ? this.weight / 2 : 0) +
+			((
+				window as typeof window & { touch: any }
+			).touch.currentlyUsingTouchscreen()
+				? 10
+				: 0)
+		);
 	}
 
 	setCursorType(cursorType: string) {
@@ -255,75 +286,6 @@ abstract class CPath extends CEventsHandler {
 			return this.renderer.getMap();
 		}
 	}
-
-	// Popup related methods
-	bindPopup(content: any, options: any): CPath {
-
-		if (content instanceof L.Popup) {
-			this.popup = content;
-		} else {
-			if (!this.popup || options) {
-				this.popup = new L.Popup(options, this);
-			}
-			this.popup.setContent(content);
-		}
-
-		if (!this.popupHandlersAdded) {
-			this.on('add', this.firstPopup);
-			this.on('remove', this.closePopup);
-			this.on('mouseenter', this.openPopup);
-			this.on('mouseleave', this.delayClosePopup);
-
-			this.popupHandlersAdded = true;
-		}
-
-		return this;
-	}
-
-	unbindPopup(): CPath {
-		if (this.popup) {
-			this.popup = null;
-			this.off('add', this.firstPopup);
-			this.off('remove', this.closePopup);
-			this.off('mouseenter', this.openPopup);
-			this.off('mouseleave', this.delayClosePopup);
-
-			this.popupHandlersAdded = false;
-		}
-		return this;
-	}
-
-	protected firstPopup(e: EventData) {
-		if (this.popup) {
-			this.openPopup({
-				position: this.getBounds().getCenter()
-			});
-		}
-	}
-
-	protected closePopup(e: EventData) {
-		if (this.popup) {
-			this.popup._close();
-		}
-		return this;
-	}
-
-	protected delayClosePopup(e: EventData) {
-		clearTimeout(this.popupTimer);
-		this.popupTimer = setTimeout(this.closePopup.bind(this), 3000);
-	}
-
-	protected openPopup(e: EventData) {
-		if (!this.getMap().hasLayer(this.popup)) {
-			if (!e.position)
-				e.position = this.getBounds().getCenter();
-			var latlngPos = this.toCompatUnits([e.position.x, e.position.y]);
-			this.popup.setLatLng(latlngPos);
-			this.getMap().openPopup(this.popup);
-			this.delayClosePopup({});
-		}
-	}
-
 }
 
 // This also defines partial rendering order.

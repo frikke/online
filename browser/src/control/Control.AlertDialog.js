@@ -1,9 +1,18 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.Dialog used for displaying alerts
  */
 
-/* global _ sanitizeUrl */
+/* global _ sanitizeUrl JSDialog */
 L.Control.AlertDialog = L.Control.extend({
 	onAdd: function (map) {
 		// TODO: Better distinction between warnings and errors
@@ -12,7 +21,9 @@ L.Control.AlertDialog = L.Control.extend({
 	},
 
 	_onError: function(e) {
-		if (!this._map._fatal) {
+		if (!this._map._fatal &&
+		    e.cmd !== 'notasync' &&
+		    e.type !== 'warn') {
 			this._map.uiManager.closeAll();
 		}
 
@@ -49,12 +60,51 @@ L.Control.AlertDialog = L.Control.extend({
 
 					window.open(url, '_blank');
 				});
+		} else if (e.kind == 'network' && e.code == 24581) {
+			if (e.cmd == 'paste') {
+				var alertId = 'paste_network_access_error';
+				var title = _('Copied external sources are not allowed');
+				var message1 = _('It seems you have copied a selection that includes external images.');
+				var message2 = _('Downloading external resources is forbidden but pasting images is still possible. Please right click in the image, choose "Copy Image" and paste it into the document instead.');
+			} else {
+				// insert image for example, it should not happen with correct coolwsd.xml configuration of net.lok_allow
+				alertId = 'insert_network_access_error';
+				title = _('External data source not allowed');
+				message1 = _('It seems you have tried to insert external data.');
+				message2 = _('Selected external data source is forbidden. Please contact the system administrator.');
+			}
+
+			if (JSDialog.shouldShowAgain(alertId)) {
+				var alertOptions = {
+					title: title,
+					messages: [
+						message1,
+						message2
+					],
+					buttons: [
+						{
+							text: _('Don\'t show this again'),
+							callback: function() {
+								JSDialog.setShowAgain(alertId, false);
+								return false; // Close modal
+							}
+						}
+					],
+					withCancel: false,
+					focusId: JSDialog.generateModalId(alertId) + '-cancel'
+				};
+
+				JSDialog.showInfoModalWithOptions(alertId, alertOptions);
+			}
+		} else if (e.cmd == 'notasync') { // developer only no translation needed
+			this._map.uiManager.showInfoModal(
+				'cool_alert', '', 'This dialog is non-async', '', _('Close'), function() { /* Do nothing. */ }, false);
 		} else if (e.cmd && e.kind) {
 			this._map.fire('hidebusy');
 
-			var msg = _('The server encountered a %0 error while parsing the %1 command.');
-			msg = msg.replace('%0', e.kind);
-			msg = msg.replace('%1', e.cmd);
+			var msg = _('The server encountered a {0} error while parsing the {1} command.');
+			msg = msg.replace('{0}', e.kind);
+			msg = msg.replace('{1}', e.cmd);
 			this._map.uiManager.showInfoModal('cool_alert', '', msg, '', _('Close'), function() { /* Do nothing. */ }, false);
 		}
 	}

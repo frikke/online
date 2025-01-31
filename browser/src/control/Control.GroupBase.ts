@@ -1,7 +1,16 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.GroupBase
-*/
+ */
 
 namespace cool {
 
@@ -27,7 +36,8 @@ export interface GroupEntryStrings {
 	This class is an extended version of "CanvasSectionObject".
 */
 
-export class GroupBase extends CanvasSectionObject {
+export abstract class GroupBase extends app.definitions.canvasSectionObject {
+	_map: any;
 	_textColor: string;
 	_getFont: () => string;
 	_levelSpacing: number;
@@ -35,13 +45,27 @@ export class GroupBase extends CanvasSectionObject {
 	_groups: Array<Array<GroupEntry>>;
 	isRemoved: boolean = false;
 
-	constructor (options: SectionInitProperties) {
-		super(options);
-		if (options.interactable === undefined)
-			this.interactable = true;
-		if (options.sectionProperties === undefined)
-			this.sectionProperties = {};
+	constructor () { super(); }
+
+	// This function is called by CanvasSectionContainer when the section is added to the sections list.
+	onInitialize(): void {
+		this._map = L.Map.THIS;
+		this.sectionProperties.docLayer = this._map._docLayer;
+		this._groups = null;
+
+		// group control styles
+		this._groupHeadSize = Math.round(12 * app.dpiScale);
+		this._levelSpacing = app.roundedDpiScale;
+
+		this._map.on('sheetgeometrychanged', this.update, this);
+		this._map.on('viewrowcolumnheaders', this.update, this);
+		this._createFont();
+		this.update();
+		this.isRemoved = false;
 	}
+
+	// override in subclasses
+	abstract update(): void;
 
 	// Create font for the group headers. Group headers are on the left side of corner header.
 	_createFont(): void {
@@ -97,8 +121,8 @@ export class GroupBase extends CanvasSectionObject {
 				if (!moved && lastGroupIndex[level] !== undefined) {
 					const prevGroupEntry = this._groups[level][lastGroupIndex[level]];
 					if (prevGroupEntry.hidden) {
-						if (startPos > prevGroupEntry.startPos && startPos < prevGroupEntry.endPos) {
-							startPos = prevGroupEntry.endPos;
+						if (startPos <= prevGroupEntry.endPos) {
+							startPos = prevGroupEntry.endPos + this._groupHeadSize;
 						}
 					}
 				}
@@ -122,36 +146,79 @@ export class GroupBase extends CanvasSectionObject {
 		}
 	}
 
-	// If previous group is visible (expanded), current group's plus sign etc. will be drawn. If previous group is not expanded, current group's plus sign etc. won't be drawn.
-	_isPreviousGroupVisible (index: number, level: number): boolean {
-		if (level === 0) // First group's drawings are always drawn.
-			return true;
+	_isParentGroupVisible(group_: GroupEntry): boolean {
+		if (group_.hidden === false) {
+			if (group_.level > 0) {
+				// This recursive call is needed.
+				// Because first upper group may have been expanded and second upper group may have been collapsed.
+				// If one of the upper groups is not expanded, this function should return false.
+				if (this._isPreviousGroupVisible(group_.level, group_.startPos, group_.endPos, group_.hidden)) {
+					return true;
+				}
+				else {
+					return false;
+				}
+			}
+			else {
+				return true;
+			}
+		}
+		else {
+			return false;
+		}
+	}
 
+	// If previous group is visible (expanded), current group's plus sign etc. will be drawn. If previous group is not expanded, current group's plus sign etc. won't be drawn.
+	_isPreviousGroupVisible(level: number, startPos: number, endPos: number, hidden: boolean): boolean {
 		for (let i = 0; i < this._groups.length; i++) {
-			for (const group in this._groups[i]) {
-				if (Object.prototype.hasOwnProperty.call(this._groups[i], group)) {
-					const group_ = this._groups[i][group];
-					if (group_.level === level - 1 && group_.index === index) {
-						if (group_.hidden === false) {
-							if (group_.level > 0) {
-								// This recursive call is needed.
-								// Because first upper group may have been expanded and second upper group may have been collapsed.
-								// If one of the upper groups is not expanded, this function should return false.
-								if (this._isPreviousGroupVisible(group_.index, group_.level)) {
-									return true;
-								}
-								else {
-									return false;
-								}
+			var parentGroup;
+
+			// find the correct parent group level
+			if (i == level - 1) {
+				for (const group in this._groups[i]) {
+					if (Object.prototype.hasOwnProperty.call(this._groups[i], group)) {
+						const group_ = this._groups[i][group];
+
+						// parent group is expanded
+						if ((startPos != endPos) && (startPos >= group_.startPos && endPos <= group_.endPos)) {
+							return this._isParentGroupVisible(group_);
+						}
+						// parent group is collapsed and has a '-' sign
+						else if ((startPos == endPos) && hidden == false) {
+							if ((startPos == group_.startPos && endPos == group_.endPos)) {
+								parentGroup = group_;
+								// special condition: parent group is found, return.
+								return this._isParentGroupVisible(parentGroup);
 							}
-							else {
-								return true;
+							else if ((startPos == group_.startPos && endPos != group_.endPos)) {
+								parentGroup = group_;
+							}
+							else if ((startPos != group_.startPos && endPos == group_.endPos)) {
+								parentGroup = group_;
+							}
+							else if ((startPos > group_.startPos && endPos < group_.endPos)) {
+								parentGroup = group_;
 							}
 						}
-						else {
-							return false;
+						// parent group is collapsed and has a '+' sign
+						else if ((startPos == endPos) && hidden == true) {
+							if ((startPos == group_.startPos && endPos == group_.endPos)) {
+								parentGroup = group_;
+							}
+							else if ((startPos == group_.startPos && endPos != group_.endPos)) {
+								parentGroup = group_;
+							}
+							else if ((startPos != group_.startPos && endPos == group_.endPos)) {
+								parentGroup = group_;
+							}
+							else if ((startPos > group_.startPos && endPos < group_.endPos)) {
+								parentGroup = group_;
+							}
 						}
 					}
+				}
+				if (parentGroup !== undefined) {
+					return this._isParentGroupVisible(parentGroup);
 				}
 			}
 		}
@@ -168,8 +235,13 @@ export class GroupBase extends CanvasSectionObject {
 				if (this._groups[i]) {
 					for (const group in this._groups[i]) {
 						if (Object.prototype.hasOwnProperty.call(this._groups[i], group)) {
-							if (this._isPreviousGroupVisible(this._groups[i][group].index, this._groups[i][group].level))
+							// always draw the first level
+							if (this._groups[i][group].level == 0) {
 								this.drawGroupControl(this._groups[i][group]);
+							}
+							else if (this._isPreviousGroupVisible(this._groups[i][group].level, this._groups[i][group].startPos, this._groups[i][group].endPos, this._groups[i][group].hidden)) {
+								this.drawGroupControl(this._groups[i][group]);
+							}
 						}
 					}
 				}
@@ -255,8 +327,31 @@ export class GroupBase extends CanvasSectionObject {
 		}
 	}
 
+	// returns [startX, endX, startY, endY]
+	getTailsGroupRect (group: GroupEntry): number[] {
+		return [0, 0, 0, 0];
+	}
+
 	findTailsGroup (point: number[]): GroupEntry {
-		return null;
+		const mirrorX = this.isCalcRTL();
+		for (let i = 0; i < this._groups.length; i++) {
+			if (this._groups[i]) {
+				for (const group in this._groups[i]) {
+					if (Object.prototype.hasOwnProperty.call(this._groups[i], group)) {
+						const group_ = this._groups[i][group];
+						const rect = this.getTailsGroupRect(group_);
+						const startX = rect[0];
+						const startY = rect[2];
+						const endX = rect[1];
+						const endY = rect[3];
+
+						if (this.isPointInRect(point, startX, startY, endX, endY, mirrorX)) {
+							return group_;
+						}
+					}
+				}
+			}
+		}
 	}
 
 	/* Double clicking on a group's tail closes it. */

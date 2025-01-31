@@ -1,19 +1,29 @@
 /* -*- js-indent-level: 8 -*- */
 /*
- * L.Control.FormulaBarJSDialog
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-/* global _ _UNO UNOKey */
-L.Control.FormulaBarJSDialog = L.Control.extend({
-	container: null,
-	builder: null,
+/*
+ * JSDialog.FormulaBar - implementation of formulabar toolbar
+ */
 
-	onAdd: function (map) {
+/* global JSDialog _ _UNO UNOKey */
+
+class FormulaBar {
+	constructor(map) {
 		this.map = map;
+		this.parentContainer = L.DomUtil.get('formulabar');
 
 		this.map.on('formulabar', this.onFormulaBar, this);
 		this.map.on('jsdialogupdate', this.onJSUpdate, this);
 		this.map.on('jsdialogaction', this.onJSAction, this);
+		this.map.on('doclayerinit', this.onDocLayerInit, this);
 
 		this.builder = new L.control.jsDialogBuilder(
 			{
@@ -22,19 +32,29 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 				cssClass: 'formulabar jsdialog',
 				callback: this.callback.bind(this)
 			});
-	},
 
-	onRemove: function() {
+		this.createFormulabar('');
+	}
+
+	onRemove() {
 		this.map.off('formulabar', this.onFormulaBar, this);
 		this.map.off('jsdialogupdate', this.onJSUpdate, this);
 		this.map.off('jsdialogaction', this.onJSAction, this);
-	},
 
-	createFormulabar: function(text) {
+		this.map.off('doclayerinit', this.onDocLayerInit, this);
+	}
+
+	onDocLayerInit() {
+		var docType = this.map.getDocType();
+		if (docType == 'spreadsheet')
+			this.showFormulabar();
+	}
+
+	createFormulabar(text) {
 		if (!window.mode.isMobile()) {
 			var data = [
 				{
-					id: 'formulabar-toolbox',
+					id: 'formulabar-buttons-toolbox',
 					type: 'toolbox',
 					children: [
 						{
@@ -44,8 +64,9 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 							command: '.uno:FunctionDialog'
 						},
 						{
-							id: 'autosummenu:AutoSumMenu',
+							id: 'AutoSumMenu:AutoSumMenu',
 							type: 'menubutton',
+							class: 'AutoSumMenu',
 							command: '.uno:AutoSumMenu'
 						},
 						{
@@ -65,7 +86,13 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 							type: 'customtoolitem',
 							text: _UNO('.uno:Cancel', 'spreadsheet'),
 							visible: false
-						},
+						}
+					]
+				},
+				{
+					id: 'formulabar-toolbox',
+					type: 'toolbox',
+					children: [
 						{
 							id: 'sc_input_window',
 							type: 'formulabaredit',
@@ -81,6 +108,7 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 		} else {
 			var data = [
 				{
+					id: 'formulabar-toolbox',
 					type: 'toolbox',
 					children: [
 						{
@@ -102,22 +130,14 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 				}];
 		}
 
-		var wrapper = document.getElementById('calc-inputbar-wrapper');
-		wrapper.style.display = 'block';
+		this.parentContainer.replaceChildren();
+		this.builder.build(this.parentContainer, data);
+	}
 
-		var parent = document.getElementById('calc-inputbar');
-		parent.innerHTML = '';
-		this.container = L.DomUtil.create('div', 'inputbar_container', parent);
-		this.container.style.width = '100%';
-
-		this.builder.build(this.container, data);
-	},
-
-	toggleMultiLine: function(input) {
+	toggleMultiLine(input) {
 		if (L.DomUtil.hasClass(input, 'expanded')) {
 			L.DomUtil.removeClass(input, 'expanded');
-			L.DomUtil.removeClass(L.DomUtil.get('calc-inputbar-wrapper'), 'expanded');
-			L.DomUtil.removeClass(L.DomUtil.get('formulabar'), 'expanded');
+			L.DomUtil.removeClass(this.parentContainer, 'expanded');
 			this.onJSUpdate({
 				data: {
 					jsontype: 'formulabar',
@@ -133,8 +153,7 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 			});
 		} else {
 			L.DomUtil.addClass(input, 'expanded');
-			L.DomUtil.addClass(L.DomUtil.get('calc-inputbar-wrapper'), 'expanded');
-			L.DomUtil.addClass(L.DomUtil.get('formulabar'), 'expanded');
+			L.DomUtil.addClass(this.parentContainer, 'expanded');
 			this.onJSUpdate({
 				data: {
 					jsontype: 'formulabar',
@@ -149,9 +168,9 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 				}
 			});
 		}
-	},
+	}
 
-	callback: function(objectType, eventType, object, data, builder) {
+	callback(objectType, eventType, object, data, builder) {
 		if (object.id === 'expand') {
 			var input = this.getInputField();
 			if (input)
@@ -171,48 +190,60 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 		}
 
 		builder._defaultCallbackHandler(objectType, eventType, object, data, builder);
-	},
+	}
 
-	focusField: function() {
+	focusField() {
 		L.DomUtil.addClass(this.getInputField(), 'focused');
-	},
+	}
 
-	blurField: function() {
+	blurField() {
 		L.DomUtil.removeClass(this.getInputField(), 'focused');
-	},
+	}
 
-	enable: function() {
+	enable() {
 		var input = this.getInputField();
 		if (!input)
 			return;
 
 		input.enable();
-	},
+	}
 
-	disable: function() {
+	disable() {
 		var input = this.getInputField();
 		if (!input)
 			return;
 
 		input.disable();
-	},
+	}
 
-	hasFocus: function() {
+	hasFocus() {
 		var input = this.getInputField();
 		if (!input)
 			return false;
 		return L.DomUtil.hasClass(input, 'focused');
-	},
+	}
 
-	show: function(action) {
+	isInEditMode() {
+		var acceptButton = this.parentContainer.querySelector('#acceptformula');
+		if (acceptButton)
+			return !acceptButton.classList.contains('hidden');
+		return false;
+	}
+
+	showFormulabar() {
+		if (this.parentContainer)
+			this.parentContainer.style.setProperty('display', 'table-cell');
+	}
+
+	show(action) {
 		this.showButton(action, true);
-	},
+	}
 
-	hide: function(action) {
+	hide(action) {
 		this.showButton(action, false);
-	},
+	}
 
-	showButton: function(action, show) {
+	showButton(action, show) {
 		this.onJSAction(
 			{
 				data: {
@@ -224,33 +255,33 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 					}
 				}
 			});
-	},
+	}
 
-	getControl: function(controlId) {
-		if (!this.container)
+	getControl(controlId) {
+		if (!this.parentContainer)
 			return;
 
-		var control = this.container.querySelector('[id=\'' + controlId + '\']');
+		var control = this.parentContainer.querySelector('[id=\'' + controlId + '\']');
 		if (!control)
 			window.app.console.warn('formulabar update: not found control with id: "' + controlId + '"');
 
 		return control;
-	},
+	}
 
-	getInputField: function() {
+	getInputField() {
 		return this.getControl('sc_input_window');
-	},
+	}
 
-	onFormulaBar: function(e) {
+	onFormulaBar(e) {
 		var data = e.data;
 		if (data.jsontype !== 'formulabar')
 			return;
 
 		console.warn('formulabar: old style formulabar full update - to fix in core');
 		return;
-	},
+	}
 
-	onJSUpdate: function (e) {
+	onJSUpdate (e) {
 		var data = e.data;
 		if (data.jsontype !== 'formulabar')
 			return;
@@ -268,9 +299,9 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 		this.builder.build(temporaryParent, [data.control], false);
 		parent.insertBefore(temporaryParent.firstChild, control.nextSibling);
 		L.DomUtil.remove(control);
-	},
+	}
 
-	onJSAction: function (e) {
+	onJSAction (e) {
 		var data = e.data;
 
 		if (data.jsontype !== 'formulabar')
@@ -283,7 +314,7 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 
 		var innerData = data ? data.data : null;
 
-		if (this.container) {
+		if (this.parentContainer.firstChild) {
 			var messageForInputField = innerData && innerData.control_id === 'sc_input_window';
 			var isSetTextMessage = innerData && innerData.action_type === 'setText';
 			var isGrabFocusMessage = innerData && innerData.action_type === 'grab_focus';
@@ -302,12 +333,12 @@ L.Control.FormulaBarJSDialog = L.Control.extend({
 				return;
 			}
 
-			this.builder.executeAction(this.container, innerData);
+			this.builder.executeAction(this.parentContainer, innerData);
 		} else
 			this.createFormulabar(innerData.text);
-	},
-});
+	}
+}
 
-L.control.formulaBarJSDialog = function (options) {
-	return new L.Control.FormulaBarJSDialog(options);
+JSDialog.FormulaBar = function (map) {
+	return new FormulaBar(map);
 };

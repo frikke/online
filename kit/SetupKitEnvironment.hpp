@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -35,10 +39,11 @@ inline void setupKitEnvironment(const std::string& userInterface)
     ::setenv("CONFIGURATION_LAYERS", layers.c_str(),
              1 /* override */);
 
-#if !MOBILEAPP
-    // No-caps tracing can spawn eg. glxinfo & other oddness.
-    unsetenv("DISPLAY");
-#endif
+    if constexpr (!Util::isMobileApp())
+    {
+        // No-caps tracing can spawn eg. glxinfo & other oddness.
+        unsetenv("DISPLAY");
+    }
 
     // Set various options we need.
     std::string options = "unipoll";

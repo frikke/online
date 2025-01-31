@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,10 +13,10 @@
 
 #include "Protocol.hpp"
 
-#include <cassert>
 #include <cstring>
 #include <map>
 #include <string>
+#include <string_view>
 
 #define LOK_USE_UNSTABLE_API
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
@@ -46,7 +50,7 @@ namespace COOLProtocol
         return std::make_tuple(major, minor, patch);
     }
 
-    bool getTokenInteger(const std::string& token, const std::string_view name, int& value)
+    bool getTokenInteger(const std::string_view token, const std::string_view name, int& value)
     {
         if (token.size() > (name.size() + 1) &&
             token.compare(0, name.size(), name) == 0 &&
@@ -61,7 +65,7 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenUInt64(const std::string& token, const std::string_view name, uint64_t& value)
+    bool getTokenUInt64(const std::string_view token, const std::string_view name, uint64_t& value)
     {
         if (token.size() > (name.size() + 1) &&
             token.compare(0, name.size(), name) == 0 &&
@@ -76,7 +80,7 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenUInt32(const std::string& token, const std::string_view name, uint32_t& value)
+    bool getTokenUInt32(const std::string_view token, const std::string_view name, uint32_t& value)
     {
         if (token.size() > (name.size() + 1) &&
             token.compare(0, name.size(), name) == 0 &&
@@ -91,7 +95,8 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenString(const std::string& token, const std::string_view name, std::string& value)
+    bool getTokenString(const std::string_view token, const std::string_view name,
+                        std::string& value)
     {
         if (token.size() >= (name.size() + 1) &&
             token.compare(0, name.size(), name) == 0 &&
@@ -104,7 +109,7 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenKeyword(const std::string& token, const std::string_view name,
+    bool getTokenKeyword(const std::string_view token, const std::string_view name,
                          const std::map<std::string, int>& map, int& value)
     {
         std::string t;
@@ -126,16 +131,6 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenInteger(const StringVector& tokens, const std::string_view name, int& value)
-    {
-        for (size_t i = 0; i < tokens.size(); i++)
-        {
-            if (getTokenInteger(tokens[i], name, value))
-                return true;
-        }
-        return false;
-    }
-
     bool getTokenKeyword(const StringVector& tokens, const std::string_view name, const std::map<std::string, int>& map, int& value)
     {
         for (size_t i = 0; i < tokens.size(); i++)
@@ -146,7 +141,8 @@ namespace COOLProtocol
         return false;
     }
 
-    bool getTokenStringFromMessage(const std::string& message, const std::string_view name, std::string& value)
+    bool getTokenStringFromMessage(const std::string_view message, const std::string_view name,
+                                   std::string& value)
     {
         if (message.size() > name.size() + 1)
         {
@@ -167,11 +163,6 @@ namespace COOLProtocol
         }
 
         return false;
-    }
-
-    bool getTokenKeywordFromMessage(const std::string& message, const std::string_view name, const std::map<std::string, int>& map, int& value)
-    {
-        return getTokenKeyword(StringVector::tokenize(message), name, map, value);
     }
 };
 

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,15 +13,16 @@
 
 #include "Session.hpp"
 #include "Storage.hpp"
-#include "MessageQueue.hpp"
 #include "SenderQueue.hpp"
 #include "ServerURL.hpp"
 #include "DocumentBroker.hpp"
+
+#include <Poco/JSON/Object.h>
+#include <Poco/SharedPtr.h>
 #include <Poco/URI.h>
+
 #include <Rectangle.hpp>
 #include <deque>
-#include <map>
-#include <list>
 #include <utility>
 #include "Util.hpp"
 
@@ -117,20 +122,13 @@ public:
         // FIXME: performance - optimize away this copy ...
         std::vector<char> output;
 
+        // copy in the header
         output.resize(header.size());
         std::memcpy(output.data(), header.data(), header.size());
-        if (tile->appendChangesSince(output, tile->isPng() ? 0 : lastSentId))
-        {
-            LOG_TRC("Sending tile message: " << header << " lastSendId " << lastSentId);
-            return sendBinaryFrame(output.data(), output.size());
-        }
-        else
-        {
-            LOG_TRC("wasteful redundant tile request: " << lastSentId);
-            header = desc.serialize("update:", "\n");
-            return sendTextFrame(output.data(), output.size());
-        }
-        return true;
+
+        bool hasContent = tile->appendChangesSince(output, tile->isPng() ? 0 : lastSentId);
+        LOG_TRC("Sending tile message: " << header << " lastSendId " << lastSentId << " content " << hasContent);
+        return sendBinaryFrame(output.data(), output.size());
     }
 
     bool sendBlob(const std::string &header, const Blob &blob)
@@ -184,17 +182,17 @@ public:
     }
 
     /// Set WOPI fileinfo object
-    void setWopiFileInfo(std::unique_ptr<WopiStorage::WOPIFileInfo>& wopiFileInfo) { _wopiFileInfo = std::move(wopiFileInfo); }
+    void setWopiFileInfo(std::unique_ptr<WopiStorage::WOPIFileInfo> wopiFileInfo) { _wopiFileInfo = std::move(wopiFileInfo); }
 
     /// Get requested tiles waiting for sending to the client
     std::deque<TileDesc>& getRequestedTiles() { return _requestedTiles; }
 
     /// Mark a new tile as sent
-    void addTileOnFly(const TileDesc& tile);
-    void clearTilesOnFly();
+    void addTileOnFly(TileWireId wireId);
     size_t getTilesOnFlyCount() const { return _tilesOnFly.size(); }
-    void removeOutdatedTilesOnFly();
-    size_t countIdenticalTilesOnFly(const TileDesc& tile) const;
+    size_t getTilesOnFlyUpperLimit() const;
+    void removeOutdatedTilesOnFly(const std::chrono::steady_clock::time_point &now);
+    void onTileProcessed(TileWireId wireId);
 
     Util::Rectangle getVisibleArea() const { return _clientVisibleArea; }
     /// Visible area can have negative value as position, but we have tiles only in the positive range
@@ -217,13 +215,6 @@ public:
     int getTileWidthInTwips() const { return _tileWidthTwips; }
     int getTileHeightInTwips() const { return _tileHeightTwips; }
 
-    /// This method updates internal data related to sent tiles (wireID and tiles-on-fly)
-    /// Call this method anytime when a new tile is sent to the client
-    void traceTileBySend(const TileDesc& tile, bool deduplicated = false);
-
-    /// Clear wireId map anytime when client visible area changes (visible area, zoom, part number)
-    void resetWireIdMap();
-
     bool isTextDocument() const { return _isTextDocument; }
 
     void setThumbnailSession(const bool val) { _thumbnailSession = val; }
@@ -241,6 +232,9 @@ public:
     /// Do we recognize this clipboard ?
     bool matchesClipboardKeys(const std::string &viewId, const std::string &tag);
 
+    /// Handle presentation info request
+    bool handlePresentationInfo(const std::shared_ptr<Message>& payload, const std::shared_ptr<DocumentBroker>& docBroker);
+
     /// Handle a clipboard fetch / put request.
     void handleClipboardRequest(DocumentBroker::ClipboardRequest     type,
                                 const std::shared_ptr<StreamSocket> &socket,
@@ -256,6 +250,10 @@ public:
     /// Adds and/or modified the copied payload before sending on to the client.
     void postProcessCopyPayload(const std::shared_ptr<Message>& payload);
 
+    /// Removes the <meta name="origin" ...> tag which was added in
+    /// ClientSession::postProcessCopyPayload().
+    void preProcessSetClipboardPayload(std::string& payload);
+
     /// Returns true if we're expired waiting for a clipboard and should be removed
     bool staleWaitDisconnect(const std::chrono::steady_clock::time_point &now);
 
@@ -269,10 +267,39 @@ public:
     void sendLockedInfo();
 #endif
 
+#if ENABLE_FEATURE_RESTRICTION
+    void sendRestrictionInfo();
+#endif
+
     /// Process an SVG to replace embedded file:/// media URIs with public http URLs.
     std::string processSVGContent(const std::string& svg);
 
-    int  getCanonicalViewId() { return _canonicalViewId; }
+    int  getCanonicalViewId() const { return _canonicalViewId; }
+
+    bool getSentBrowserSetting() const { return _sentBrowserSetting; }
+
+    void setSentBrowserSetting(const bool sentBrowserSetting)
+    {
+        _sentBrowserSetting = sentBrowserSetting;
+    }
+
+    void setBrowserSettingsJSON(Poco::SharedPtr<Poco::JSON::Object>& jsonObject)
+    {
+        _browserSettingsJSON = std::move(jsonObject);
+    }
+
+    Poco::SharedPtr<Poco::JSON::Object> getBrowserSettingJSON()
+    {
+        return _browserSettingsJSON;
+    }
+
+    /// Override parsedDocOption values we get from browser setting json
+    /// Because when client sends `load url` it doesn't have information about browser setting json
+    void overrideDocOption();
+
+#if !MOBILEAPP
+    void updateBrowserSettingsJSON(const std::string& key, const std::string& value);
+#endif
 
 private:
     std::shared_ptr<ClientSession> client_from_this()
@@ -290,6 +317,8 @@ private:
     void writeQueuedMessages(std::size_t capacity) override;
 
     virtual bool _handleInput(const char* buffer, int length) override;
+
+    bool handleSignatureAction(const StringVector& tokens);
 
     bool loadDocument(const char* buffer, int length, const StringVector& tokens,
                       const std::shared_ptr<DocumentBroker>& docBroker);
@@ -325,9 +354,7 @@ private:
     /// If this session is read-only because of failed lock, try to unlock and make it read-write.
     bool attemptLock(const std::shared_ptr<DocumentBroker>& docBroker);
 
-    /// Removes the <meta name="origin" ...> tag which was added in
-    /// ClientSession::postProcessCopyPayload().
-    void preProcessSetClipboardPayload(std::string& payload);
+    std::string getIsAdminUserStatus() const;
 
 private:
     std::weak_ptr<DocumentBroker> _docBroker;
@@ -402,14 +429,11 @@ private:
     /// Rotating clipboard remote access identifiers - protected by GlobalSessionMapMutex
     std::string _clipboardKeys[2];
 
-    /// TileID's of the sent tiles. Push by sending and pop by tileprocessed message from the client.
-    std::vector<std::pair<std::string, std::chrono::steady_clock::time_point>> _tilesOnFly;
+    /// wire-ids's of the in-flight tiles. Push by sending and pop by tileprocessed message from the client.
+    std::vector<std::pair<TileWireId, std::chrono::steady_clock::time_point>> _tilesOnFly;
 
     /// Requested tiles are stored in this list, before we can send them to the client
     std::deque<TileDesc> _requestedTiles;
-
-    /// Store wireID's of the sent tiles inside the actual visible area
-    std::map<std::string, TileWireId> _oldWireIds;
 
     /// Sockets to send binary selection content to
     std::vector<std::weak_ptr<StreamSocket>> _clipSockets;
@@ -431,6 +455,14 @@ private:
 
     /// the canonical id unique to the set of rendering properties of this session
     int _canonicalViewId;
+
+    /// If server audit was already sent
+    bool _sentAudit;
+
+    /// If browser setting was already sent
+    bool _sentBrowserSetting;
+
+    Poco::SharedPtr<Poco::JSON::Object> _browserSettingsJSON;
 };
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,25 +13,24 @@
 
 #include <config.h>
 
-#include "HttpRequest.hpp"
-#include "lokassert.hpp"
-
+#include <HttpRequest.hpp>
 #include <Unit.hpp>
 #include <UnitHTTP.hpp>
-#include <helpers.hpp>
-#include <sstream>
-#include <wsd/COOLWSD.hpp>
+#include <WebSocketSession.hpp>
 #include <common/Clipboard.hpp>
+#include <helpers.hpp>
+#include <lokassert.hpp>
+#include <test.hpp>
+#include <wsd/COOLWSD.hpp>
 #include <wsd/ClientSession.hpp>
-#include <net/WebSocketSession.hpp>
 
+#include <Poco/Net/HTMLForm.h>
 #include <Poco/Net/HTTPResponse.h>
 #include <Poco/Net/HTTPServerRequest.h>
-#include <Poco/Net/HTMLForm.h>
 #include <Poco/Net/StringPartSource.h>
 #include <Poco/Util/LayeredConfiguration.h>
 
-#include <test.hpp>
+#include <sstream>
 
 using namespace Poco::Net;
 
@@ -65,13 +68,21 @@ public:
                                                 http::StatusCode expected)
     {
         LOG_TST("getClipboard: connect to " << clipURIstr);
-        Poco::URI clipURI(clipURIstr);
+        const Poco::URI clipURI(clipURIstr);
+        const std::string clipPathAndQuery = clipURI.getPathAndQuery();
 
         auto httpSession = http::Session::create(clipURIstr);
         std::shared_ptr<const http::Response> httpResponse =
-            httpSession->syncRequest(http::Request(Poco::URI(clipURIstr).getPathAndQuery()));
+            httpSession->syncRequest(http::Request(clipPathAndQuery));
 
-        LOG_TST("getClipboard: sent request: " << clipURI.getPathAndQuery());
+        // Note that this is expected for both living and closed documents.
+        // This failed when either case didn't add the custom header.
+        LOK_ASSERT_EQUAL(std::string("true"), httpResponse->get("X-COOL-Clipboard"));
+
+        // We should mark clipboard responses as non-cacheable.
+        LOK_ASSERT_EQUAL(std::string("no-cache"), httpResponse->get("Cache-Control"));
+
+        LOG_TST("getClipboard: sent request: " << clipPathAndQuery);
 
         try {
             LOG_TST("getClipboard: HTTP get request returned: "
@@ -89,7 +100,9 @@ public:
                                      std::string("application/octet-stream"),
                                      httpResponse->header().getContentType());
 
-            std::istringstream responseStream(httpResponse->getBody());
+            std::string body = httpResponse->getBody();
+            removeSessionClipboardMeta(body);
+            std::istringstream responseStream(body);
             auto clipboard = std::make_shared<ClipboardData>();
             clipboard->read(responseStream);
             std::ostringstream oss;
@@ -202,21 +215,39 @@ public:
         return true;
     }
 
+    std::shared_ptr<ClientSession> getChildSession(size_t session)
+    {
+        std::shared_ptr<DocumentBroker> broker;
+        std::shared_ptr<ClientSession> clientSession;
+
+        std::vector<std::shared_ptr<DocumentBroker>> brokers = COOLWSD::getBrokersTestOnly();
+        assert(brokers.size() > 0);
+        broker = brokers[0];
+        auto sessions = broker->getSessionsTestOnlyUnsafe();
+        assert(sessions.size() > 0 && session < sessions.size());
+        return sessions[session];
+    }
+
     std::string getSessionClipboardURI(size_t session)
     {
-            std::shared_ptr<DocumentBroker> broker;
-            std::shared_ptr<ClientSession> clientSession;
-
-            std::vector<std::shared_ptr<DocumentBroker>> brokers = COOLWSD::getBrokersTestOnly();
-            assert(brokers.size() > 0);
-            broker = brokers[0];
-            auto sessions = broker->getSessionsTestOnlyUnsafe();
-            assert(sessions.size() > 0 && session < sessions.size());
-            clientSession = sessions[session];
+            std::shared_ptr<ClientSession> clientSession = getChildSession(session);
 
             std::string tag = clientSession->getClipboardURI(false); // nominally thread unsafe
             LOG_TST("Got tag '" << tag << "' for session " << session);
             return tag;
+    }
+
+    void removeSessionClipboardMeta(std::string& payload)
+    {
+        if (COOLWSD::getBrokersTestOnly().empty())
+        {
+            return;
+        }
+
+        // The removal doesn't depend on the clipboard URL, so just ask the first session to do the
+        // removal for us.
+        std::shared_ptr<ClientSession> clientSession = getChildSession(0);
+        clientSession->preProcessSetClipboardPayload(payload);
     }
 
     std::string buildClipboardText(const std::string &text)
@@ -340,6 +371,17 @@ public:
                                   existing + newcontent + '\n'))
             return;
 
+        // Test setting HTML clipboard:
+        std::string html("<!DOCTYPE html><html><body>myword</body></html>");
+        // Intentionally no buildClipboardText() here, just raw HTML.
+        if (!setClipboard(_clipURI, html, HTTPResponse::HTTP_OK))
+            return;
+        // This failed with: ERROR: Forced failure: Missing clipboard mime type, because we tried to
+        // parse HTML when we expected a list of mimetype-size-bytes entries.
+        if (!fetchClipboardAssert(_clipURI, "text/html", html))
+            return;
+
+        // Setup state that will be also asserte in postCloseTest():
         LOG_TST("Setup clipboards:");
         if (!setClipboard(_clipURI2, buildClipboardText("kippers"), HTTPResponse::HTTP_OK))
             return;

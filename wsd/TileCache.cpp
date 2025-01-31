@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -13,7 +17,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdio>
-#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -184,34 +188,6 @@ void TileCache::saveTileAndNotify(const TileDesc& desc, const char *data, const 
 
     std::shared_ptr<TileBeingRendered> tileBeingRendered = findTileBeingRendered(desc);
 
-    if (size <= 0)
-    {
-        LOG_TRC("Zero sized cache tile: " << cacheFileName(desc));
-
-        if (tileBeingRendered)
-        {
-            updateWidInCache(desc);
-
-            const size_t subscriberCount = tileBeingRendered->getSubscribers().size();
-
-            // notify that the tile was re-rendered, with no change.
-            for (size_t i = 0; i < subscriberCount; ++i)
-            {
-                auto& subscriber = tileBeingRendered->getSubscribers()[i];
-                std::shared_ptr<ClientSession> session = subscriber.lock();
-                if (session)
-                    session->sendUpdateNow(desc);
-            }
-
-            LOG_DBG("STATISTICS: tile " << desc.getVersion() << " internal roundtrip to empty tile " <<
-                    tileBeingRendered->getElapsedTimeMs());
-
-            // un-subscribe subscribers, if any.
-            forgetTileBeingRendered(desc, tileBeingRendered);
-        }
-        return;
-    }
-
     // Save to in-memory cache.
 
     // Ignore if we can't save the tile, things will work anyway, but slower.
@@ -228,7 +204,7 @@ void TileCache::saveTileAndNotify(const TileDesc& desc, const char *data, const 
         const size_t subscriberCount = tileBeingRendered->getSubscribers().size();
 
         // sendTile also does enqueueSendMessage underneath ...
-        if (tile && size > 0 && subscriberCount > 0)
+        if (tile && subscriberCount > 0)
         {
             for (size_t i = 0; i < subscriberCount; ++i)
             {
@@ -258,7 +234,7 @@ bool TileCache::getTextStream(StreamType type, const std::string& fileName, std:
     {
         // This is not an error because the first time
         // we lookup a file, it won't be in the cache.
-        LOG_INF("Could not open " << fileName);
+        LOG_INF("Cache miss, could not find text stream: " << fileName);
         return false;
     }
 
@@ -459,7 +435,7 @@ bool TileCache::intersectsTile(const TileDesc &tileDesc, int part, int mode, int
 }
 
 // FIXME: to be further simplified when we centralize tile messages.
-void TileCache::subscribeToTileRendering(const TileDesc& tile, const std::shared_ptr<ClientSession>& subscriber,
+bool TileCache::subscribeToTileRendering(const TileDesc& tile, const std::shared_ptr<ClientSession>& subscriber,
                                          const std::chrono::steady_clock::time_point &now)
 {
     ASSERT_CORRECT_THREAD_OWNER(_owner);
@@ -478,7 +454,7 @@ void TileCache::subscribeToTileRendering(const TileDesc& tile, const std::shared
                 LOG_TRC("Redundant request to subscribe on tile " << tile.debugName());
                 // the version stops us unsubscribing when we get there.
                 tileBeingRendered->setVersion(tile.getVersion());
-                return;
+                return false;
             }
         }
 
@@ -495,31 +471,21 @@ void TileCache::subscribeToTileRendering(const TileDesc& tile, const std::shared
 
         tileBeingRendered = std::make_shared<TileBeingRendered>(tile, now);
         tileBeingRendered->getSubscribers().push_back(subscriber);
-        _tilesBeingRendered[tile] = tileBeingRendered;
+        _tilesBeingRendered[tile] = std::move(tileBeingRendered);
     }
+    return true;
 }
 
 Tile TileCache::findTile(const TileDesc &desc)
 {
     const auto it = _cache.find(desc);
-    if (it != _cache.end() && it->first.getNormalizedViewId() == desc.getNormalizedViewId())
+    if (it != _cache.end())
     {
         LOG_TRC("Found cache tile: " << desc.serialize() << " of size " << it->second);
         return it->second;
     }
 
     return Tile();
-}
-
-// Used when we get a zero delta - to update the wire-id
-void TileCache::updateWidInCache(const TileDesc& desc)
-{
-    Tile tile = _cache[desc];
-    if (tile)
-    {
-        LOG_TRC("Bumped wid on " << desc.serialize());
-        tile->bumpLastWid(desc.getWireId());
-    }
 }
 
 Tile TileCache::saveDataToCache(const TileDesc &desc, const char *data, const size_t size)
@@ -592,6 +558,7 @@ void TileCache::ensureCacheSize()
         WidSize(TileWireId w, size_t s) : _wid(w), _size(s) {}
     };
     std::vector<WidSize> wids;
+    wids.reserve(_cache.size());
     for (const auto& it : _cache)
         wids.emplace_back(it.first.getWireId(), itemCacheSize(it.second));
 
@@ -666,7 +633,7 @@ void TileCache::saveDataToStreamCache(StreamType type, const std::string &fileNa
 
     Blob blob = std::make_shared<BlobData>(size);
     std::memcpy(blob->data(), data, size);
-    _streamCache[type][fileName] = blob;
+    _streamCache[type][fileName] = std::move(blob);
 }
 
 void TileCache::TileBeingRendered::dumpState(std::ostream& os)
@@ -687,14 +654,18 @@ void TileCache::TileBeingRendered::dumpState(std::ostream& os)
 void TileCache::dumpState(std::ostream& os)
 {
     os << "\n  TileCache:";
-    os << "\n    num: " << _cache.size() << " size: " << _cacheSize << " bytes\n";
+    os << "\n    num: " << _cache.size() << ", size: " << _cacheSize << " (" << _maxCacheSize
+       << ") bytes\n";
+    size_t totalSize = 0;
+    size_t totalCapacity = 0;
     for (const auto& it : _cache)
     {
-        os << "    " << std::setw(4) << it.first.getWireId()
-           << '\t' << std::setw(6) << it.second->size() << " bytes"
-           << "\t'" << it.first.serialize() << " ";
+        totalSize += it.second->size();
+        totalCapacity += it.second->data().capacity();
+        os << "    " << std::setw(4) << it.first.getWireId() << '\t' << std::setw(6)
+           << it.second->size() << " bytes" << "\t'" << it.first.serialize() << " ";
         it.second->dumpState(os);
-        os << "\n";
+        os << '\n';
     }
 
     int type = 0;
@@ -702,20 +673,26 @@ void TileCache::dumpState(std::ostream& os)
     {
         size_t num = 0;
         size_t size = 0;
+        size_t capacity = 0;
         for (const auto& it : i)
         {
             num++;
             size += it.second->size();
+            capacity += it.second->capacity();
         }
 
-        os << "    stream cache: " << type++ << " num: " << num << " size: " << size << " bytes\n";
+        totalSize += size;
+        totalCapacity += capacity;
+        os << "    stream cache: " << type++ << ", num: " << num << ", size: " << size << " ("
+           << capacity << ") bytes\n";
         for (const auto& it : i)
         {
-            os << "    " << it.first
-               << '\t' << std::setw(6) << it.second->size() << " bytes\n";
+            os << "    " << it.first << '\t' << std::setw(6) << it.second->size() << " ("
+               << std::setw(6) << it.second->capacity() << ") bytes\n";
         }
     }
 
+    os << "    total size: " << totalSize << ", total capacity: " << totalCapacity << " bytes\n";
     os << "    tiles being rendered " << _tilesBeingRendered.size() << '\n';
     for (const auto& it : _tilesBeingRendered)
         it.second->dumpState(os);

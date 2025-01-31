@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,12 +13,10 @@
 
 #include <string>
 
+#include <common/Clipboard.hpp>
 #include <net/HttpRequest.hpp>
 
 #include <test/lokassert.hpp>
-
-#include <chrono>
-#include <fstream>
 
 #include <cppunit/extensions/HelperMacros.h>
 
@@ -32,6 +34,7 @@ class HttpWhiteBoxTests : public CPPUNIT_NS::TestFixture
 
     CPPUNIT_TEST(testRequestParserValidComplete);
     CPPUNIT_TEST(testRequestParserValidIncomplete);
+    CPPUNIT_TEST(testClipboardIsOwnFormat);
 
     CPPUNIT_TEST_SUITE_END();
 
@@ -42,6 +45,7 @@ class HttpWhiteBoxTests : public CPPUNIT_NS::TestFixture
     void testHeader();
     void testRequestParserValidComplete();
     void testRequestParserValidIncomplete();
+    void testClipboardIsOwnFormat();
 };
 
 void HttpWhiteBoxTests::testStatusLineParserValidComplete()
@@ -220,6 +224,29 @@ void HttpWhiteBoxTests::testRequestParserValidIncomplete()
     LOK_ASSERT_EQUAL(expUrl, req.getUrl());
     LOK_ASSERT_EQUAL(expVersion, req.getVersion());
     LOK_ASSERT_EQUAL(expHost, req.header().get("Host"));
+}
+
+void HttpWhiteBoxTests::testClipboardIsOwnFormat()
+{
+    constexpr auto testname = __func__;
+    {
+        std::string body = R"x(application/x-openoffice-embed-source-xml;windows_formatname="Star Embed Source (XML)"
+1def
+PK)x";
+        std::istringstream stream(body);
+
+        LOK_ASSERT_EQUAL(ClipboardData::isOwnFormat(stream), true);
+    }
+    {
+        std::string body = R"(<!DOCTYPE html>
+<html>
+<head>)";
+        std::istringstream stream(body);
+
+        // This is expected to fail: format is mimetype-length-bytes tuples and here the second line
+        // is not a hex size.
+        LOK_ASSERT_EQUAL(ClipboardData::isOwnFormat(stream), false);
+    }
 }
 
 CPPUNIT_TEST_SUITE_REGISTRATION(HttpWhiteBoxTests);

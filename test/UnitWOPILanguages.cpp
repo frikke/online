@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,13 +12,12 @@
 #include <config.h>
 
 #include "Unit.hpp"
-#include "lokassert.hpp"
 #include <WopiTestServer.hpp>
 #include <Log.hpp>
 
 class UnitWopiLanguages : public WopiTestServer
 {
-    STATE_ENUM(Phase, Load, Save, Done) _phase;
+    STATE_ENUM(Phase, Load, Save, Finish, Done) _phase;
 
     int _loaded_count;
 
@@ -26,8 +29,16 @@ public:
     {
     }
 
-    /// The document is loaded.
-    bool onDocumentLoaded(const std::string& message) override
+    std::unique_ptr<http::Response>
+    assertPutFileRequest(const Poco::Net::HTTPRequest& /*request*/) override
+    {
+        LOK_ASSERT_STATE(_phase, Phase::Save);
+        TRANSITION_STATE(_phase, Phase::Finish);
+        return nullptr;
+    }
+
+    /// A view loaded.
+    bool onViewLoaded(const std::string& message) override
     {
         LOG_TST("onDocumentLoaded #" << ++_loaded_count << ": [" << message << ']');
         LOK_ASSERT_STATE(_phase, Phase::Save);
@@ -50,10 +61,11 @@ public:
     {
         if (success || result == "unmodified")
         {
-            passTest("Document saved successfully: " + message);
+            LOG_TST("Document saved as expected");
         }
         else
         {
+            LOG_TST("Document failed to save");
             failTest("Failed to save the document (Core is out-of-date or it has a regression: " +
                      message);
         }
@@ -83,6 +95,12 @@ public:
             case Phase::Save:
             {
             }
+            break;
+            case Phase::Finish:
+            {
+                TRANSITION_STATE(_phase, Phase::Done);
+                passTest("Document uploaded successfully");
+            }
             case Phase::Done:
             {
                 // just wait for the results
@@ -111,8 +129,8 @@ public:
     {
     }
 
-    /// The document is loaded.
-    bool onDocumentLoaded(const std::string& message) override
+    /// A view is loaded.
+    bool onViewLoaded(const std::string& message) override
     {
         LOG_TST("onDocumentLoaded #" << ++_loaded_count << ": [" << message << ']');
         LOK_ASSERT_STATE(_phase, Phase::Load2);
@@ -140,7 +158,7 @@ public:
     {
         const std::string message(data, len);
 
-        if (Util::startsWith(message, "cellformula:"))
+        if (message.starts_with("cellformula:"))
         {
             if (_currentUserId == 0)
             {
@@ -238,8 +256,8 @@ public:
     {
     }
 
-    /// The document is loaded.
-    bool onDocumentLoaded(const std::string& message) override
+    /// A view is loaded.
+    bool onViewLoaded(const std::string& message) override
     {
         LOG_TST("onDocumentLoaded #" << ++_loaded_count << ": [" << message << ']');
         LOK_ASSERT_STATE(_phase, Phase::Load2);
@@ -267,7 +285,7 @@ public:
     {
         const std::string message(data, len);
 
-        if (Util::startsWith(message, "cellformula:"))
+        if (message.starts_with("cellformula:"))
         {
             if (_currentUserId == 0)
             {

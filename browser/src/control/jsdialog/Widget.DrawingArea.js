@@ -1,5 +1,15 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
  * JSDialog.DrawingArea - drawing area displaying picture sent from the server
  *
  * Example JSON:
@@ -11,10 +21,6 @@
  *     loading: true, - show additional spinner div
  *     placeholderText: false,  - 'show text next to image'
  * }
- *
- * Copyright the Collabora Online contributors.
- *
- * SPDX-License-Identifier: MPL-2.0
  */
 
 /* global JSDialog $ UNOKey UNOModifier */
@@ -35,7 +41,17 @@ function _drawingAreaControl (parentContainer, data, builder) {
 	image.tabIndex = 0;
 	image.draggable = false;
 	image.ondragstart = function() { return false; };
-	builder.map.uiManager.enableTooltip(image);
+
+	if (builder.map) {
+		builder.map.uiManager.enableTooltip(image);
+	}
+
+	// Line width dialog is affected from delay on image render.
+	// So If the image render is delayed, use width and height of the data
+	if (JSDialog.isWidgetInModalPopup(data) && image.width == 0 && image.height == 0) {
+		image.width = data.imagewidth;
+		image.height = data.imageheight;
+	}
 
 	if (data.loading && data.loading === 'true') {
 		var loaderContainer = L.DomUtil.create('div', 'ui-drawing-area-loader-container', container);
@@ -134,7 +150,7 @@ function _drawingAreaControl (parentContainer, data, builder) {
 
 	var modifier = 0;
 
-	container.addEventListener('keydown', function(event) {
+	image.addEventListener('keydown', function(event) {
 		if (event.key === 'Enter') {
 			builder.callback('drawingarea', 'keypress', container, UNOKey.RETURN | modifier, builder);
 			event.preventDefault();
@@ -181,7 +197,7 @@ function _drawingAreaControl (parentContainer, data, builder) {
 		}
 	});
 
-	container.addEventListener('keyup', function(event) {
+	image.addEventListener('keyup', function(event) {
 		if (event.key === 'Shift') {
 			modifier = modifier & (~UNOModifier.SHIFT);
 			event.preventDefault();
@@ -191,11 +207,11 @@ function _drawingAreaControl (parentContainer, data, builder) {
 		}
 	});
 
-	container.addEventListener('blur', function() {
+	image.addEventListener('blur', function() {
 		modifier = 0;
 	});
 
-	container.addEventListener('keypress', function(event) {
+	image.addEventListener('keypress', function(event) {
 		if (event.key === 'Enter' ||
 			event.key === 'Escape' ||
 			event.key === 'Esc' ||

@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,20 +11,19 @@
 
 #include <config.h>
 
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
+#include <Png.hpp>
+#include <Unit.hpp>
+#include <WebSocketSession.hpp>
+#include <helpers.hpp>
 
 #include <Poco/Exception.h>
 #include <Poco/RegularExpression.h>
 #include <Poco/URI.h>
 #include <test/lokassert.hpp>
 
-#include <Png.hpp>
-#include <Unit.hpp>
-#include <helpers.hpp>
-#include <net/WebSocketSession.hpp>
+#include <memory>
+#include <ostream>
+#include <string>
 
 // Include config.h last, so the test server URI is still HTTP, even in SSL builds.
 #include <config.h>
@@ -62,7 +65,34 @@ UnitBase::TestResult UnitBadDocLoad::testBadDocLoadFail()
         // Send a load request with incorrect password
         helpers::sendTextFrame(socket, "load url=" + documentURL, testname);
 
-        const auto response = helpers::getResponseString(socket, "error:", testname);
+        std::map<std::string, std::string> items;
+
+        // We receive jsdialog with question about repair
+        const auto dialog = helpers::getResponseString(socket, "jsdialog:", testname);
+        LOK_ASSERT_EQUAL(true, dialog.size() > 0);
+
+        // Extract all json entries into a map.
+        items = JsonUtil::jsonToMap(dialog.substr(sizeof("jsdialog:")));
+        const std::string firstId = items["id"];
+
+        // Click "Yes" in a dialog
+        helpers::sendTextFrame(socket, "dialogevent " + firstId + " {\"id\":\"yes\", \"cmd\": \"click\", \"data\": \"2\", \"type\": \"responsebutton\"}", testname);
+
+        // we can potentially receive multiple jsdialog update messages
+        std::string dialog2;
+        do {
+            dialog2 = helpers::getResponseString(socket, "jsdialog:", testname);
+            LOK_ASSERT_EQUAL(true, dialog2.size() > 0);
+            items = JsonUtil::jsonToMap(dialog2.substr(sizeof("jsdialog:")));
+        } while(items["id"] == firstId); // a duplicate update of existing dialog
+
+        // Now we received jsdialog with warning that repair failed
+
+        // Click "Ok"
+        helpers::sendTextFrame(socket, "dialogevent " + items["id"] + " {\"id\":\"ok\", \"cmd\": \"click\", \"data\": \"1\", \"type\": \"responsebutton\"}", testname);
+
+        auto response = helpers::getResponseString(socket, "error:", testname);
+
         StringVector tokens(StringVector::tokenize(response, ' '));
         LOK_ASSERT_EQUAL(static_cast<size_t>(3), tokens.size());
 

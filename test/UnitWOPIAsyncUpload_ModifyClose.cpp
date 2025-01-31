@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,7 +12,6 @@
 #include <config.h>
 
 #include "HttpRequest.hpp"
-#include "Util.hpp"
 #include "lokassert.hpp"
 
 #include <WopiTestServer.hpp>
@@ -41,15 +44,15 @@ public:
         {
             // The document is modified.
             LOK_ASSERT_EQUAL(std::string("true"), request.get("X-COOL-WOPI-IsModifiedByUser"));
-            LOK_ASSERT_EQUAL(std::string("true"), request.get("X-LOOL-WOPI-IsModifiedByUser"));
+            LOK_ASSERT_EQUAL(false, request.has("X-LOOL-WOPI-IsModifiedByUser"));
 
             // Triggered manually or during closing, not auto-save.
             LOK_ASSERT_EQUAL(std::string("false"), request.get("X-COOL-WOPI-IsAutosave"));
-            LOK_ASSERT_EQUAL(std::string("false"), request.get("X-LOOL-WOPI-IsAutosave"));
+            LOK_ASSERT_EQUAL(false, request.has("X-LOOL-WOPI-IsAutosave"));
 
             TRANSITION_STATE(_phase, Phase::WaitDestroy);
 
-            return Util::make_unique<http::Response>(http::StatusCode::OK);
+            return std::make_unique<http::Response>(http::StatusCode::OK);
         }
 
         // This during closing the document.

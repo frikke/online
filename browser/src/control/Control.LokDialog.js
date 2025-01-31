@@ -1,9 +1,18 @@
 /* -*- js-indent-level: 8 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
  * L.Control.LokDialog used for displaying LOK dialogs
  */
 
-/* global app $ L Hammer w2ui brandProductName UNOModifier */
+/* global app $ L Hammer brandProductName UNOModifier */
 
 L.WinUtil = {
 
@@ -178,8 +187,8 @@ L.Control.LokDialog = L.Control.extend({
 	},
 
 	_isSelectionHandle: function(el) {
-		return L.DomUtil.hasClass(el, 'leaflet-selection-marker-start')	||
-			L.DomUtil.hasClass(el, 'leaflet-selection-marker-end');
+		return L.DomUtil.hasClass(el, 'text-selection-handle-start')	||
+			L.DomUtil.hasClass(el, 'text-selection-handle-end');
 	},
 
 	// Given a prefixed dialog id like 'lokdialog-323', gives a raw id, 323.
@@ -218,6 +227,7 @@ L.Control.LokDialog = L.Control.extend({
 		this._sendPaintWindow(id, this._createRectStr(id, x, y, width, height));
 	},
 
+	// TODO: Extract to tool in Debug.js
 	_debugPaintWindow: function(id, rectangle) {
 		var strId = this._toStrId(id);
 		var canvas = document.getElementById(strId + '-canvas');
@@ -242,7 +252,7 @@ L.Control.LokDialog = L.Control.extend({
 		//window.app.console.log('_sendPaintWindow: rectangle: ' + rectangle + ', dpiscale: ' + dpiscale);
 		app.socket.sendMessage('paintwindow ' + id + ' rectangle=' + rectangle + ' dpiscale=' + app.roundedDpiScale);
 
-		if (this._map._docLayer && this._map._docLayer._debug)
+		if (this._map._debug.debugOn)
 			this._debugPaintWindow(id, rectangle);
 	},
 
@@ -252,7 +262,7 @@ L.Control.LokDialog = L.Control.extend({
 		// In that state the document is not really loaded and closing or cancelling it
 		// returns docnotloaded error. Instead of this we can return to the integration
 		if (!this._map._docLoaded && !window._firstDialogHandled) {
-			window.onClose();
+			app.dispatcher.dispatch('closeapp');
 		}
 	},
 
@@ -385,9 +395,9 @@ L.Control.LokDialog = L.Control.extend({
 			$('#' + strId).remove();
 			this._launchDialog(e.id, null, null, width, height, this._dialogs[parseInt(e.id)].title, null, e.unique_id);
 			if (this._map._docLayer && this._map._docLayer._docType === 'spreadsheet') {
-				if (this._map._docLayer._painter._sectionContainer.doesSectionExist(L.CSections.RowHeader.name)) {
-					this._map._docLayer._painter._sectionContainer.getSectionWithName(L.CSections.RowHeader.name)._updateCanvas();
-					this._map._docLayer._painter._sectionContainer.getSectionWithName(L.CSections.ColumnHeader.name)._updateCanvas();
+				if (app.sectionContainer.doesSectionExist(L.CSections.RowHeader.name)) {
+					app.sectionContainer.getSectionWithName(L.CSections.RowHeader.name)._updateCanvas();
+					app.sectionContainer.getSectionWithName(L.CSections.ColumnHeader.name)._updateCanvas();
 				}
 			}
 		} else if (e.action === 'cursor_invalidate') {
@@ -585,10 +595,8 @@ L.Control.LokDialog = L.Control.extend({
 	},
 
 	_launchDialog: function(id, leftTwips, topTwips, width, height, title, type, uniqueId) {
-		if (window.ThisIsTheiOSApp) {
-			if (w2ui['editbar'])
-				w2ui['editbar'].disable('closemobile');
-		}
+		if (window.ThisIsTheiOSApp && app.map.mobileTopBar)
+				app.map.mobileTopBar.enableItem('closemobile', false);
 		this.onCloseCurrentPopUp();
 		var dialogContainer = L.DomUtil.create('div', 'lokdialog', document.body);
 		L.DomUtil.setStyle(dialogContainer, 'padding', '0px');
@@ -650,6 +658,12 @@ L.Control.LokDialog = L.Control.extend({
 
 		// Override default minHeight, which can be too large for thin dialogs.
 		L.DomUtil.setStyle(dialogContainer, 'minHeight', height + 'px');
+
+		// Title bar may overflow due to range name. So we should have max width
+		var titleBar = dialogContainer.previousSibling;
+		var leftPadding = window.getComputedStyle(titleBar).getPropertyValue('padding-left').slice(0, -2);
+		var rightPadding = window.getComputedStyle(titleBar).getPropertyValue('padding-right').slice(0, -2);
+		L.DomUtil.setStyle(titleBar, 'maxWidth', width - (+leftPadding + +rightPadding) + 'px');
 
 		this._dialogs[id] = {
 			id: id,
@@ -856,10 +870,8 @@ L.Control.LokDialog = L.Control.extend({
 	_onDialogClose: function(dialogId, notifyBackend) {
 		this._closeChildWindows(dialogId);
 
-		if (window.ThisIsTheiOSApp) {
-			if (w2ui['editbar'])
-				w2ui['editbar'].enable('closemobile');
-		}
+		if (window.ThisIsTheiOSApp && app.map.mobileTopBar)
+			app.map.mobileTopBar.enableItem('closemobile', true);
 
 		if (notifyBackend)
 			this._sendCloseWindow(dialogId);

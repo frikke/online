@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -8,8 +12,6 @@
 #include <config.h>
 
 #include <memory>
-#include <ostream>
-#include <set>
 #include <string>
 
 #include <Poco/Exception.h>
@@ -266,9 +268,6 @@ UnitBase::TestResult UnitCursor::testInsertAnnotationWriter()
     LOK_ASSERT_MESSAGE("Expected successful disconnection of the WebSocket",
                        socket->waitForDisconnection(std::chrono::seconds(5)));
 
-    // Make sure the document is fully unloaded.
-    // testNoExtraCoolKitsLeft();
-
     TST_LOG("Reloading ");
     socket = helpers::loadDocAndGetSession(socketPoll, uri, documentURL, testname);
 
@@ -338,8 +337,6 @@ UnitBase::TestResult UnitCursor::testEditAnnotationWriter()
     LOK_ASSERT_EQUAL(
         std::string("textselectioncontent: and now for something completely different"), res);
 
-    // const int kitcount = getCoolKitProcessCount();
-
     // Close and reopen the same document and test again.
     TST_LOG("Closing connection after pasting.");
     socket->shutdownWS();
@@ -348,9 +345,6 @@ UnitBase::TestResult UnitCursor::testEditAnnotationWriter()
 
     TST_LOG("Reloading ");
     socket = helpers::loadDocAndGetSession(socketPoll, uri, documentURL, testname);
-
-    // Should have no new instances.
-    // LOK_ASSERT_EQUAL(kitcount, countCoolKitProcesses(kitcount));
 
     // Confirm that the text is in the comment and not doc body.
     // Click in the body.

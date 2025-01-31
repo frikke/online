@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -93,17 +97,41 @@ struct TileData
 
         size_t oldSize = size();
 
-        // FIXME: too many/large deltas means we should reset -
-        // but not here - when requesting the tiles.
-        _wids.push_back(id);
-        _offsets.push_back(_deltas.size());
-        _deltas.resize(oldSize + dataSize - 1);
-        std::memcpy(_deltas.data() + oldSize, data + 1, dataSize - 1);
+        // If we have an empty delta at the end - then just
+        // bump the associated wid. There is no risk to sending
+        // an empty delta twice.x
+        if (dataSize == 1 && // just a 'D'
+            _offsets.size() > 1 &&
+            _offsets.back() == _deltas.size())
+        {
+            LOG_TRC("received empty delta - bumping wid from " << _wids.back() << " to " << id);
+            _wids.back() = id;
+        }
+        else
+        {
+            _wids.push_back(id);
+            _offsets.push_back(_deltas.size());
+            if (dataSize > 1)
+            {
+                _deltas.resize(oldSize + dataSize - 1);
+                std::memcpy(_deltas.data() + oldSize, data + 1, dataSize - 1);
+            }
+        }
 
         // FIXME: possible race - should store a seq. from the invalidation(s) ?
         _valid = true;
 
         return size() - oldCacheSize;
+    }
+
+    // At what point do we stop stacking deltas & render a keyframe ?
+    bool tooLarge() const
+    {
+        // keyframe gets a free size pass
+        if (_offsets.size() <= 1)
+            return false;
+        size_t deltaSize = size() - _offsets[1];
+        return deltaSize > 128 * 1024; // deltas should be cumulatively small.
     }
 
     bool isPng() const { return (_deltas.size() > 1 &&
@@ -123,27 +151,20 @@ struct TileData
     std::vector<size_t> _offsets; // offset of the start of data
     BlobData _deltas; // first item is a key-frame, followed by deltas at _offsets
 
-    size_t size()
+    size_t size() const
     {
         return _deltas.size();
     }
 
-    const BlobData &data()
+    const BlobData &data() const
     {
         return _deltas;
     }
 
     /// if we send changes since this seq - do we need to first send the keyframe ?
-    bool needsKeyframe(TileWireId since)
+    bool needsKeyframe(TileWireId since) const
     {
         return since < _wids[0];
-    }
-
-    /// we now know this wid is really the latest
-    void bumpLastWid(TileWireId since)
-    {
-        assert(_wids.size() > 0);
-        _wids.back() = since;
     }
 
     bool appendChangesSince(std::vector<char> &output, TileWireId since)
@@ -184,8 +205,9 @@ struct TileData
             os << "deltas: ";
             for (size_t i = 0; i < _wids.size(); ++i)
             {
-                os << i << ": " << _wids[i] << " -> " << _offsets[i] << " ";
+                os << i << ": " << _wids[i] << " -> " << _offsets[i] << ' ';
             }
+            os << (tooLarge() ? "too-large " : "");
         }
     }
 };
@@ -212,9 +234,9 @@ public:
     TileCache(const TileCache&) = delete;
     TileCache& operator=(const TileCache&) = delete;
 
-    /// Subscribes if no subscription exists and returns the version number.
-    /// Otherwise returns 0 to signify a subscription exists.
-    void subscribeToTileRendering(const TileDesc& tile, const std::shared_ptr<ClientSession>& subscriber,
+    /// Subscribes if no subscription exists and returns true.
+    /// Otherwise returns false to signify a subscription already exists.
+    bool subscribeToTileRendering(const TileDesc& tile, const std::shared_ptr<ClientSession>& subscriber,
                                   const std::chrono::steady_clock::time_point& now);
 
     /// Cancels all tile requests by the given subscriber.
@@ -291,7 +313,6 @@ private:
     static bool intersectsTile(const TileDesc &tileDesc, int part, int mode, int x, int y,
                                int width, int height, int normalizedViewId);
 
-    void updateWidInCache(const TileDesc& desc);
     Tile saveDataToCache(const TileDesc& desc, const char* data, size_t size);
     void saveDataToStreamCache(StreamType type, const std::string& fileName, const char* data,
                                size_t size);

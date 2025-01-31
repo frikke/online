@@ -1,20 +1,23 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <chrono>
-#include <string>
+#include <config.h>
+
 #define TST_LOG_REDIRECT
 #include <test.hpp>
 
-#include <config.h>
-
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
-#include <memory>
+#include <string>
 
 #include <cppunit/BriefTestProgressListener.h>
 #include <cppunit/CompilerOutputter.h>
@@ -26,23 +29,20 @@
 #include <cppunit/extensions/TestFactoryRegistry.h>
 #include <cppunit/extensions/HelperMacros.h>
 
-#include <Poco/RegularExpression.h>
 #include <Poco/DirectoryIterator.h>
 #include <Poco/FileStream.h>
+#include <Poco/RegularExpression.h>
 #include <Poco/StreamCopier.h>
+#include <Poco/Util/LayeredConfiguration.h>
 
 #include <helpers.hpp>
 #include <Unit.hpp>
-#include <wsd/COOLWSD.hpp>
 #if ENABLE_SSL
 #include <Ssl.hpp>
 #include <SslSocket.hpp>
 #endif
 #include <Log.hpp>
-
-#include "common/Protocol.hpp"
-
-class HTTPGetTest;
+#include <common/ConfigUtil.hpp>
 
 bool filterTests(CPPUNIT_NS::TestRunner& runner, CPPUNIT_NS::Test* testRegistry, const std::string& testName)
 {
@@ -76,6 +76,7 @@ bool filterTests(CPPUNIT_NS::TestRunner& runner, CPPUNIT_NS::Test* testRegistry,
 
 static bool IsDebugrun = false;
 
+// coverity[root_function] : don't warn about uncaught exceptions
 int main(int argc, char** argv)
 {
     bool verbose = false;
@@ -99,7 +100,10 @@ int main(int argc, char** argv)
 
     const char* loglevel = verbose ? "trace" : "warning";
     const bool withColor = isatty(fileno(stderr));
-    Log::initialize("tst", loglevel, withColor, false, {});
+    Log::initialize("tst", loglevel, withColor, false, {}, false, {});
+
+    Poco::AutoPtr<Poco::Util::LayeredConfiguration> defConfig(new Poco::Util::LayeredConfiguration);
+    ConfigUtil::initialize(defConfig.get());
 
 #if ENABLE_SSL
     try
@@ -276,40 +280,16 @@ bool runClientTests(const char* cmd, bool standalone, bool verbose)
         std::cerr << "  (cd test; CPPUNIT_TEST_NAME=\"" << (*failures.begin())->failedTestName() << "\" gdb --args " << cmd << ")\n\n";
 #else
         (void)cmd;
-        std::string aLib = UnitBase::get().getUnitLibPath();
-        std::size_t lastSlash = aLib.rfind('/');
+        std::string lib = UnitBase::get().getUnitLibPath();
+        std::size_t lastSlash = lib.rfind('/');
         if (lastSlash != std::string::npos)
-            aLib = aLib.substr(lastSlash + 1, aLib.length() - lastSlash - 4) + ".la";
+            lib = lib.substr(lastSlash + 1, lib.length() - lastSlash - 4) + ".la";
         std::cerr << "(cd test; CPPUNIT_TEST_NAME=\"" << (*failures.begin())->failedTestName() <<
-            "\" ./run_unit.sh --test-name " << aLib << ")\n\n";
+            "\" ./run_unit.sh --test-name " << lib << ")\n\n";
 #endif
     }
 
     return result.wasSuccessful();
 }
-
-// Standalone tests don't really use WSD
-#ifndef STANDALONE_CPPUNIT
-
-std::set<pid_t> getKitPids()
-{
-    return COOLWSD::getKitPids();
-}
-
-/// Get the PID of the forkit
-std::set<pid_t> getForKitPids()
-{
-    std::set<pid_t> pids;
-    if (COOLWSD::ForKitProcId >= 0)
-        pids.emplace(COOLWSD::ForKitProcId);
-    return pids;
-}
-
-/// How many live coolkit processes do we have ?
-int getCoolKitProcessCount()
-{
-    return getKitPids().size();
-}
-#endif
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

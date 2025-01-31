@@ -1,5 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -18,13 +22,7 @@
 
 class UnitWOPITemplate : public WopiTestServer
 {
-    enum class Phase
-    {
-        LoadTemplate,
-        SaveDoc,
-        CloseDoc,
-        Polling
-    } _phase;
+    STATE_ENUM(Phase, LoadTemplate, SaveDoc, CloseDoc, Polling) _phase;
 
     bool _savedTemplate;
 
@@ -79,7 +77,8 @@ public:
         {
             LOG_TST("FakeWOPIHost: Handling template GetFile: " << uriReq.getPath());
 
-            HttpHelper::sendFileAndShutdown(socket, TDOC "/test.ott", "");
+            http::Response response(http::StatusCode::OK);
+            HttpHelper::sendFileAndShutdown(socket, TDOC "/test.ott", response);
 
             return true;
         }
@@ -94,7 +93,7 @@ public:
                 LOK_ASSERT_EQUAL(static_cast<int>(Phase::SaveDoc), static_cast<int>(_phase));
                 _savedTemplate = true;
                 LOG_TST("SaveDoc => CloseDoc");
-                _phase = Phase::CloseDoc;
+                TRANSITION_STATE(_phase, Phase::CloseDoc);
             }
             else
             {
@@ -128,7 +127,7 @@ public:
             case Phase::LoadTemplate:
             {
                 LOG_TST("LoadTemplate => SaveDoc");
-                _phase = Phase::SaveDoc;
+                TRANSITION_STATE(_phase, Phase::SaveDoc);
 
                 initWebsocket("/wopi/files/10?access_token=anything");
                 WSD_CMD("load url=" + getWopiSrc());
@@ -138,7 +137,7 @@ public:
             case Phase::CloseDoc:
             {
                 LOG_TST("CloseDoc => Polling");
-                _phase = Phase::Polling;
+                TRANSITION_STATE(_phase, Phase::Polling);
                 WSD_CMD("closedocument");
                 break;
             }

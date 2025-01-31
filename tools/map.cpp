@@ -1,9 +1,15 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
 /*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
+/* A debugging tool to detect un-shared pages between
+ * forkit and its children */
 
 #include <config.h>
 
@@ -48,6 +54,7 @@ typedef unsigned long long addr_t;
 
 bool DumpHex = false;
 bool DumpAll = false;
+bool DumpMap = false;
 bool DumpStrings = false;
 int  DumpWidth = 32;
 
@@ -121,11 +128,13 @@ private:
     addr_t _start;
     addr_t _end;
     std::string _name;
+    mutable size_t _ptrCount;
 public:
     Map(addr_t start, addr_t end, const std::string& name)
         : _start(start)
         , _end(end)
         , _name(name)
+        , _ptrCount(0)
     {
     }
 
@@ -134,6 +143,21 @@ public:
     addr_t getEnd() const { return _end; }
 
     const std::string& getName() const { return _name; }
+
+    std::string getShortName() const
+    {
+        auto lastSlash = _name.rfind('/');
+        if (lastSlash != std::string::npos)
+            return _name.substr(lastSlash+1, _name.length()-lastSlash);
+        else
+            return _name;
+    }
+
+    void bumpPointerCountInUnshared() const
+    {
+        _ptrCount++;
+    }
+    size_t getPtrCount() const { return _ptrCount; }
 
     size_t size() const { return _end - _start; }
 };
@@ -181,14 +205,28 @@ public:
        }
     }
 
-    std::string findName(addr_t page) const
+    const Map *findMap(addr_t addr) const
     {
         for (const Map &i : _maps)
         {
-            if (i.getStart() <= page && i.getEnd() > page)
-                return i.getName();
+            if (i.getStart() <= addr && i.getEnd() > addr)
+                return &i;
         }
-        return std::string("");
+        return nullptr;
+    }
+
+    std::string findName(addr_t page) const
+    {
+        auto map = findMap(page);
+        return map ? map->getName() : std::string("");
+    }
+
+    std::vector<Map> getSortedMaps() const
+    {
+        std::vector<Map> sortedMaps = _maps;
+        std::sort(sortedMaps.begin(), sortedMaps.end(),
+                  [](const Map &a, const Map &b) { return a.getPtrCount() > b.getPtrCount(); });
+        return sortedMaps;
     }
 
     void insert(addr_t start, addr_t end, const char *name)
@@ -318,12 +356,25 @@ static void dumpDiff(const AddrSpace &space,
         for (unsigned int j = 0; j < width/8; j++)
         {
             std::string str;
+            const Map *map;
             auto it = space.getAddrToStr().find(ptrs[j]);
             if (it != space.getAddrToStr().end())
             {
                 str = it->second;
                 haveAnnots = true;
             }
+            else if (DumpMap && (map = space.findMap(ptrs[j])))
+            {
+                str = map->getShortName();
+                haveAnnots = (str != "[heap]") &&
+                             (str != "[anon]") &&
+                             (str != "[stack]");
+                if (!haveAnnots)
+                    str.clear();
+                else
+                    map->bumpPointerCountInUnshared();
+            }
+
             str.resize(24, ' ');
             annots << str << ' ';
         }
@@ -366,12 +417,12 @@ static void dumpPages(unsigned proc_id, unsigned parent_id, const char *type, co
 
         if (lseek(mem_fd, page, SEEK_SET) < 0)
             error(EXIT_FAILURE, errno, "Failed to seek in /proc/<pid>/mem to %lld", page);
-        if (read(mem_fd, &pageData[0], 0x1000) != 0x1000)
+        if (read(mem_fd, pageData.data(), 0x1000) != 0x1000)
             error(EXIT_FAILURE, errno, "Failed to read page %lld from /proc/<pid>/mem", page);
 
         if (lseek(parent_fd, page, SEEK_SET) < 0)
             parentData.resize(0);
-        else if (read(parent_fd, &parentData[0], 0x1000) != 0x1000)
+        else if (read(parent_fd, parentData.data(), 0x1000) != 0x1000)
             parentData.resize(0); // missing equivalent page.
 
         int touched = 0;
@@ -407,13 +458,13 @@ static void dumpPages(unsigned proc_id, unsigned parent_id, const char *type, co
         else
             style = "unique";
 
-        if (DumpHex)
+        if (DumpHex || DumpMap)
         {
             printf ("\n%s page: 0x%.8llx (%d/%d) - touched: %d - %s - from %s\n",
                     type, page, (int)++cnt, (int)pages.size(), touched,
                     style, space.findName(page).c_str());
 
-            if (touched == 0)
+            if (touched == 0) // not present in parent
             {
                 std::stringstream pageStr;
                 Util::dumpHex(pageStr, pageData, "", "", false, DumpWidth);
@@ -432,6 +483,18 @@ static void dumpPages(unsigned proc_id, unsigned parent_id, const char *type, co
     printf ("\tsame but unshared     %6lld (%lldkB)\n", sameButUnshared, sameButUnshared * 4);
     printf ("\tdirtied bytes touched %6lld per page %.2f\n\n",
             bytesTouched, (double)bytesTouched / pages.size());
+
+    if (DumpMap)
+    {
+        printf("number of shared library pointers in touched pages\n");
+        int count = 0;
+        for (const auto &i : space.getSortedMaps())
+        {
+            printf("\t%ld\t%s\n", i.getPtrCount(), i.getName().c_str());
+            if (count++ > 16)
+                break;
+        }
+    }
 }
 
 static std::vector<char> compressBitmap(const std::vector<char> &bitmap)
@@ -476,7 +539,7 @@ static void dump_unshared(unsigned proc_id, unsigned parent_id,
         if (lseek(fd, (p / 0x1000 * 8), SEEK_SET) < 0)
             error(EXIT_FAILURE, errno, "Failed to seek in pagemap");
         addr_t vaddrData;
-        if (read(fd, &vaddrData, 8) < 0)
+        if (read(fd, &vaddrData, sizeof(addr_t)) != sizeof(addr_t))
             error(EXIT_FAILURE, errno, "Failed to read vaddrdata");
         {
             // https://patchwork.kernel.org/patch/6787921/
@@ -504,7 +567,7 @@ static void dump_unshared(unsigned proc_id, unsigned parent_id,
     printf ("\tunshared %5lld (%lldkB)\n", numOwn, numOwn * 4);
 
     std::vector<char> compressed = compressBitmap(bitmap);
-    printf ("\tRLE sharing bitmap:\n%s\n", &compressed[0]);
+    printf ("\tRLE sharing bitmap:\n%s\n", compressed.data());
 
     dumpPages(proc_id, parent_id, type, vunshared, space);
 
@@ -569,6 +632,7 @@ static void total_smaps(unsigned proc_id, unsigned parent_id,
                 if (!name)
                     name = "[anon]\n";
                 space.insert(start, end, name);
+                // coverity[tainted_data : FALSE] - this is entirely intentional
                 for (addr_t p = start; p < end; p += 0x1000)
                     pushTo->push_back(p);
             }
@@ -636,7 +700,7 @@ static unsigned getParent(int proc_id)
 
     char buffer[4096];
     int len;
-    if ((len = read(fd, buffer, sizeof (buffer))) < 0)
+    if ((len = read(fd, buffer, sizeof (buffer) - 1)) < 0)
         error(EXIT_FAILURE, errno, "Failed to read /proc/%d/stat", proc_id);
     close (fd);
     buffer[len] = '\0';
@@ -675,6 +739,8 @@ int main(int argc, char **argv)
             help = true;
         else if (strstr(arg, "--hex"))
             DumpHex = true;
+        else if (strstr(arg, "--map"))
+            DumpMap = true;
         else if (strstr(arg, "--all"))
             DumpAll = true;
         else if (strstr(arg, "--strings"))
@@ -694,6 +760,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: coolmap --hex <name of process|pid>\n");
         fprintf(stderr, "Dump memory map information for a given process\n");
         fprintf(stderr, "    --hex           Hex dump relevant page contents and diff to parent process\n");
+        fprintf(stderr, "    --map           Print address into their memory maps\n");
         fprintf(stderr, "    --strings       Print all detected strings\n");
         fprintf(stderr, "    --all           Hex dump all writable pages whether touched or not\n");
         fprintf(stderr, "    --width <bytes> Define width of hex dump in bytes, rounded to a power of 2\n");

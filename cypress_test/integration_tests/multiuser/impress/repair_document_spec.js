@@ -1,16 +1,10 @@
-/* global describe it cy beforeEach require afterEach */
+/* global describe it cy beforeEach require */
 
 var helper = require('../../common/helper');
 describe.skip('Repair Document', function() {
-	var origTestFileName = 'repair_doc.odp';
-	var testFileName;
 
 	beforeEach(function() {
-		testFileName = helper.beforeAll(origTestFileName, 'impress', undefined, true);
-	});
-
-	afterEach(function() {
-		helper.afterAll(testFileName, this.currentTest.state);
+		helper.setupAndLoadDocument('impress/repair_doc.odp',true);
 	});
 
 	function repairDoc(frameId1, frameId2) {
@@ -38,7 +32,7 @@ describe.skip('Repair Document', function() {
 		cy.cGet('#DocumentRepairDialog').should('exist');
 		cy.cGet('#versions').should('exist');
 
-		cy.cGet('body').contains('#versions .ui-treeview-body .ui-listview-entry td','Typing: “World”').click();
+		cy.cGet('body').contains('#versions .ui-treeview-entry div','Typing: “World”').click();
 		cy.cGet('#ok.ui-pushbutton.jsdialog').should('exist');
 		cy.cGet('#ok.ui-pushbutton.jsdialog').click();
 		helper.typeIntoDocument('{ctrl}{a}');

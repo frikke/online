@@ -1,3 +1,16 @@
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; fill-column: 100 -*- */
+/*
+ * Copyright the Collabora Online contributors.
+ *
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+#include "config.h"
+
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -38,7 +51,7 @@ static const std::map<std::string, std::string> specialAttribute {
 static std::vector<std::string> netPostAllow, netPostAllowDesc, wopiHost, wopiHostDesc, wopiHostAllow;
 static bool netPostAllowAdded, wopiHostAdded;
 
-void MigrateLevel(const XMLConfiguration &sourceConfig, XMLConfiguration &targetConfig, const std::string sourceLevel)
+void MigrateLevel(const XMLConfiguration &sourceConfig, XMLConfiguration &targetConfig, const std::string& sourceLevel)
 {
     Poco::Util::AbstractConfiguration::Keys subKeys;
     sourceConfig.keys(sourceLevel, subKeys);
@@ -95,12 +108,12 @@ void MigrateLevel(const XMLConfiguration &sourceConfig, XMLConfiguration &target
                 // Keep record of these configs for post processing
                 if (commonKeyPart == NET_POST_ALLOW_HOST)
                 {
-                    netPostAllow.push_back(sourceElement);
+                    netPostAllow.push_back(std::move(sourceElement));
                     netPostAllowDesc.push_back(sourceConfig.getString(sourceLevel + "[@desc]"));
                 }
                 else if (commonKeyPart == STORAGE_WOPI_HOST)
                 {
-                    wopiHost.push_back(sourceElement);
+                    wopiHost.push_back(std::move(sourceElement));
                     wopiHostDesc.push_back(sourceConfig.getString(sourceLevel + "[@desc]"));
                     wopiHostAllow.push_back(sourceConfig.getString(sourceLevel + "[@allow]"));
                 }

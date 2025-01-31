@@ -33,6 +33,7 @@
 #include <net/HttpRequest.hpp>
 #include <FileUtil.hpp>
 #include <Util.hpp>
+#include <fuzzer/Common.hpp>
 
 class HttpRequestTests final
 {
@@ -45,10 +46,10 @@ class HttpRequestTests final
 
     class ServerSocketFactory final : public SocketFactory
     {
-        std::shared_ptr<Socket> create(const int physicalFd) override
+        std::shared_ptr<Socket> create(const int physicalFd, Socket::Type type) override
         {
-            return StreamSocket::create<StreamSocket>("localhost", physicalFd, false,
-                                                      std::make_shared<ServerRequestHandler>());
+            return StreamSocket::create<StreamSocket>("localhost", physicalFd, type, false,
+                                                      HostType::LocalHost, std::make_shared<ServerRequestHandler>());
         }
     };
 
@@ -64,16 +65,17 @@ public:
         if (log_level)
         {
             Log::initialize("fuz", log_level ? log_level : "error", isatty(fileno(stderr)), false,
-                            logProperties);
+                            logProperties, false, {});
         }
 
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         std::shared_ptr<SocketFactory> factory = std::make_shared<ServerSocketFactory>();
         int port = 9990;
         for (int i = 0; i < 40; ++i, ++port)
         {
             // Try listening on this port.
             _socket = ServerSocket::create(ServerSocket::Type::Local, port, Socket::Type::IPv4,
-                                           _pollServerThread, factory);
+                                           now, _pollServerThread, factory);
             if (_socket)
                 break;
         }
@@ -125,6 +127,9 @@ public:
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
+    static bool initialized = fuzzer::DoInitialization();
+    (void)initialized;
+
     static HttpRequestTests test;
 
     http::Request httpRequest("/inject/" + Util::bytesToHexString(data, size));

@@ -78,10 +78,10 @@ TRACEEVENT name=<name> ph=<letter> ts=<timestamp> <more parameters>... [ args=<J
     between the beginning of the thing being timed and the time when
     the 'X' message was emitted, also in microseconds.
 
-tileprocessed tile=<tileid>
+tileprocessed wids=<wid1,wid2,...>
 
     Previously sent tile (server -> client) arrived and processed by the client.
-    Tileid has the next structure : <selected part>:<tile x coord>:<tile y coord>:<tile width in twips>:<tile height in twips>
+    We send a list of wire-ids back for tiles that have been received.
 
 downloadas name=<fileName> id=<id> format=<document format> options=<SkipImages, etc>
 
@@ -180,11 +180,6 @@ renderfont font=<font> char=<characters>
     The font parameter is URL encoded
     The char parameter is URL encoded
 
-requestloksession
-
-    requests the initialization of a LOK process in an attempt to predict the user's
-    interaction with the document
-
 resetselection
 
 saveas url=<url> format=<format> options=<options>
@@ -223,16 +218,15 @@ status
 
 styles
 
-tile part=<partNumber> width=<width> height=<height> tileposx=<xpos> tileposy=<ypos> tilewidth=<tileWidth> tileheight=<tileHeight> [timestamp=<time>] [id=<id> broadcast=<yesOrNo>] [oldwid=<wireId>]
+tile part=<partNumber> width=<width> height=<height> tileposx=<xpos> tileposy=<ypos> tilewidth=<tileWidth> tileheight=<tileHeight> [timestamp=<time>] [id=<id>] [oldwid=<wireId>]
 
-    Parameters are numbers except broadcast which is 'yes' or 'no' and
-    wireId which is an opaque string identifier unique to this tile.
+    Parameters are numbers except wireId which is an opaque string
+    identifier unique to this tile.
 
-    Note: id must be echoed back in the response verbatim. It and the
-    following parameter, broadcast, are used when rendering slide
-    previews of presentation documents, and not for anything else. It
-    is only useful to JS part and will break it if not returned in
-    the response.
+    Note: id must be echoed back in the response verbatim. It is used
+    when rendering slide previews of presentation documents, and not
+    for anything else. It is only useful to JS part and will break it
+    if not returned in the response.
 
 tilecombine <parameters>
 
@@ -241,19 +235,23 @@ tilecombine <parameters>
     comma-separated lists, and the number of elements in each must be
     same.
 
+    if oldwid=0 this forces returning from the previous keyframe
+    for this tile - suitable for force-refreshing the data.
+
 dialog <command>
 
     <command> is unique identifier for the dialog that needs to be painted.
 
-uno <command>
+uno <command> [arguments]
 
     <command> is a line of text.
+    [argments] - JSON encoded arguments for the UNO command
 
 save dontTerminateEdit=<value> dontSaveIfUnmodified=<value>
 
-    A wrapper over UNO save command. A non-zero <value> is considered true.
-    'dontTerminateEdit' means not terminating the edit session in
-    spreadsheets when saving the document. In most cases, you should set it to
+    A wrapper over UNO save command. A non-zero integer <value> is considered true (non-integer
+    values such as 'true' are not allowed). 'dontTerminateEdit' means not terminating the edit
+    session in spreadsheets when saving the document. In most cases, you should set it to
     non-zero. 'dontSaveIfUnmodified' when set to non-zero skips saving the document when it is
     unmodified.
 
@@ -473,6 +471,17 @@ invalidatetiles: EMPTY, <partNumber>, <mode>, wid=<wid>
 
     Tells the client to invalidate all cached tiles.
 
+loaded: viewid=<viewId> views=<number of active views> isfirst=<true|false>
+
+    Sent after a view has been loaded successfully.
+    Best to rely on this to detect loading events (rather than status:).
+
+    <viewId> the unique ID of this view (meaningful only in LOKit).
+    <views> the total number of active views in the document after finishing loading this one.
+    <isfirst> "true" if this is the first view (i.e. the document has just loaded), otherwise "false".
+
+    See also unloaded:.
+
 pong rendercount=<num>
 
     sent in reply to a 'ping' message, where <num> is the total number
@@ -492,7 +501,7 @@ status: type=<typeName> parts=<numberOfParts> current=<currentPartNumber> width=
 statusupdate: type=<typeName> parts=<numberOfParts> current=<currentPartNumber> width=<width> height=<height> viewid=<viewId> hiddenparts=<part1,part2,...> selectedparts=<part1,part2,...> [partNames]
 
     Same as status: but issued whenever the document parts have updated significantly.
-    status: implies document loading. statusupdate: is just an update.
+    status: implies document loading (deprecated, use loaded: instead). statusupdate: is just an update.
 
 styles: {"styleFamily": ["styles in family"], etc. }
 
@@ -502,9 +511,14 @@ statechanged: <key>=<value>
     Eg: 'statechanged: .uno:Undo=enabled'
 
 textselectioncontent:
+<JSON>
 
     Current selection's content, only for text-only selections of a reasonably limited size.
     For complex selection and large texts, selectioncontent message is returned.
+    The keys of the JSON are MIME types (text/html, text/plain;charset=utf-8),
+    the values are the content of the selection in that format.
+    For debug/test purposes, in case a single MIME type is requested, that's
+    returned as-is, not inside a JSON.
 
 complexselection:
 
@@ -527,11 +541,6 @@ delta: part=<partNumber> width=<width> height=<height> tileposx=<xpos> tileposy=
 
     A delta command is like a tile: command but the payload is purely
     an incremental patch on top of a previous tile.
-
-update: <as delta>
-
-    An update command simply informs the client of any updated wid
-    ie. this tile was re-rendered and returned an empty delta.
 
 commandresult: <payload>
 
@@ -689,6 +698,18 @@ contentcontrol: <JSON>
         - rectangles - rectangle coordinates (x-coordinate, y-coordinate, width, height)
         - date - boolean to indicate date content control
         - items - array of items for dropdown
+
+canonicalidchange: viewid=<id> canonicalid=<id> viewrenderedstate=<Light|Dark|Empty>
+
+unloaded: viewid=<viewId> views=<number of active views>
+
+    Sent after a view has been unloaded successfully.
+    Best to rely on this to detect unloading events.
+
+    <viewId> the unique ID of this view (meaningful only in LOKit).
+    <views> the total number of active views in the document after finishing loading this one.
+
+    See also loaded:.
 
 
 child -> parent
@@ -907,6 +928,10 @@ wopiSrcMap
 
     get map of wopiSrc<->routeToken
 
+verifyauth jwt=<jwt_token> id=<unique_identifier>
+
+    verify jwt token without shutting down the socket connection, works only with monitor
+
 admin -> client
 ===============
 
@@ -914,13 +939,17 @@ Commands marked with [*] are notifications that are delivered only if client is
 subscribed to these commands using `subscribe` (see client->admin
 section). Others are just response messages to some client command.
 
-[*] adddoc <pid> <filename> <sessionid> <username> <userid> <memory consumed> <wopiHost> <isViewReadOnly> <wopiSrc>
+[*] adddoc <pid> <filename> <sessionid> <username> <userid> <memory consumed>
+           <wopiHost> <isViewReadOnly> <wopiSrc> <dockey>
 
     <pid> process id hosting the document
     <filename> URL encoded name of the file
     <sessionid> string identifying the view of this document
     <memory consumed> RSS of <pid> in kilobytes
     <wopihost> storage host on which document exist
+    <isViewReadOnly> if the view is readonly
+    <wopiSrc> wopisrc of the document
+    <dockey> unique identifying key of the document
 
 [*] rmdoc <pid> <sessionid>
 
@@ -964,12 +993,16 @@ section). Others are just response messages to some client command.
 
 InvalidAuthToken
 
-    This is sent when invalid auth token is provided in 'auth' command. See
+    This is sent when invalid auth token is provided in 'auth' and 'verifyauth' command. See
     above.
 
 NotAuthenticated
 
     When client sends an admin command that requires authentication.
+
+ValidAuthToken
+
+    This is sent when valid token is provided in 'verifyauth' command. See above
 
 documents <pid> <filename> <number of views> <memory consumed> <elapsed time> <idle time>
 <pid> <filename> ....

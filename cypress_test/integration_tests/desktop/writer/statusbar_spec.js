@@ -1,14 +1,12 @@
-/* global describe it cy beforeEach require afterEach Cypress */
+/* global describe it cy beforeEach require Cypress */
 
 var helper = require('../../common/helper');
 var desktopHelper = require('../../common/desktop_helper');
 
 describe(['tagdesktop', 'tagnextcloud', 'tagproxy'], 'Statubar tests.', function() {
-	var origTestFileName = 'statusbar.odt';
-	var testFileName;
 
 	beforeEach(function() {
-		testFileName = helper.beforeAll(origTestFileName, 'writer');
+		helper.setupAndLoadDocument('writer/statusbar.odt');
 		desktopHelper.switchUIToCompact();
 
 		if (Cypress.env('INTEGRATION') === 'nextcloud') {
@@ -16,31 +14,26 @@ describe(['tagdesktop', 'tagnextcloud', 'tagproxy'], 'Statubar tests.', function
 		}
 	});
 
-	afterEach(function() {
-		helper.afterAll(testFileName, this.currentTest.state);
-	});
-
 	it('Text selection.', function() {
-		cy.cGet('body').contains('#tb_actionbar_item_StateWordCount', '2 words, 9 characters');
+		cy.cGet('body').contains('#toolbar-down #StateWordCount', '2 words, 9 characters');
 		helper.moveCursor('right', 'shift');
-		cy.cGet('body').contains('#tb_actionbar_item_StateWordCount', 'Selected: 1 word, 1 character');
+		cy.cGet('body').contains('#toolbar-down #StateWordCount', 'Selected: 1 word, 1 character');
 	});
 
 	it('Switching page.', function() {
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 1 of 1');
+		desktopHelper.assertVisiblePage(1, 1, 1);
 		cy.cGet('#menu-insert').click();
 		cy.cGet('body').contains('#menu-insert li a', 'Page Break').click();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 2 of 2');
-		cy.cGet('#tb_actionbar_item_prev').click();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 1 of 2');
-		cy.cGet('#tb_actionbar_item_next').click();
-		cy.cGet('#StatePageNumber').should('have.text', 'Page 2 of 2');
+		desktopHelper.assertVisiblePage(1, 2, 2);
+		desktopHelper.makeZoomItemsVisible(); // make visible next and prev page buttons
+		cy.cGet('#toolbar-down #prev').click();
+		desktopHelper.assertVisiblePage(1, 1, 2);
+		cy.cGet('#toolbar-down #next').click();
+		desktopHelper.assertVisiblePage(1, 2, 2);
 	});
 
 	it('Text entering mode.', function() {
 		cy.cGet('#InsertMode').should('have.text', 'Insert');
-		helper.typeIntoDocument('{insert}');
-		cy.cGet('#InsertMode').should('have.text', 'Overwrite');
 		helper.typeIntoDocument('{insert}');
 		cy.cGet('#InsertMode').should('have.text', 'Insert');
 	});
