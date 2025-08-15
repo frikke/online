@@ -159,7 +159,8 @@ class CanvasSectionContainer {
 		This class should work also mouse & touch enabled (at the same time) devices. Users should be able to use both.
 	*/
 
-	private sections: Array<any> = new Array(0);
+	private sections: Array<CanvasSectionObject> = new Array(0);
+	private sectionsByName: Map<string, CanvasSectionObject> = new Map();
 	private canvas: HTMLCanvasElement;
 	private context: CanvasRenderingContext2D;
 	private width: number;
@@ -440,10 +441,9 @@ class CanvasSectionContainer {
 
 	public getSectionWithName (name: string): CanvasSectionObject {
 		if (name) {
-			for (var i: number = 0; i < this.sections.length; i++) {
-				if (this.sections[i].name === name) {
-					return this.sections[i];
-				}
+			var section: CanvasSectionObject = this.sectionsByName.get(name);
+			if (section) {
+				return section;
 			}
 			return null;
 		}
@@ -1676,30 +1676,28 @@ class CanvasSectionContainer {
 
 	private orderSections () {
 		// According to zIndex & processing order.
-		for (var i: number = 0; i < this.sections.length - 1; i++) {
-			for (var j = i + 1; j < this.sections.length; j++) {
-				if (this.sections[i].zIndex > this.sections[j].zIndex
-					|| (this.sections[i].zIndex === this.sections[j].zIndex && this.sections[i].processingOrder > this.sections[j].processingOrder)) {
-					var temp = this.sections[i];
-					this.sections[i] = this.sections[j];
-					this.sections[j] = temp;
-				}
-			}
+		function compareSections(a: any, b: any) {
+			var zIndexDiff = a.zIndex - b.zIndex;
+			if (zIndexDiff != 0)
+				return zIndexDiff;
+			return a.processingOrder - b.processingOrder;
 		}
+		this.sections.sort(compareSections);
 	}
 
 	public applyDrawingOrders () {
-		// According to drawing order. Section with the highest drawing order will be drawn on top (inside same zIndex).
-		for (var i: number = 0; i < this.sections.length - 1; i++) {
-			var zIndex = this.sections[i].zIndex;
-			for (var j: number = i + 1; j < this.sections.length && this.sections[j].zIndex === zIndex; j++) {
-				if (this.sections[i].drawingOrder > this.sections[j].drawingOrder) {
-					var temp = this.sections[j];
-					this.sections[j] = this.sections[i];
-					this.sections[i] = temp;
-				}
-			}
+		// According to zIndex, drawing order & processing order.
+		// Section with the highest drawing order will be drawn on top (inside same zIndex).
+		function compareSections(a: any, b: any) {
+			var zIndexDiff = a.zIndex - b.zIndex;
+			if (zIndexDiff != 0)
+				return zIndexDiff;
+			var drawingOrderDiff = a.drawingOrder - b.drawingOrder;
+			if (drawingOrderDiff != 0)
+				return drawingOrderDiff;
+			return a.processingOrder - b.processingOrder;
 		}
+		this.sections.sort(compareSections);
 	}
 
 	private drawSectionBorders () {
@@ -1787,12 +1785,7 @@ class CanvasSectionContainer {
 
 	public doesSectionExist (name: string): boolean {
 		if (name && typeof name === 'string') {
-			for (var i: number = 0; i < this.sections.length; i++) {
-				if (this.sections[i].name === name) {
-					return true;
-				}
-			}
-			return false;
+			return this.sectionsByName.has(name);
 		}
 		else {
 			return false;
@@ -1880,6 +1873,7 @@ class CanvasSectionContainer {
 		newSection.containerObject = this;
 		newSection.sectionProperties.section = newSection;
 		this.sections.push(newSection);
+		this.sectionsByName.set(newSection.name, newSection);
 		this.addSectionFunctions(newSection);
 		newSection.onInitialize();
 		if (this.drawingAllowed()) {
@@ -1897,6 +1891,7 @@ class CanvasSectionContainer {
 				if (element) // Remove test div if exists.
 					document.body.removeChild(element);
 				this.sections[i].onRemove();
+				this.sectionsByName.delete(name);
 				this.sections[i] = null;
 				this.sections.splice(i, 1);
 				found = true;

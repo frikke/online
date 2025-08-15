@@ -1027,32 +1027,21 @@ L.CalcTileLayer = L.CanvasTileLayer.extend({
 			});
 			for (var index in values.commentsPos) {
 				comment = values.commentsPos[index];
-				if (section)
-				{
-					var commentObject;
-					for (var i = 0; i < section.sectionProperties.commentList.length; i++) {
-						if (parseInt(section.sectionProperties.commentList[i].sectionProperties.data.id) === parseInt(comment.id)) {
-							if (parseInt(section.sectionProperties.commentList[i].sectionProperties.data.tab) === parseInt(comment.tab)) {
-								commentObject = section.sectionProperties.commentList[i];
-							} else {
-								// tabs can be moved around and we need to update the tab because the id is still valid.
-								commentObject = section.sectionProperties.commentList[i];
-								commentObject.sectionProperties.data.tab = comment.tab;
-							}
-							commentObject.valid = true;
-							break;
-						}
+				var commentObject = section.getComment(comment.id);
+				if (commentObject) {
+					if (commentObject.sectionProperties.data.tab !== comment.tab) {
+						// tabs can be moved around and we need to update the tab because the id is still valid.
+						commentObject.sectionProperties.data.tab = comment.tab;
 					}
-					if (commentObject) {
-						// turn cell range string into Bounds
-						commentObject.sectionProperties.data.cellRange = this._parseCellRange(comment.cellRange);
+					commentObject.valid = true;
 
-					}
+					// turn cell range string into Bounds
+					commentObject.sectionProperties.data.cellRange = this._parseCellRange(comment.cellRange);
+
 				}
 			}
 
-			if (section)
-				section.onCommentsDataUpdate();
+			section.onCommentsDataUpdate();
 
 		} else {
 			L.CanvasTileLayer.prototype._onCommandValuesMsg.call(this, textMsg);

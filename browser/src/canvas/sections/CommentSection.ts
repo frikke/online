@@ -42,7 +42,11 @@ export enum CommentLayoutStatus {
 }
 
 export class Comment extends CanvasSectionObject {
-	name: string = L.CSections.Comment.name;
+	// Cache the expensive to localize frequently created strings
+	static readonly editCommentLabel = _('Edit comment');
+	static readonly replyCommentLabel = _('Reply comment');
+	static readonly openMenuLabel = _('Open menu');
+
 	processingOrder: number = L.CSections.Comment.processingOrder;
 	drawingOrder: number = L.CSections.Comment.drawingOrder;
 	zIndex: number = L.CSections.Comment.zIndex;
@@ -56,8 +60,13 @@ export class Comment extends CanvasSectionObject {
 	hidden: boolean | null = null;
 
 	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-	constructor (data: any, options: any, commentListSectionPointer: cool.CommentSection) {
-		super();
+	public static makeName(data: any): string {
+		return data.id === 'new' ? 'new comment' : 'comment ' + data.id;
+	}
+
+	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+	constructor (name: string, data: any, options: any, commentListSectionPointer: cool.CommentSection) {
+		super(name);
 
 		this.myTopLeft = [0, 0];
 		this.documentObject = true;
@@ -133,8 +142,6 @@ export class Comment extends CanvasSectionObject {
 
 		this.sectionProperties.isHighlighted = false;
 
-		this.name = data.id === 'new' ? 'new comment': 'comment ' + data.id;
-
 		this.sectionProperties.commentContainerRemoved = false;
 		this.sectionProperties.children = []; // This is used for Writer comments. There is parent / child relationship between comments in Writer files.
 		this.sectionProperties.childLinesNode = null;
@@ -154,8 +161,14 @@ export class Comment extends CanvasSectionObject {
 		if (!this.pendingInit)
 			return;
 
-		if (!force && !this.convertRectanglesToViewCoordinates())
-			return;
+		if (!force) {
+			if (!this.convertRectanglesToViewCoordinates())
+				return;
+
+			// skip comments on other tabs than the current
+			if (app.map._docLayer._docType === 'spreadsheet' && parseInt(this.sectionProperties.data.tab) !== app.map._docLayer._selectedPart)
+				return;
+		}
 
 		var button = L.DomUtil.create('div', 'annotation-btns-container', this.sectionProperties.nodeModify);
 		L.DomEvent.on(this.sectionProperties.nodeModifyText, 'input', this.textAreaInput, this);
@@ -230,14 +243,14 @@ export class Comment extends CanvasSectionObject {
 		this.createReplyHint();
 		this.sectionProperties.nodeModifyText.setAttribute('contenteditable', 'true');
 		this.sectionProperties.nodeModifyText.setAttribute('role', 'textbox');
-		this.sectionProperties.nodeModifyText.setAttribute('aria-label', _('Edit comment'));
+		this.sectionProperties.nodeModifyText.setAttribute('aria-label', Comment.editCommentLabel);
 		this.sectionProperties.nodeModifyText.id = 'annotation-modify-textarea-' + this.sectionProperties.data.id;
 		this.sectionProperties.contentText = L.DomUtil.create('div', '', this.sectionProperties.contentNode);
 		this.sectionProperties.nodeReply = L.DomUtil.create('div', 'cool-annotation-edit' + ' reply-annotation', this.sectionProperties.wrapper);
 		this.sectionProperties.nodeReplyText = L.DomUtil.create('div', 'cool-annotation-textarea', this.sectionProperties.nodeReply);
 		this.sectionProperties.nodeReplyText.setAttribute('contenteditable', 'true');
 		this.sectionProperties.nodeReplyText.setAttribute('role', 'textbox');
-		this.sectionProperties.nodeReplyText.setAttribute('aria-label', _('Reply comment'));
+		this.sectionProperties.nodeReplyText.setAttribute('aria-label', Comment.replyCommentLabel);
 		this.sectionProperties.nodeReplyText.id = 'annotation-reply-textarea-' + this.sectionProperties.data.id;
 		this.createChildLinesNode();
 
@@ -247,6 +260,9 @@ export class Comment extends CanvasSectionObject {
 			this.createMarkerSubSection();
 
 		this.doPendingInitializationInView();
+
+		if (!(<any>window).mode.isMobile())
+			document.getElementById('document-container').appendChild(this.sectionProperties.container);
 	}
 
 	private createContainerAndWrapper (): void {
@@ -264,9 +280,6 @@ export class Comment extends CanvasSectionObject {
 		}
 
 		this.sectionProperties.wrapper.style.marginLeft = this.sectionProperties.childCommentOffset*this.getChildLevel() + 'px';
-
-		if (!(<any>window).mode.isMobile())
-			document.getElementById('document-container').appendChild(this.sectionProperties.container);
 
 		// We make comment directly visible when its transitioned to its determined position
 		if (cool.CommentSection.autoSavedComment)
@@ -315,9 +328,8 @@ export class Comment extends CanvasSectionObject {
 		this.sectionProperties.menu.tabIndex = 0;
 		this.sectionProperties.menu.onclick = this.menuOnMouseClick.bind(this);
 		this.sectionProperties.menu.onkeypress = this.menuOnKeyPress.bind(this);
-		var divMenuTooltipText = _('Open menu');
-		this.sectionProperties.menu.dataset.title = divMenuTooltipText;
-		this.sectionProperties.menu.setAttribute('aria-label', divMenuTooltipText);
+		this.sectionProperties.menu.dataset.title = Comment.openMenuLabel;
+		this.sectionProperties.menu.setAttribute('aria-label', Comment.openMenuLabel);
 		this.sectionProperties.menu.annotation = this;
 	}
 
