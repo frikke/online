@@ -1,11 +1,1 @@
-<?xml-stylesheet type="text/css" href="icons.css" ?>
-<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <path
-	 class="icn icn--shape-color" 
-     d="m2.5 2.5v14.25l9.5 4.75 9.5-4.75v-14.25z"
-     fill="#fafafa" 
-	 stroke="#3a3a38" 
-	 stroke-linecap="round" 
-	 stroke-linejoin="miter"
-     />
-</svg>
+<?xml-stylesheet type="text/css" href="icons.css" ?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#fafafa" stroke="#3a3a38" stroke-linecap="round" stroke-linejoin="miter" d="m2.5 2.5v14.25l9.5 4.75 9.5-4.75v-14.25z" class="icn icn--shape-color"/></svg>
